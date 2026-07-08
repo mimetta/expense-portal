@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { hasAnyRole } from "@/lib/permissions";
 
 // Reference data for the /submit form's Supplier/Payee picker. Any signed-in
-// @mimetta.co user can read it (same precedent as /api/categories); only
-// SUPERADMIN can create/edit/delete via Settings > Supplier Management.
+// @mimetta.co user can read it (same precedent as /api/categories) — GET
+// stays open even though Settings > Supplier Management (the mutation path)
+// is now also scoped to ACCOUNTING/PROCUREMENT alongside SUPERADMIN, since
+// restricting GET would break the Supplier/Payee picker for every ordinary
+// EMPLOYEE submitting a request.
 export async function GET() {
   try {
     await requireUser();
@@ -30,7 +33,7 @@ interface CreateSupplierBody {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    if (!hasAnyRole(user, ["SUPERADMIN", "ACCOUNTING", "PROCUREMENT"])) throw new ForbiddenError();
 
     const body = (await request.json()) as CreateSupplierBody;
     if (!body.name?.trim()) {

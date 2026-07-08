@@ -9,6 +9,10 @@ export function hasRole(user: CurrentUser, role: Role): boolean {
   return user.allRoles.some((r) => r.role === role);
 }
 
+export function hasAnyRole(user: CurrentUser, roles: Role[]): boolean {
+  return roles.some((role) => hasRole(user, role));
+}
+
 export function isSuperadmin(user: CurrentUser): boolean {
   return hasRole(user, "SUPERADMIN");
 }
@@ -51,9 +55,50 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
     case "dashboard":
       return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING");
     case "settings":
-      // isSuperadmin(user) already returned true above; anyone else is denied.
-      return false;
+      // Visible to every role except a pure EMPLOYEE (or a user with no
+      // roles at all, though auto-registration means that's now transient
+      // — see lib/auth.ts). Which *tabs* they see once there is a separate,
+      // finer-grained question — see canAccessSettingsTab below.
+      return user.allRoles.some((r) => r.role !== "EMPLOYEE");
   }
+}
+
+// --- Settings tab permissions ---------------------------------------------
+
+export type SettingsTab = "suppliers" | "users" | "products" | "categories" | "deptconfig" | "announcements";
+
+export const SETTINGS_TABS: SettingsTab[] = [
+  "suppliers",
+  "users",
+  "products",
+  "categories",
+  "deptconfig",
+  "announcements",
+];
+
+// SUPERADMIN is deliberately omitted from each list — canAccessSettingsTab
+// grants it unconditionally below, same convention as canAccessPage.
+const SETTINGS_TAB_ROLES: Record<SettingsTab, Role[]> = {
+  suppliers: ["ACCOUNTING", "PROCUREMENT"],
+  users: [],
+  products: ["PROCUREMENT"],
+  categories: [],
+  deptconfig: ["CEO"],
+  announcements: ["CEO"],
+};
+
+export function canAccessSettingsTab(user: CurrentUser, tab: SettingsTab): boolean {
+  if (isSuperadmin(user)) return true;
+  return hasAnyRole(user, SETTINGS_TAB_ROLES[tab]);
+}
+
+// First tab (in SETTINGS_TABS order) this user can actually see — used to
+// redirect away from a tab they don't have permission for. null means they
+// can access /settings at all (canAccessPage) but hold no role that grants
+// any individual tab (e.g. a BO-only user — BO isn't listed for any tab
+// above; the page shows an empty state rather than looping on a redirect).
+export function firstAccessibleSettingsTab(user: CurrentUser): SettingsTab | null {
+  return SETTINGS_TABS.find((tab) => canAccessSettingsTab(user, tab)) ?? null;
 }
 
 // --- BO scope matching ---------------------------------------------------

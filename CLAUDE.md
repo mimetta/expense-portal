@@ -24,12 +24,15 @@ Only `@mimetta.co` accounts may sign in. Enforced twice:
    (`isAllowedDomain()` in `lib/domain.ts`) — signs out and redirects to
    `/auth/auth-error?reason=domain` if the authenticated email isn't `@mimetta.co`.
 
-The one-time CSV migration script (not included in this repo — run manually against the
-Supabase database) must find-and-replace `@coroand.co` → `@mimetta.co` in every email column:
-`roles.email`, `requests.requester_email/bo_approver/ceo_approver/accounting_user/
-po_uploaded_by/rejected_by`, `audit_log.actor_email`, `dept_config.bo_email`. Preserve all
-`request_id` values exactly (`EXP-YYYY-MM-NNNNNN`). Historical data is migrated as live,
-editable records — not read-only archives.
+The one-time migration script that finds-and-replaces `@coroand.co` → `@mimetta.co` in every
+email column (`roles.email`, `requests.requester_email/bo_approver/ceo_approver/
+accounting_user/po_uploaded_by/rejected_by`, `audit_log.actor_email`, `dept_config.bo_email`)
+is now `scripts/migrate-from-sheets.ts` — see "Legacy data migration script" below. Earlier
+revisions of this doc said this script was "not included in this repo, run manually" — that
+was true before this script existed; it's now a real, checked-in, dry-run-by-default script
+covering the same email swap plus department/category name normalization. Preserve all
+`request_id` values exactly (`EXP-YYYY-MM-NNNNNN`) — the script never touches that column.
+Historical data is migrated as live, editable records — not read-only archives.
 
 ---
 
@@ -72,11 +75,55 @@ inferred and should be revisited if wrong:
   incur expenses).
 - `/dashboard` is granted to `SUPERADMIN`, `CEO`, and `ACCOUNTING` (finance-facing roles) —
   not explicitly listed in the roles table, but the natural reading of a "budget dashboard."
+- `/settings` is granted to every role **except** a pure `EMPLOYEE` (see "Settings tab
+  permissions" below for which of its six tabs each role actually sees once inside).
 - See `canAccessPage()` in `lib/permissions.ts` to adjust.
 
 Page access is enforced twice: server-side redirect in each gated page's `page.tsx`
 (`getCurrentUser` + `canAccessPage`, redirects to `/login` or `/`), and again in every API
 route handler (the actual security boundary — pages are just UX).
+
+### Auto-registration for new @mimetta.co users
+
+`lib/auth.ts#getCurrentUser()` used to return a `CurrentUser` with an empty `allRoles` array
+for anyone signed in but never added to `roles` — authenticated, but with access to nothing
+beyond Submit/My Requests being *possible* to reach (nothing gated any further ever matched).
+It now auto-registers them instead: if the `roles` query for their email comes back empty (and
+they've already passed the `@mimetta.co` domain check above — a non-`@mimetta.co` account is
+rejected before this ever runs, via the existing `isAllowedDomain` gate), it `.upsert()`s
+`{ email, role: 'EMPLOYEE', bu_scope: '*', dept_scope: '*', cat_l1_scope: '*',
+is_auto_registered: true }` and logs `AUTO_REGISTERED`. Upsert (against the table's existing
+unique constraint on `(email, role, bu_scope, dept_scope, cat_l1_scope)`) rather than a plain
+insert, since a first-ever page load typically fires several parallel `requireUser()` calls at
+once (the page itself plus its client-side fetches) that would otherwise race to insert
+simultaneously — on conflict this just re-writes the identical row and returns it.
+
+`roles.is_auto_registered` (new column, `supabase/migrations/007_roles_update.sql`) is how the
+rest of the app knows this happened: `components/Nav.tsx` shows a dismissible yellow banner
+("⚠️ บัญชีของคุณยังไม่ได้รับการกำหนดสิทธิ์ กรุณาติดต่อ Admin เพื่อขอสิทธิ์การใช้งาน" —
+`#FEF3C7`/`#F59E0B`/`#92400E`) on every page whenever any of the signed-in user's roles rows
+has it set. It clears the moment an admin actually touches that row: `PATCH
+/api/roles/[id]` unconditionally forces `is_auto_registered: false` into every update,
+whether that's a superadmin editing fields on purpose or clicking "Assign Role" from the
+Pending Users section below (same edit modal, same endpoint) — either way, an admin having
+looked at the row is exactly the condition that should make the banner go away.
+
+Settings > User Management surfaces these for admin attention via a **separate, and
+deliberately different, "pending" definition**: `role = EMPLOYEE AND created_at is within the
+last 7 days AND this is the user's only roles row` (`getPendingUsers()` in
+`settingsClient.tsx`) — not `is_auto_registered`. The two conditions usually coincide but
+aren't the same thing: this one is time-windowed (so an unaddressed row eventually drops off
+the "New" badge/Pending Users section on its own after a week, rather than nagging forever)
+and doesn't care how the row was created, whereas `is_auto_registered` is permanent-until-
+edited and specifically means "this exact row was auto-created." Each is used for the UI it
+fits: the row-scoped `is_auto_registered` flag for "does *this* signed-in user need the
+yellow reminder", the time/count-scoped definition for "which users does *an admin* still
+need to look at."
+
+`roles.created_at` was already a column (`001_initial_schema.sql`, `not null default now()`)
+— migration 007's `ADD COLUMN IF NOT EXISTS created_at ...` is a harmless no-op, kept only so
+the migration file is self-contained if it's ever the first one applied against a from-scratch
+database.
 
 ---
 
@@ -570,9 +617,11 @@ for the same department now read from the same table again.
 
 ## Settings & Reference Data
 
-`/settings` (SUPERADMIN only) manages six tabs. The first four are reference tables that feed
-pickers elsewhere in the app; the last two (CEO Signature Rules, Announcements) are
-admin-only configuration with no submit-form picker counterpart:
+`/settings` manages six tabs, each independently role-gated (see "Settings tab permissions"
+below) — no longer SUPERADMIN-only for the page itself, though SUPERADMIN can still see and
+edit every tab. The first four are reference tables that feed pickers elsewhere in the app;
+the last two (CEO Signature Rules, Announcements) are admin-only configuration with no
+submit-form picker counterpart:
 
 - **Suppliers** (`suppliers` table, `/api/suppliers`) — the `/submit` Supplier/Payee dropdown
   selects by `name` (there's no `supplier_id` FK on `requests`, consistent with the existing
@@ -630,13 +679,15 @@ admin-only configuration with no submit-form picker counterpart:
   POST alongside the original GET, plus `/api/dept-config/[id]` for PATCH/DELETE) — Settings
   > CEO Signature Rules edits the same table that drives `skip_bo`/`skip_ceo`/CEO-signature
   matching (see "DeptConfig Matching" above). Unlike suppliers/products/categories, **this
-  endpoint stays SUPERADMIN-only for GET too** — exposing approval thresholds and BO emails
-  more broadly would leak sensitive approval-routing rules to regular staff, unlike the other
-  reference tables which are harmless to read.
+  endpoint stays restricted for GET too** (now SUPERADMIN + CEO, was SUPERADMIN-only) —
+  exposing approval thresholds and BO emails more broadly would leak sensitive approval-routing
+  rules to regular staff, unlike the other reference tables which are harmless to read. CEO
+  needs GET now too, not just the mutation verbs, since the tab has to actually load the
+  existing rules before a CEO can edit them.
 - **Announcements** (`announcements` table, new in `supabase/migrations/005_homepage_settings.sql`,
   `/api/announcements` + `/api/announcements/[id]`) — Settings > Announcements manages the
   homepage's pinned/unpinned announcement feed. `GET` defaults to active-only, pinned-first;
-  `?all=1` (SUPERADMIN only) also returns inactive rows for the management table. Deleting is
+  `?all=1` (SUPERADMIN + CEO) also returns inactive rows for the management table. Deleting is
   a hard delete; "Deactivate" (`is_active: false` via PATCH) is the soft alternative, used to
   retire an announcement without losing its history. `attachment_url`/`attachment_type`
   (`supabase/migrations/006_announcement_attachments.sql`) hold an optional base64 jpg/png/
@@ -645,9 +696,55 @@ admin-only configuration with no submit-form picker counterpart:
   for **everyone**, not just when someone opens one specific request). Rendered on the
   homepage as an `<img>` for images, a "View attached document" link for PDFs.
 
-All GET endpoints above (except CEO Signature Rules) are readable by any signed-in
-`@mimetta.co` user (same precedent as the original `/api/categories`); mutations
-(POST/PATCH/DELETE) are SUPERADMIN-only everywhere.
+**Mutation permissions** (POST/PATCH/DELETE) per table, since a later spec scoped these
+per-role instead of SUPERADMIN-only everywhere: Suppliers → SUPERADMIN/ACCOUNTING/PROCUREMENT;
+Products → SUPERADMIN/PROCUREMENT; Categories → SUPERADMIN only (unchanged); dept_config →
+SUPERADMIN/CEO; Announcements → SUPERADMIN/CEO; roles (Users tab) → SUPERADMIN only
+(unchanged). **GET stays open to every signed-in user for suppliers, products, categories, and
+roles regardless of the mutation scoping above** — the literal spec for this batch said to
+restrict GET on all four to the same narrower role sets as their mutations, but that would have
+broken `/submit`'s Supplier/Payee picker, Product Code picker, Cat L1/L2 pickers, and Slip
+Payment Receiver dropdown for every ordinary EMPLOYEE (all four already fed those pickers for
+every signed-in user before this batch, and nothing in the spec asked to take that away).
+Applied literally only where GET was already restricted before this batch (`dept_config` — see
+above — and `announcements`'s `?all=1`), where widening it, not narrowing it, was what was
+actually asked for.
+
+### Settings tab permissions
+
+Which of the six tabs a given role sees, in addition to page-level access (any role except a
+pure `EMPLOYEE` — see "Roles & Permissions" above):
+
+| Tab | Roles allowed (SUPERADMIN always included) |
+|---|---|
+| Supplier Management | ACCOUNTING, PROCUREMENT |
+| User Management | *(SUPERADMIN only)* |
+| Product/SKU Management | PROCUREMENT |
+| Category L1/L2 Management | *(SUPERADMIN only)* |
+| CEO Signature Rules | CEO |
+| Announcements | CEO |
+
+`lib/permissions.ts#SETTINGS_TAB_ROLES`/`canAccessSettingsTab`/`firstAccessibleSettingsTab` are
+the single source of truth for this — `settingsClient.tsx`'s tab bar filters against it
+client-side, and every corresponding API route enforces the same roles server-side (the actual
+boundary; see "Mutation permissions" above). **A BO-only user passes the page-level check
+(BO ≠ EMPLOYEE) but matches zero tabs in the table above** — BO isn't listed anywhere in it, so
+Settings shows up in their nav but leads to an empty state ("You don't have access to any
+Settings section..."). This is a direct, literal consequence of the spec's own two rules taken
+together ("visible to all roles except EMPLOYEE" + the tab table above never mentioning BO) —
+flagged here rather than quietly special-cased, in case a BO-reachable tab was actually
+intended and just missing from the table.
+
+**Tab URLs**: `/settings?tab=<key>` — reading the initial tab from the URL, and rewriting the
+URL on every tab switch, uses the browser's History API directly (`window.history.replaceState`)
+rather than `next/navigation`'s router. A router-driven update would re-run the server-side
+`page.tsx` guard (a full round trip) on every single tab click for no benefit; all that's
+actually needed is for the address bar to reflect the current tab (bookmarking, sharing,
+back-button) and for a direct link to an unauthorized tab to redirect to the first tab the
+visitor can actually access (`firstAccessibleSettingsTab`) — both achieved without a Next.js
+navigation. `useSearchParams()` (needed to read `?tab=` on first load) requires a Suspense
+boundary in the App Router; `SettingsClient` is a thin wrapper providing one around the actual
+`SettingsClientInner`.
 
 ### Department picker (dynamic, not hardcoded)
 
@@ -690,14 +787,30 @@ the Supplier/Payee and Product Code pickers), `requests.account_no` and
 `'EXPIRED'`. `supabase/migrations/005_homepage_settings.sql` adds `announcements` (feeding the
 homepage) plus a seed welcome row. `supabase/migrations/006_announcement_attachments.sql`
 adds `announcements.attachment_url`/`attachment_type` (see "Announcements — photo/file
-attachments" below).
+attachments" below). `supabase/migrations/007_roles_update.sql` adds
+`roles.is_auto_registered` (see "Auto-registration for new @mimetta.co users" above) —
+numbered 007, not 006 as originally requested, since 006 was already taken this session by
+`006_announcement_attachments.sql`.
 
-**Migrations 005 and 006 have not been applied to the live database as of this writing**
-(confirmed live — `GET .../announcements` 404s with `PGRST205`) — same constraint as before,
-the agent environment has no `SUPABASE_ACCESS_TOKEN`/linked project (`supabase login`/
-`db push` both fail), only the DML-capable service-role REST key. Apply both manually
-(Supabase SQL editor, or `supabase db push` with real credentials) before Settings >
-Announcements or the homepage's Announcements section will work end-to-end.
+**Migrations 005, 006, and 007 have not been applied to the live database as of this
+writing** (005/006 confirmed live — `GET .../announcements` 404s with `PGRST205`; 007
+confirmed live — `GET .../roles?select=is_auto_registered` 42703s "column does not exist") —
+same constraint as before, the agent environment has no `SUPABASE_ACCESS_TOKEN`/linked project
+(`supabase login`/`db push` both fail), only the DML-capable service-role REST key. Apply all
+three manually (Supabase SQL editor, or `supabase db push` with real credentials).
+
+**Unlike 005/006, shipping 007 unapplied does not break anything** — `lib/auth.ts#getCurrentUser`,
+`GET /api/roles`, and `PATCH /api/roles/[id]` all catch Postgrest's `42703` ("column does not
+exist") specifically and fall back to the pre-007 column set, so sign-in and role management
+keep working exactly as before this batch. Auto-registration, the yellow "not yet assigned"
+banner, and the User Management "New" badge/Pending Users section simply stay inactive (no
+errors, just absent) until 007 is actually applied — at which point they activate automatically
+the next time each of those falls through to the primary (non-fallback) query path, with no
+further code changes needed. This was deliberate: this batch's code depends on a schema change
+this environment cannot apply itself, and Vercel auto-deploys from every push (per this batch's
+own instructions) — shipping code that hard-required the new column, with no way to guarantee
+which lands first (the deploy or someone manually running the migration), would have meant a
+real window where every sign-in in production 500s.
 
 **Access model:** every table has RLS enabled with no policies granted to `anon`/
 `authenticated` — default deny. All application reads/writes go through Next.js API routes
@@ -731,7 +844,7 @@ more conservative reading. See `app/api/dashboard/budget/route.ts`.
 | `/ceo-approvals` | Row click opens `RequestDetailModal` — same Approve/Reject/**Unapprove** pattern as BO Approvals, restricted to the CEO who approved it (or SUPERADMIN). Signed/needs-signature file badges + a signature-required banner are unconditional now (see "Request Detail Modal" below), not scoped to this page anymore. Tabs: Pending / Needs Signature / All. |
 | `/accounting` | Row click opens `RequestDetailModal` with Mark Paid/Unpaid + **Reject** (added — see "Rejection & Resubmit"). Shows a Slip Receiver column. |
 | `/dashboard` | Budget vs. actual, monthly trend, revenue overlay. |
-| `/settings` | SUPERADMIN only. Six tabs: Supplier Management, User Management, Product/SKU Management, Category L1/L2 Management, CEO Signature Rules (`dept_config`), Announcements. |
+| `/settings` | Any role except a pure EMPLOYEE (was SUPERADMIN only). Six tabs, each independently role-gated — see "Settings tab permissions" below; SUPERADMIN sees all six. User Management gets a "New (X)" badge + Pending Users section for auto-registered accounts awaiting a real role. |
 
 Each role-gated page (`procurement`, `bo-approvals`, `ceo-approvals`, `accounting`,
 `dashboard`, `settings`) is a thin server component (`page.tsx`) that checks `canAccessPage`
@@ -855,6 +968,53 @@ Colors: brown `#9F8361`, cream `#FEFEE9`, border `#DFD5BC`, dark `#1E1E1E`
 
 ---
 
+## Legacy data migration script
+
+`scripts/migrate-from-sheets.ts` — plain Node script (`npx tsx scripts/migrate-from-sheets.ts`,
+or `npm run migrate:sheets`), not part of the Next.js app itself, run manually against the live
+database. **Dry-run by default** (reports what it would change, writes nothing); `--apply`
+actually writes. Loads `NEXT_PUBLIC_SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` from `.env.local`
+itself (a hand-rolled parser, no `dotenv` dependency — Next.js's own env loading doesn't apply
+outside the Next.js process).
+
+Two normalization maps, applied to every relevant column:
+- `DEPARTMENT_NAME_MAP` / `normalizeDepartment()` → `requests.department`, `roles.dept_scope`
+  (comma-separated, normalized per entry then rejoined — `*` passes through untouched),
+  `dept_config.dept` (same `*` exception for the fallback row), `categories.department`.
+- `CATEGORY_NAME_MAP` / `normalizeCategory()` → `requests.cat_l1`, `requests.items_json[].cat_l1`,
+  `roles.cat_l1_scope` (same comma-separated handling).
+- Plus the `@coroand.co` → `@mimetta.co` email swap (see "Email Domain Migration" above) across
+  `roles.email`, the six `requests` email columns, `dept_config.bo_email`, and
+  `audit_log.actor_email`.
+
+Every table is diffed row-by-row (only rows that actually change get written, so re-running is
+always a no-op the second time) and the run ends with a report of every department/category
+value that matched neither map — worth checking after every run, since an unmatched value is
+silently left as-is rather than guessed at.
+
+**⚠️ `DEPARTMENT_NAME_MAP`'s target values, as specified, don't match this app's real
+department names — do not run with `--apply` until this is resolved.** A dry run against the
+live database (verifying the script itself works, not that its data is safe to write) surfaced
+this concretely: `DEPARTMENT_NAME_MAP` maps several old names to suffixed forms like
+`"General Administrative (GA)"` / `"Operations/Fulfillment (OPF)"` / `"Factory Investment
+(FACINV)"` / `"Store Investment (STOREINV)"` — but the `"(ABBREV)"` suffix is a UI-only display
+label (`lib/constants.ts#DEPARTMENT_ABBREV`, appended client-side in dropdowns) that is never
+part of the actual stored `department` value (see `lib/constants.ts#DEPARTMENTS` for the real,
+unsuffixed canonical list). The live dry run found 60 `categories` rows and 2 `requests` rows
+that already correctly hold the plain, unsuffixed form — `--apply` as currently written would
+rename them to the suffixed form, which would then silently fail every exact-string-equality
+match against `DEPARTMENTS`, `dept_config.dept`, and BO `dept_scope` for those rows (see
+"DeptConfig Matching" and "BO Scope Filtering" above) — i.e. it would reintroduce, for four
+more departments, the exact class of bug an earlier fix already cleaned up once for
+`"Marketing (MKT)"` → `"Marketing"` (see the Category L1/L2 Management bullet under "Settings &
+Reference Data" above). The map was kept exactly as specified in the source spec rather than
+silently "corrected", since it's not certain which side is wrong (maybe `DEPARTMENTS` itself is
+supposed to change) — but it needs a decision before `--apply` is ever used. The live dry run
+also found 3 department values and 15 category values matching neither map at all (unmatched,
+left as-is); rerun the script to see the current list, since live data continues to change.
+
+---
+
 ## Environment Variables
 
 See `.env.local.example`. Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
@@ -870,7 +1030,7 @@ cron; same env var name, different job).
 - Surgical edits preferred — minimal changes, never rewrite whole files.
 - Thai language strings — preserve exact Thai text, never translate or reword.
 - Multi-role users: always check `user.allRoles`, never a single "primary" role
-  (`hasRole`/`rolesOf` in `lib/permissions.ts`).
+  (`hasRole`/`hasAnyRole`/`rolesOf` in `lib/permissions.ts`).
 - DeptConfig score-based matching is computed in the application layer (`lib/permissions.ts`),
   not in SQL — call sites load the full `dept_config` table and match in JS.
 - Status transitions and permission checks are centralized in `lib/status.ts` and

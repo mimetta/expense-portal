@@ -2,18 +2,18 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { hasAnyRole } from "@/lib/permissions";
 
 // Homepage announcements. Any signed-in user reads only active ones,
-// pinned first then newest; SUPERADMIN manages the full list via Settings
-// > Announcements (which passes ?all=1 to also see inactive rows).
+// pinned first then newest; SUPERADMIN/CEO manage the full list via
+// Settings > Announcements (which passes ?all=1 to also see inactive rows).
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const wantsAll = searchParams.get("all") === "1";
 
-    if (wantsAll && !isSuperadmin(user)) throw new ForbiddenError();
+    if (wantsAll && !hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
 
     const admin = createAdminClient();
     let query = admin
@@ -54,7 +54,7 @@ function attachmentTooLarge(dataUrl: string | undefined): boolean {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
 
     const body = (await request.json()) as CreateAnnouncementBody;
     if (!body.title?.trim()) {

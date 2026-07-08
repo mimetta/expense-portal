@@ -1,20 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import RequiredMark from "@/components/shared/RequiredMark";
 import { BANK_OPTIONS, BUSINESS_UNITS, DEPARTMENTS, PAYMENT_METHODS, ROLES, type Role } from "@/lib/constants";
-import type { AnnouncementRow, CategoryRow, DeptConfigRow, ProductRow, RoleRow, SupplierRow } from "@/types/database";
+import { canAccessSettingsTab, firstAccessibleSettingsTab, SETTINGS_TABS, type SettingsTab } from "@/lib/permissions";
+import type {
+  AnnouncementRow,
+  CategoryRow,
+  CurrentUser,
+  DeptConfigRow,
+  ProductRow,
+  RoleRow,
+  SupplierRow,
+} from "@/types/database";
 
-type Tab = "suppliers" | "users" | "products" | "categories" | "deptconfig" | "announcements";
+type Tab = SettingsTab;
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "suppliers", label: "Supplier Management" },
-  { key: "users", label: "User Management" },
-  { key: "products", label: "Product/SKU Management" },
-  { key: "categories", label: "Category L1/L2 Management" },
-  { key: "deptconfig", label: "CEO Signature Rules" },
-  { key: "announcements", label: "Announcements" },
-];
+const TAB_LABELS: Record<Tab, string> = {
+  suppliers: "Supplier Management",
+  users: "User Management",
+  products: "Product/SKU Management",
+  categories: "Category L1/L2 Management",
+  deptconfig: "CEO Signature Rules",
+  announcements: "Announcements",
+};
+
+// Order/membership comes from lib/permissions.ts#SETTINGS_TABS — the same
+// list the server-side permission checks are built from — rather than a
+// second, independently-maintained array here.
+const TABS: { key: Tab; label: string }[] = SETTINGS_TABS.map((key) => ({ key, label: TAB_LABELS[key] }));
+
+// "Pending" per spec: role = EMPLOYEE, created within the last 7 days, and
+// this is the user's *only* roles row (i.e. nobody has added a second role
+// for them, which would mean someone already looked at their access).
+// Shared by the tab badge count (a lightweight roles fetch in
+// SettingsClient below) and the Pending Users section inside UserTab
+// (which already loads the full roles list for its own table).
+const PENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function getPendingUsers(roles: RoleRow[]): RoleRow[] {
+  const rowCountByEmail = new Map<string, number>();
+  for (const r of roles) {
+    rowCountByEmail.set(r.email, (rowCountByEmail.get(r.email) ?? 0) + 1);
+  }
+  return roles.filter(
+    (r) =>
+      r.role === "EMPLOYEE" &&
+      rowCountByEmail.get(r.email) === 1 &&
+      !!r.created_at &&
+      Date.now() - new Date(r.created_at).getTime() < PENDING_WINDOW_MS,
+  );
+}
 
 const inputClass =
   "rounded-md border border-brand-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown";
@@ -50,17 +87,94 @@ function Modal({
   );
 }
 
+// useSearchParams() requires a Suspense boundary in the App Router — the
+// actual logic lives in SettingsClientInner below.
 export default function SettingsClient() {
-  const [tab, setTab] = useState<Tab>("suppliers");
+  return (
+    <Suspense fallback={<p className="text-sm text-brand-dark/60">Loading...</p>}>
+      <SettingsClientInner />
+    </Suspense>
+  );
+}
+
+function SettingsClientInner() {
+  const searchParams = useSearchParams();
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+  const [tab, setTabState] = useState<Tab | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/roles/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) setCurrentUser(data.user as CurrentUser);
+      })
+      .finally(() => setUserLoading(false));
+  }, []);
+
+  const visibleTabs = useMemo(
+    () => (currentUser ? TABS.filter((t) => canAccessSettingsTab(currentUser, t.key)) : []),
+    [currentUser],
+  );
+
+  // Resolve the active tab once we know who's asking: honor ?tab= from the
+  // URL if it's a real tab this user can access; otherwise fall back to
+  // (and rewrite the URL to) their first accessible tab. Uses the History
+  // API directly rather than router.push/replace — a Next.js navigation
+  // here would re-run the server-side page.tsx guard on every tab switch
+  // for no benefit, when all this needs is the address bar to reflect the
+  // current tab for bookmarking/sharing/back-button.
+  useEffect(() => {
+    if (!currentUser) return;
+    const requested = searchParams.get("tab") as Tab | null;
+    const requestedIsValid = !!requested && canAccessSettingsTab(currentUser, requested);
+    const resolved = requestedIsValid ? (requested as Tab) : firstAccessibleSettingsTab(currentUser);
+    setTabState(resolved);
+    if (resolved && resolved !== requested) {
+      window.history.replaceState(null, "", `/settings?tab=${resolved}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
+  // Lightweight, badge-only roles fetch — independent of UserTab's own
+  // fetch for its table, so the "New (X)" count is visible on the tab
+  // button regardless of which tab is currently open.
+  useEffect(() => {
+    if (!currentUser || !canAccessSettingsTab(currentUser, "users")) return;
+    fetch("/api/roles")
+      .then((res) => res.json())
+      .then((data) => setPendingCount(getPendingUsers(data.roles ?? []).length));
+  }, [currentUser]);
+
+  const selectTab = (key: Tab) => {
+    setTabState(key);
+    window.history.replaceState(null, "", `/settings?tab=${key}`);
+  };
+
+  if (userLoading) {
+    return <p className="text-sm text-brand-dark/60">Loading...</p>;
+  }
+
+  if (!currentUser || visibleTabs.length === 0) {
+    return (
+      <div>
+        <h1 className="mb-4 text-2xl font-semibold text-brand-dark">Settings</h1>
+        <p className="text-sm text-brand-dark/60">
+          You don&apos;t have access to any Settings section. Contact an admin if you need access.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
       <h1 className="mb-4 text-2xl font-semibold text-brand-dark">Settings</h1>
       <div className="mb-4 flex gap-2">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => selectTab(t.key)}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               tab === t.key
                 ? "bg-brand-brown text-white"
@@ -68,6 +182,11 @@ export default function SettingsClient() {
             }`}
           >
             {t.label}
+            {t.key === "users" && pendingCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-xs font-semibold text-white">
+                New ({pendingCount})
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -394,8 +513,28 @@ function UserTab() {
     }
   };
 
+  const pendingUsers = useMemo(() => getPendingUsers(roles), [roles]);
+
   return (
     <div>
+      {pendingUsers.length > 0 && (
+        <div className="mb-4 rounded-md border p-3" style={{ background: "#FEF3C7", borderColor: "#F59E0B" }}>
+          <h3 className="mb-2 text-sm font-semibold" style={{ color: "#92400E" }}>
+            Pending Users ({pendingUsers.length})
+          </h3>
+          <ul className="space-y-1.5">
+            {pendingUsers.map((r) => (
+              <li key={r.id} className="flex items-center justify-between text-sm">
+                <span className="text-brand-dark">{r.email}</span>
+                <button onClick={() => openEdit(r)} className="font-medium text-brand-brown hover:underline">
+                  Assign Role
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="mb-3 flex justify-end">
         <button onClick={openAdd} className={buttonPrimary}>
           + Add User

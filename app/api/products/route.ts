@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { hasAnyRole } from "@/lib/permissions";
 
 // Reference data for the /submit form's Product Code picker. Any signed-in
-// @mimetta.co user can read it; only SUPERADMIN can create/edit/delete via
-// Settings > Product/SKU Management.
+// @mimetta.co user can read it — GET stays open even though the mutation
+// path (Settings > Product/SKU Management) is scoped to SUPERADMIN +
+// PROCUREMENT, since restricting GET would break the picker for every
+// ordinary EMPLOYEE submitting a request.
 export async function GET() {
   try {
     await requireUser();
@@ -29,7 +31,7 @@ interface CreateProductBody {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    if (!hasAnyRole(user, ["SUPERADMIN", "PROCUREMENT"])) throw new ForbiddenError();
 
     const body = (await request.json()) as CreateProductBody;
     if (!body.product_name?.trim()) {

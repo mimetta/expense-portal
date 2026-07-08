@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { hasAnyRole } from "@/lib/permissions";
 
 interface UpdateAnnouncementBody {
   title?: string;
@@ -21,7 +21,7 @@ export async function PATCH(
 ) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
 
     const { id } = await params;
     const body = (await request.json()) as UpdateAnnouncementBody;
@@ -50,7 +50,7 @@ export async function DELETE(
 ) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
 
     const { id } = await params;
     const admin = createAdminClient();

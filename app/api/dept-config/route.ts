@@ -2,14 +2,18 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { hasAnyRole } from "@/lib/permissions";
 
-// SUPERADMIN-only: dept_config drives skip_bo/skip_ceo/CEO-signature rules,
-// so exposing it more broadly would leak approval thresholds to staff.
+// SUPERADMIN + CEO only: dept_config drives skip_bo/skip_ceo/CEO-signature
+// rules, so exposing it more broadly would leak approval thresholds to
+// staff. GET is restricted too (not just mutations) for the same reason —
+// unlike suppliers/products/categories, nothing outside Settings needs to
+// read this table, so there's no submit-form picker to keep open for
+// everyone the way there is for those.
 export async function GET() {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
 
     const admin = createAdminClient();
     const { data, error } = await admin.from("dept_config").select("*");
@@ -34,7 +38,7 @@ interface DeptConfigInput {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
 
     const body = (await request.json()) as DeptConfigInput;
     if (!body.dept?.trim()) {

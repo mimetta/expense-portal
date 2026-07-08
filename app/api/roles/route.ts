@@ -16,9 +16,25 @@ export async function GET() {
     const admin = createAdminClient();
     const { data, error } = await admin
       .from("roles")
-      .select("id, email, role, bu_scope, dept_scope, cat_l1_scope")
+      .select("id, email, role, bu_scope, dept_scope, cat_l1_scope, created_at, is_auto_registered")
       .order("email");
-    if (error) throw error;
+    if (error) {
+      // Same "migration 007 not applied yet" fallback as lib/auth.ts —
+      // this endpoint feeds the Slip Payment Receiver picker on
+      // /submit/etc., not just Settings > User Management, so it needs to
+      // degrade the same way rather than 500ing app-wide.
+      if (error.code === "42703") {
+        const fallback = await admin
+          .from("roles")
+          .select("id, email, role, bu_scope, dept_scope, cat_l1_scope")
+          .order("email");
+        if (fallback.error) throw fallback.error;
+        return NextResponse.json({
+          roles: (fallback.data ?? []).map((r) => ({ ...r, created_at: "", is_auto_registered: false })),
+        });
+      }
+      throw error;
+    }
     return NextResponse.json({ roles: data ?? [] });
   } catch (err) {
     return handleApiError(err);

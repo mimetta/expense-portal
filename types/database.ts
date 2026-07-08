@@ -101,6 +101,8 @@ export interface RoleRow {
   bu_scope: string;
   dept_scope: string;
   cat_l1_scope: string;
+  created_at: string;
+  is_auto_registered: boolean;
 }
 
 export interface DeptConfigRow {
