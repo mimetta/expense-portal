@@ -213,7 +213,7 @@ export default function MyRequestsPage() {
                     setEditing(selected);
                     setSelected(null);
                   }}
-                  className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                  className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:bg-brand-accent"
                 >
                   Edit &amp; Resubmit
                 </button>

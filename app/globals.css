@@ -3,14 +3,17 @@
 @tailwind utilities;
 
 :root {
-  --background: #FEFEE9;
-  --foreground: #1E1E1E;
+  --background: #EDE6D8;
+  --foreground: #1A1A1A;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Actual font comes from next/font (see app/layout.tsx) via the
+     `font-sans` utility class on <body> — DM Sans, falling back to Noto
+     Sans Thai for Thai text. This is just the pre-font-load fallback. */
+  font-family: "DM Sans", "Noto Sans Thai", sans-serif;
 }
 
 @layer utilities {

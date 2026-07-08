@@ -207,7 +207,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
     if (!canvas || !ctx) return;
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#1E1E1E";
+    ctx.strokeStyle = "#1A1A1A";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -538,7 +538,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           type="button"
           disabled={Object.keys(placedSignatures).length === 0 || saving}
           onClick={handleSaveSignedPdf}
-          className="rounded-md bg-brand-brown px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+          className="rounded-md bg-brand-brown px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-40"
         >
           {saving ? "Saving..." : "Save Signed PDF"}
         </button>

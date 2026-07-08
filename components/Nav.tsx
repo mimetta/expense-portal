@@ -69,7 +69,7 @@ export default function Nav() {
                   className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
                     active
                       ? "bg-brand-brown text-white"
-                      : "text-brand-dark hover:bg-brand-cream"
+                      : "text-brand-dark hover:bg-brand-border"
                   }`}
                 >
                   {link.label}
@@ -81,7 +81,7 @@ export default function Nav() {
             <span>{data.user.email}</span>
             <button
               onClick={handleSignOut}
-              className="rounded-md border border-brand-border px-3 py-1.5 font-medium hover:bg-brand-cream"
+              className="rounded-md border border-brand-border px-3 py-1.5 font-medium hover:bg-brand-border"
             >
               Sign out
             </button>

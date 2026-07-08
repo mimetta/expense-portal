@@ -206,7 +206,7 @@ export default function BoApprovalsPage() {
                 <button
                   disabled={busy === selected.request_id}
                   onClick={() => approve(selected.request_id)}
-                  className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-50"
                 >
                   Approve
                 </button>

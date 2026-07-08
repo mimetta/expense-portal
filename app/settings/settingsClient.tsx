@@ -57,7 +57,7 @@ const inputClass =
   "rounded-md border border-brand-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown";
 const labelClass = "mb-1 block text-sm font-medium text-brand-dark";
 const buttonPrimary =
-  "rounded-md bg-brand-brown px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50";
+  "rounded-md bg-brand-brown px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-50";
 const buttonSecondary =
   "rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-brand-cream disabled:opacity-50";
 

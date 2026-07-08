@@ -962,9 +962,54 @@ attachment in the app still doesn't.
 - Discord webhooks for notifications
 
 ### Brand
-Colors: brown `#9F8361`, cream `#FEFEE9`, border `#DFD5BC`, dark `#1E1E1E`
-(`tailwind.config.ts` → `theme.extend.colors.brand`). Fonts: Inter + Noto Sans Thai
-(`app/layout.tsx`).
+
+Rebranded to Mimetta's new palette/typeface (was: brown `#9F8361`, cream `#FEFEE9`, border
+`#DFD5BC`, dark `#1E1E1E`, Inter). Current palette (`tailwind.config.ts` →
+`theme.extend.colors.brand`):
+
+| Token | Hex | Role |
+|---|---|---|
+| `brand.brown` | `#1F3A2B` forest green | primary actions, active nav, buttons |
+| `brand.accent` | `#BD5A2E` burnt terracotta | hover states, badges, highlights |
+| `brand.cream` | `#EDE6D8` warm cream | page backgrounds |
+| `brand.border` | `#D8CBB0` sandstone beige | borders, cards, dividers |
+| `brand.sage` | `#9CAE8C` muted sage | success/approved/positive indicators |
+| `brand.dark` | `#1A1A1A` near-black | body text |
+
+**Token keys were kept as their original brown/cream/border/dark names even though the values
+no longer literally match** (`brand.brown` is forest green, not brown) — renaming them would
+mean touching every `bg-brand-brown`/`text-brand-brown`/`border-brand-border` usage across the
+whole app (dozens of files) for no functional difference, since Tailwind classes only care
+about the token's *value*. `accent` and `sage` are new tokens, added because the rebrand needs
+colors the old 4-token palette had no equivalent for (a genuine hover-color swap distinct from
+the background/border tokens, and a distinct success/positive color).
+
+**Where a real behavioral change was needed, not just a value swap** (since most of the app was
+already built entirely on these tokens, so retheming `tailwind.config.ts` alone silently
+reskins the vast majority of the UI):
+- `components/StatusBadge.tsx` — was generic Tailwind palette classes (`bg-blue-100`, etc.)
+  unrelated to the brand tokens; rewritten with the exact per-status hex pairs specified,
+  via inline `style` (matching the pattern already used for the CEO-signature banner and
+  other exact-hex UI elsewhere in this app) rather than new one-off Tailwind classes.
+- Primary buttons: `hover:opacity-90` (dimming) → `hover:bg-brand-accent` (a real color swap
+  to terracotta) — 11 occurrences, all the identical `bg-brand-brown ... hover:opacity-90`
+  pattern (verified via grep before the sweep), so this was a safe blanket replace.
+- `components/Nav.tsx`'s nav-link and sign-out hover states specifically: `hover:bg-brand-cream`
+  → `hover:bg-brand-border` — the spec calls for nav hover to use the sandstone/border color,
+  distinct from the general "hover:bg-brand-cream" subtle-highlight pattern used elsewhere in
+  the app (dropdown items, table rows, etc.), which keeps using cream (now warm cream) via the
+  automatic retheme and was deliberately left alone — nothing in the spec asked to change every
+  cream hover in the app to the border color, only navigation's.
+
+Font: **DM Sans** (weights 300/400/500/600/700) + Noto Sans Thai fallback, both loaded via
+`next/font/google` in `app/layout.tsx` (self-hosted at build time, no runtime Google Fonts
+request/FOUC) — kept this existing pattern rather than switching to a manual `<link>`/`@import`
+tag, which the spec's literal wording ("Import DM Sans from Google Fonts... update Google
+Fonts import link") suggested but would have been a real regression from what was already
+there. `--font-inter` (the CSS variable name, referenced in `tailwind.config.ts`'s
+`fontFamily.sans`) was renamed to `--font-dm-sans` for clarity, unlike the color token keys
+above — there's exactly one call site for this one (`tailwind.config.ts`), so renaming it was
+free, unlike the 50+ call sites a color token rename would have touched.
 
 ---
 

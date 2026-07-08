@@ -25,7 +25,7 @@ export default function LoginPage() {
         <p className="mb-6 text-sm text-brand-dark/70">Expense Portal</p>
         <button
           onClick={handleSignIn}
-          className="w-full rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:opacity-90"
+          className="w-full rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:bg-brand-accent"
         >
           Sign in with Google
         </button>

@@ -20,7 +20,7 @@ export default async function AuthErrorPage({
         <p className="mb-6 text-sm text-brand-dark/70">{message}</p>
         <Link
           href="/login"
-          className="inline-block rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:opacity-90"
+          className="inline-block rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:bg-brand-accent"
         >
           Back to sign in
         </Link>

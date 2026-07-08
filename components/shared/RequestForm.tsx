@@ -1077,7 +1077,7 @@ export default function RequestForm({
         <button
           type="submit"
           disabled={submitting || secondaryBusy}
-          className="flex-1 rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+          className="flex-1 rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:bg-brand-accent disabled:opacity-50"
         >
           {submitting ? submittingLabel : submitLabel}
         </button>

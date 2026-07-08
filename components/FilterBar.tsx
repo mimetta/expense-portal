@@ -112,7 +112,7 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
       <button
         type="button"
         onClick={clear}
-        className="text-sm text-[#9F8361] hover:underline"
+        className="text-sm text-[#1F3A2B] hover:underline"
       >
         ↺ Reset
       </button>
