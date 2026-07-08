@@ -8,9 +8,18 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-inter)", "var(--font-noto-thai)", "sans-serif"],
+      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        brand: {
+          brown: "#9F8361",
+          cream: "#FEFEE9",
+          border: "#DFD5BC",
+          dark: "#1E1E1E",
+        },
       },
     },
   },
