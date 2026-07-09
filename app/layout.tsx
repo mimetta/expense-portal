@@ -9,7 +9,7 @@ import "./globals.css";
 // Thai stays as the fallback for Thai text.
 const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-dm-sans",
 });
 const notoSansThai = Noto_Sans_Thai({ subsets: ["thai"], variable: "--font-noto-thai" });
@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${dmSans.variable} ${notoSansThai.variable} font-sans antialiased`}>
         <Nav />
-        <main className="mx-auto max-w-[1200px] px-6 py-6">{children}</main>
+        <main className="mx-auto max-w-[1280px] px-8 py-6">{children}</main>
       </body>
     </html>
   );

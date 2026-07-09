@@ -121,9 +121,9 @@ export default function AccountingPage() {
       <FilterBar requests={requests} onFilteredChange={setFiltered} statuses={RELEVANT_STATUSES} />
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">Nothing here.</p>
+        <p className="text-sm text-brand-muted">Nothing here.</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
@@ -147,8 +147,8 @@ export default function AccountingPage() {
                   <td>{r.department}</td>
                   <td>{formatCurrency(r.total)}</td>
                   <td><StatusBadge status={r.status} /></td>
-                  <td className="text-xs text-brand-dark/70">{r.slip_receiver_email ?? "-"}</td>
-                  <td className="text-xs text-brand-dark/70">
+                  <td className="text-xs text-brand-muted">{r.slip_receiver_email ?? "-"}</td>
+                  <td className="text-xs text-brand-muted">
                     {tab === "edit-requests"
                       ? r.edit_requested_reason ?? "-"
                       : formatDate(tab === "pending" ? r.ceo_approved_at : r.paid_at)}

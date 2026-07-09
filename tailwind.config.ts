@@ -23,11 +23,13 @@ const config: Config = {
         // change for the rebrand.
         brand: {
           brown: "#1F3A2B", // forest green — primary actions, active nav, buttons
-          cream: "#EDE6D8", // warm cream — page backgrounds
+          cream: "#FAF8F4", // warm off-white — page backgrounds ONLY (never cards/inputs)
           border: "#D8CBB0", // sandstone beige — borders, cards, dividers
           dark: "#1A1A1A", // near-black — body text
           accent: "#BD5A2E", // burnt terracotta — hover states, badges, highlights
           sage: "#9CAE8C", // muted sage — success/approved/positive indicators
+          muted: "#6B7280", // secondary text, inactive nav/tabs, labels
+          subtle: "#9CA3AF", // placeholder text, uppercase section labels, counts
         },
       },
     },

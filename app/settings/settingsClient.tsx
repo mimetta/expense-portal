@@ -53,13 +53,10 @@ function getPendingUsers(roles: RoleRow[]): RoleRow[] {
   );
 }
 
-const inputClass =
-  "rounded-md border border-brand-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown";
-const labelClass = "mb-1 block text-sm font-medium text-brand-dark";
-const buttonPrimary =
-  "rounded-md bg-brand-brown px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-50";
-const buttonSecondary =
-  "rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-brand-cream disabled:opacity-50";
+const inputClass = "mm-input";
+const labelClass = "mb-1.5 block text-[13px] font-medium text-[#374151]";
+const buttonPrimary = "mm-btn-primary mm-btn-sm";
+const buttonSecondary = "mm-btn-secondary mm-btn-sm";
 
 function Modal({
   title,
@@ -73,15 +70,18 @@ function Modal({
   wide?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className={`w-full ${wide ? "max-w-2xl" : "max-w-lg"} rounded-md bg-white p-5 shadow-lg`}>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-brand-dark">{title}</h3>
-          <button onClick={onClose} className="text-brand-dark/60 hover:text-brand-dark">
+    <div className="mm-modal-overlay items-center">
+      <div className={`mm-modal ${wide ? "max-w-2xl" : "max-w-lg"}`}>
+        <div className="mm-modal-header">
+          <h3 className="mm-modal-title">{title}</h3>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-brand-muted transition-colors hover:bg-[#F5F0E8] hover:text-brand-dark"
+          >
             ✕
           </button>
         </div>
-        {children}
+        <div className="mm-modal-body">{children}</div>
       </div>
     </div>
   );
@@ -91,7 +91,7 @@ function Modal({
 // actual logic lives in SettingsClientInner below.
 export default function SettingsClient() {
   return (
-    <Suspense fallback={<p className="text-sm text-brand-dark/60">Loading...</p>}>
+    <Suspense fallback={<p className="text-sm text-brand-muted">Loading...</p>}>
       <SettingsClientInner />
     </Suspense>
   );
@@ -153,14 +153,14 @@ function SettingsClientInner() {
   };
 
   if (userLoading) {
-    return <p className="text-sm text-brand-dark/60">Loading...</p>;
+    return <p className="text-sm text-brand-muted">Loading...</p>;
   }
 
   if (!currentUser || visibleTabs.length === 0) {
     return (
       <div>
-        <h1 className="mb-4 text-2xl font-semibold text-brand-dark">Settings</h1>
-        <p className="text-sm text-brand-dark/60">
+        <h1 className="mm-page-title mb-4">Settings</h1>
+        <p className="text-sm text-brand-muted">
           You don&apos;t have access to any Settings section. Contact an admin if you need access.
         </p>
       </div>
@@ -169,17 +169,13 @@ function SettingsClientInner() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-brand-dark">Settings</h1>
-      <div className="mb-4 flex gap-2">
+      <h1 className="mm-page-title mb-4">Settings</h1>
+      <div className="mm-tabs mb-4">
         {visibleTabs.map((t) => (
           <button
             key={t.key}
             onClick={() => selectTab(t.key)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              tab === t.key
-                ? "bg-brand-brown text-white"
-                : "border border-brand-border text-brand-dark"
-            }`}
+            className={`mm-tab ${tab === t.key ? "mm-tab-active" : ""}`}
           >
             {t.label}
             {t.key === "users" && pendingCount > 0 && (
@@ -315,13 +311,13 @@ function SupplierTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : suppliers.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">No suppliers yet.</p>
+        <p className="text-sm text-brand-muted">No suppliers yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-md border border-brand-border">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-cream text-left text-brand-dark">
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Payment Method</th>
@@ -332,7 +328,7 @@ function SupplierTab() {
             </thead>
             <tbody>
               {suppliers.map((s) => (
-                <tr key={s.id} className="border-t border-brand-border">
+                <tr key={s.id}>
                   <td className="px-3 py-2">{s.name}</td>
                   <td className="px-3 py-2">{s.payment_method ?? "-"}</td>
                   <td className="px-3 py-2">{s.bank_name ?? "-"}</td>
@@ -408,7 +404,7 @@ function SupplierTab() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
-            <p className="text-xs text-brand-dark/50">
+            <p className="text-xs text-brand-subtle">
               Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -542,13 +538,13 @@ function UserTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : roles.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">No roles configured.</p>
+        <p className="text-sm text-brand-muted">No roles configured.</p>
       ) : (
-        <div className="overflow-hidden rounded-md border border-brand-border">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-cream text-left text-brand-dark">
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Role</th>
@@ -560,7 +556,7 @@ function UserTab() {
             </thead>
             <tbody>
               {roles.map((r) => (
-                <tr key={r.id} className="border-t border-brand-border">
+                <tr key={r.id}>
                   <td className="px-3 py-2">{r.email}</td>
                   <td className="px-3 py-2">{r.role}</td>
                   <td className="px-3 py-2">{r.bu_scope}</td>
@@ -637,11 +633,11 @@ function UserTab() {
                 />
               </div>
             </div>
-            <p className="text-xs text-brand-dark/60">
+            <p className="text-xs text-brand-muted">
               Scopes only matter for the BO role — comma-separated values, or * for unrestricted.
               Multi-role users get one row per role (see CLAUDE.md).
             </p>
-            <p className="text-xs text-brand-dark/50">
+            <p className="text-xs text-brand-subtle">
               Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -753,13 +749,13 @@ function ProductTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : products.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">No products yet.</p>
+        <p className="text-sm text-brand-muted">No products yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-md border border-brand-border">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-cream text-left text-brand-dark">
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
                 <th className="px-3 py-2">SKU Code</th>
                 <th className="px-3 py-2">Product Name</th>
@@ -770,7 +766,7 @@ function ProductTab() {
             </thead>
             <tbody>
               {products.map((p) => (
-                <tr key={p.id} className="border-t border-brand-border">
+                <tr key={p.id}>
                   <td className="px-3 py-2 font-mono text-xs">{p.sku_code ?? "-"}</td>
                   <td className="px-3 py-2">{p.product_name}</td>
                   <td className="px-3 py-2">{p.department ?? "-"}</td>
@@ -838,7 +834,7 @@ function ProductTab() {
                 ))}
               </select>
             </div>
-            <p className="text-xs text-brand-dark/50">
+            <p className="text-xs text-brand-subtle">
               Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -995,7 +991,7 @@ function BulkImportModal({
             }}
             className="text-sm"
           />
-          {fileName && <p className="mt-1 text-xs text-brand-dark/60">Selected: {fileName}</p>}
+          {fileName && <p className="mt-1 text-xs text-brand-muted">Selected: {fileName}</p>}
           {parseError && <p className="mt-1 text-sm text-red-600">{parseError}</p>}
         </div>
 
@@ -1007,7 +1003,7 @@ function BulkImportModal({
             </p>
             <div className="max-h-64 overflow-y-auto rounded-md border border-brand-border">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-brand-cream text-left text-brand-dark">
+                <thead className="sticky top-0 bg-[#F9F8F6] text-left text-brand-dark">
                   <tr>
                     <th className="px-2 py-1.5">bu</th>
                     <th className="px-2 py-1.5">department</th>
@@ -1144,13 +1140,13 @@ function CategoryTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : categories.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">No categories yet.</p>
+        <p className="text-sm text-brand-muted">No categories yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-md border border-brand-border">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-cream text-left text-brand-dark">
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
                 <th className="px-3 py-2">BU</th>
                 <th className="px-3 py-2">Department</th>
@@ -1162,7 +1158,7 @@ function CategoryTab() {
             </thead>
             <tbody>
               {categories.map((c) => (
-                <tr key={c.id} className="border-t border-brand-border">
+                <tr key={c.id}>
                   <td className="px-3 py-2">{c.bu}</td>
                   <td className="px-3 py-2">{c.department}</td>
                   <td className="px-3 py-2">{c.cat_l1 ?? "-"}</td>
@@ -1239,7 +1235,7 @@ function CategoryTab() {
                 onChange={(e) => setForm({ ...form, product: e.target.value })}
               />
             </div>
-            <p className="text-xs text-brand-dark/50">
+            <p className="text-xs text-brand-subtle">
               Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -1283,14 +1279,14 @@ function YesNoToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
       <button
         type="button"
         onClick={() => onChange(true)}
-        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${value ? "border-brand-brown bg-brand-cream" : "border-brand-border"}`}
+        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${value ? "border-brand-brown bg-[#F0F4EF]" : "border-brand-border bg-white"}`}
       >
         Yes
       </button>
       <button
         type="button"
         onClick={() => onChange(false)}
-        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${!value ? "border-brand-brown bg-brand-cream" : "border-brand-border"}`}
+        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${!value ? "border-brand-brown bg-[#F0F4EF]" : "border-brand-border bg-white"}`}
       >
         No
       </button>
@@ -1376,7 +1372,7 @@ function DeptConfigTab() {
 
   return (
     <div>
-      <p className="mb-3 text-xs text-brand-dark/60">
+      <p className="mb-3 text-xs text-brand-muted">
         Drives skip_bo/skip_ceo and CEO-signature requirements — matched score-based by
         Department + BU + Cat L1 (exact matches score higher than &quot;*&quot; wildcards; see
         CLAUDE.md &quot;DeptConfig Matching&quot;).
@@ -1388,13 +1384,13 @@ function DeptConfigTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">No rules configured.</p>
+        <p className="text-sm text-brand-muted">No rules configured.</p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-brand-border">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-cream text-left text-brand-dark">
+        <div className="mm-table-wrap overflow-x-auto">
+          <table className="mm-table">
+            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
                 <th className="px-3 py-2">Department</th>
                 <th className="px-3 py-2">BU</th>
@@ -1409,7 +1405,7 @@ function DeptConfigTab() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t border-brand-border">
+                <tr key={r.id}>
                   <td className="px-3 py-2">{r.dept}</td>
                   <td className="px-3 py-2">{r.bu}</td>
                   <td className="px-3 py-2">{r.cat_l1}</td>
@@ -1507,7 +1503,7 @@ function DeptConfigTab() {
               <label className={labelClass}>Skip CEO</label>
               <YesNoToggle value={form.skip_ceo} onChange={(v) => setForm({ ...form, skip_ceo: v })} />
             </div>
-            <p className="text-xs text-brand-dark/50">
+            <p className="text-xs text-brand-subtle">
               Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -1678,9 +1674,9 @@ function AnnouncementTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : announcements.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">No announcements yet.</p>
+        <p className="text-sm text-brand-muted">No announcements yet.</p>
       ) : (
         <div className="space-y-2">
           {announcements.map((a) => (
@@ -1690,14 +1686,16 @@ function AnnouncementTab() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-brand-dark">{a.title}</span>
                     {a.is_pinned && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Pinned</span>
+                      <span className="rounded-full border border-[#F5C4A3] bg-[#FDF2EE] px-2 py-0.5 text-xs text-[#BD5A2E]">
+                        Pinned
+                      </span>
                     )}
                     {!a.is_active && (
                       <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Inactive</span>
                     )}
                   </div>
-                  {a.message && <p className="mt-1 text-sm text-brand-dark/70">{a.message}</p>}
-                  <p className="mt-1 text-xs text-brand-dark/50">
+                  {a.message && <p className="mt-1 text-sm text-brand-muted">{a.message}</p>}
+                  <p className="mt-1 text-xs text-brand-subtle">
                     {a.created_by ?? "-"} — {new Date(a.created_at).toLocaleString()}
                   </p>
                 </div>
@@ -1763,7 +1761,7 @@ function AnnouncementTab() {
                 }}
                 className="text-sm"
               />
-              {uploading && <p className="mt-1 text-xs text-brand-dark/50">Uploading...</p>}
+              {uploading && <p className="mt-1 text-xs text-brand-subtle">Uploading...</p>}
               {form.attachment_url && (
                 <div className="mt-2 flex items-center gap-2">
                   {form.attachment_type.startsWith("image/") ? (
@@ -1773,7 +1771,7 @@ function AnnouncementTab() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={form.attachment_url} alt="" className="h-16 w-16 rounded-md border border-brand-border object-cover" />
                   ) : (
-                    <span className="text-xs text-brand-dark/60">📄 PDF attached</span>
+                    <span className="text-xs text-brand-muted">📄 PDF attached</span>
                   )}
                   <button
                     type="button"
@@ -1785,7 +1783,7 @@ function AnnouncementTab() {
                 </div>
               )}
             </div>
-            <p className="text-xs text-brand-dark/50">
+            <p className="text-xs text-brand-subtle">
               Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">

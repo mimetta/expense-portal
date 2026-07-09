@@ -173,21 +173,21 @@ export default function BoApprovalsPage() {
       <FilterBar requests={buFiltered} onFilteredChange={setFiltered} statuses={RELEVANT_STATUSES} />
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">Nothing here.</p>
+        <p className="text-sm text-brand-muted">Nothing here.</p>
       ) : (
         <div className="space-y-3">
           {filtered.map((r) => (
             <div
               key={r.request_id}
               onClick={() => setSelected(r)}
-              className="mm-card cursor-pointer hover:bg-[#F9F7F4]"
+              className="mm-card cursor-pointer hover:bg-[#FAFAF7]"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-brand-dark/70">{r.request_id}</span>
-                  <span className="rounded-full bg-brand-cream px-2 py-0.5 text-xs text-brand-dark">
+                  <span className="font-mono text-xs text-brand-muted">{r.request_id}</span>
+                  <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
                     {r.bu}
                   </span>
                   {r.skip_bo && (
@@ -207,9 +207,9 @@ export default function BoApprovalsPage() {
                 {r.requester_name} — {r.department} {r.cat_l1 ? `/ ${r.cat_l1}` : ""} — {r.expense_type}
               </div>
               <div className="mt-1 text-sm font-medium text-brand-dark">{formatCurrency(r.total)}</div>
-              <div className="mt-1 text-xs text-brand-dark/60">Submitted {formatDate(r.timestamp)}</div>
+              <div className="mt-1 text-xs text-brand-muted">Submitted {formatDate(r.timestamp)}</div>
               {r.status === "BO_APPROVED" && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-brand-dark/70">
+                <div className="mt-2 flex items-center gap-2 text-xs text-brand-muted">
                   <span>Approved by {r.bo_approver ?? "-"} at {formatDate(r.bo_approved_at)}</span>
                   {canUnapprove(r) && (
                     <button

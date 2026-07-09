@@ -17,7 +17,7 @@ export default async function AuthErrorPage({
     <div className="flex min-h-screen items-center justify-center bg-brand-cream">
       <div className="w-full max-w-sm rounded-lg border border-brand-border bg-white p-8 text-center shadow-sm">
         <h1 className="mb-2 text-xl font-semibold text-brand-dark">Sign-in failed</h1>
-        <p className="mb-6 text-sm text-brand-dark/70">{message}</p>
+        <p className="mb-6 text-sm text-brand-muted">{message}</p>
         <Link
           href="/login"
           className="inline-block rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:bg-brand-accent"

@@ -70,11 +70,10 @@ function fileToEntry(file: File): Promise<FileEntry> {
   });
 }
 
-const inputClass =
-  "w-full rounded-md border border-brand-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown";
+const inputClass = "mm-input";
 const cellClass =
-  "rounded-md border border-brand-border bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown";
-const labelClass = "mb-1 block text-sm font-medium text-brand-dark";
+  "h-9 rounded-md border border-brand-border bg-white px-2 text-sm text-brand-dark focus:border-brand-brown focus:outline-none";
+const labelClass = "mb-1.5 block text-[13px] font-medium text-[#374151]";
 
 // Column widths shared between the header row and every item row so labels
 // stay aligned with their cells while the table scrolls horizontally.
@@ -490,14 +489,14 @@ export default function RequestForm({
   const showCardType = payMethod === "บัตรเครดิต/เดบิต";
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-6">
-      <h1 className="text-2xl font-semibold text-brand-dark">{title}</h1>
+    <form onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-3">
+      <h1 className="mm-page-title mb-2">{title}</h1>
 
       {banner}
 
       {/* ===================== Basic Info ===================== */}
-      <div className="rounded-md border border-brand-border p-4">
-        <h2 className="mb-3 font-semibold text-brand-dark">Basic Info</h2>
+      <div className="mm-card">
+        <h2 className="mm-section-label">Basic Info</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Business Unit<RequiredMark /></label>
@@ -510,7 +509,7 @@ export default function RequestForm({
           <div>
             <label className={labelClass}>Requester Name</label>
             <input
-              className={`${inputClass} bg-brand-cream/50`}
+              className={`${inputClass} bg-[#F9F8F6]`}
               value={initial?.requesterName ?? currentUser?.name ?? ""}
               disabled
               readOnly
@@ -585,7 +584,7 @@ export default function RequestForm({
               ))}
             </select>
             {productOptionsFor("R&D").length === 0 && (
-              <p className="mt-1 text-xs text-brand-dark/50">
+              <p className="mt-1 text-xs text-brand-subtle">
                 No R&amp;D products yet — add them in Settings &gt; Product/SKU Management.
               </p>
             )}
@@ -601,7 +600,7 @@ export default function RequestForm({
               ))}
             </select>
             {productOptionsFor("Retail").length === 0 && (
-              <p className="mt-1 text-xs text-brand-dark/50">
+              <p className="mt-1 text-xs text-brand-subtle">
                 No branches yet — add them in Settings &gt; Product/SKU Management (Department = Retail).
               </p>
             )}
@@ -610,7 +609,7 @@ export default function RequestForm({
       </div>
 
       {/* ===================== PO Required ===================== */}
-      <div className="flex items-center gap-4 rounded-md border border-brand-border px-4 py-2.5">
+      <div className="mm-card flex items-center gap-4 !py-3">
         <span className="text-sm font-medium text-brand-dark">Purchase Order Required?</span>
         <label className="flex cursor-pointer items-center gap-1.5 text-sm text-brand-dark">
           <input
@@ -635,24 +634,25 @@ export default function RequestForm({
       </div>
 
       {/* ===================== Expense Items ===================== */}
-      <div className="rounded-md border border-brand-border p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-brand-dark">Expense Items</h2>
+      <div className="mm-card">
+        <div className="mm-section-label flex items-center justify-between !border-b-0 !pb-0">
+          <span>Expense Items</span>
           <button
             type="button"
             onClick={() => setItems((prev) => [...prev, emptyItem()])}
-            className="rounded-md border border-brand-brown px-3 py-1 text-sm text-brand-brown hover:bg-brand-cream"
+            className="mm-btn-secondary mm-btn-sm normal-case tracking-normal text-brand-brown"
           >
             + Add Expense Item
           </button>
         </div>
+        <div className="mb-4 mt-3 border-b border-[#F0EAE0]" />
 
-        <div className="mb-3 rounded-md bg-brand-cream px-3 py-2 text-xs text-brand-dark">
+        <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] px-3 py-2 text-xs text-brand-dark">
           Amount is optional — Procurement จะกรอกเพิ่มตอนอัปโหลด PO | Category L1 และ Description จำเป็นต้องกรอก
         </div>
 
         {perItemFieldMode && productOptionsFor(department).length === 0 && (
-          <p className="mb-3 text-xs text-brand-dark/50">
+          <p className="mb-3 text-xs text-brand-subtle">
             No {perItemFieldMode === "branch" ? "branches" : "products"} yet for {department} — add them in
             Settings &gt; Product/SKU Management.
           </p>
@@ -679,7 +679,7 @@ export default function RequestForm({
           </button>
 
           <div ref={itemsScrollRef} className="no-scrollbar overflow-x-auto">
-            <div className="flex min-w-full gap-2 border-b border-brand-border pb-2 text-xs font-semibold text-brand-dark">
+            <div className="flex min-w-full gap-2 rounded-t-md border-b border-brand-border bg-[#F9F8F6] px-2 py-2 text-xs font-semibold text-brand-dark">
               <div style={COL.catL1}>Category L1<RequiredMark /></div>
               <div style={COL.catL2}>Category L2</div>
               {perItemFieldMode === "branch" && <div style={COL.itemField}>Branch<RequiredMark /></div>}
@@ -751,7 +751,7 @@ export default function RequestForm({
                         value={item.product_code ?? ""}
                         onChange={(e) => updateItem(idx, { product_code: e.target.value })}
                       />
-                      <label className="mt-1 flex items-center gap-1 text-[11px] text-brand-dark/70">
+                      <label className="mt-1 flex items-center gap-1 text-[11px] text-brand-muted">
                         <input
                           type="checkbox"
                           checked={noCodeYet}
@@ -831,19 +831,19 @@ export default function RequestForm({
 
         <div className="mt-4 grid grid-cols-4 gap-3 border-t border-brand-border pt-3 text-right">
           <div>
-            <div className="text-xs text-brand-dark/60">TOTAL NET</div>
+            <div className="text-xs text-brand-muted">TOTAL NET</div>
             <div className="font-semibold text-brand-dark">{formatCurrency(totals.amount_net)}</div>
           </div>
           <div>
-            <div className="text-xs text-brand-dark/60">TOTAL VAT</div>
+            <div className="text-xs text-brand-muted">TOTAL VAT</div>
             <div className="font-semibold text-brand-dark">{formatCurrency(totals.vat_amount)}</div>
           </div>
           <div>
-            <div className="text-xs text-brand-dark/60">TOTAL WHT</div>
+            <div className="text-xs text-brand-muted">TOTAL WHT</div>
             <div className="font-semibold text-brand-dark">{formatCurrency(totals.wht_amount)}</div>
           </div>
           <div>
-            <div className="text-xs text-brand-dark/60">GRAND TOTAL PAYABLE</div>
+            <div className="text-xs text-brand-muted">GRAND TOTAL PAYABLE</div>
             <div className="text-lg font-bold text-brand-dark">{formatCurrency(totals.total)}</div>
           </div>
         </div>
@@ -851,9 +851,9 @@ export default function RequestForm({
 
       {/* ===================== Payment Details ===================== */}
       {!expenseConfig?.hidePaymentSection && (
-        <div className="rounded-md border border-brand-border p-4">
-          <h2 className="font-semibold text-brand-dark">Payment Details</h2>
-          <p className="mb-3 text-xs text-brand-dark/60">optional — Procurement can fill later</p>
+        <div className="mm-card">
+          <h2 className="mm-section-label !mb-1 !border-b-0 !pb-0">Payment Details</h2>
+          <p className="mb-3 text-xs text-brand-subtle">optional — Procurement can fill later</p>
           <div className="grid grid-cols-2 gap-4">
             <div className="relative">
               <label className={labelClass}>Supplier/Payee</label>
@@ -880,7 +880,7 @@ export default function RequestForm({
                           handleSupplierChange(s.name);
                           setSupplierOpen(false);
                         }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-brand-cream"
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-[#F9F8F6]"
                       >
                         {s.name}
                       </button>
@@ -977,11 +977,11 @@ export default function RequestForm({
       )}
 
       {/* ===================== Attachments ===================== */}
-      <div className="rounded-md border border-brand-border p-4">
-        <h2 className="mb-3 font-semibold text-brand-dark">Attachments</h2>
+      <div className="mm-card">
+        <h2 className="mm-section-label">Attachments</h2>
 
         {expenseConfig?.requiredDocs && (
-          <div className="mb-3 rounded-md bg-brand-cream p-3 text-sm">
+          <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
             <p className="mb-1 font-medium text-brand-dark">
               Required documents{expenseConfig.requiredDocs.mode === "any" ? " (at least one)" : ""}
             </p>
@@ -989,7 +989,7 @@ export default function RequestForm({
               {expenseConfig.requiredDocs.docs.map((docLabel) => {
                 const satisfied = files.some((f) => f.doc_type === docLabel);
                 return (
-                  <li key={docLabel} className={satisfied ? "text-green-700" : "text-brand-dark/70"}>
+                  <li key={docLabel} className={satisfied ? "text-green-700" : "text-brand-muted"}>
                     {satisfied ? "✓" : "○"} {docLabel}
                   </li>
                 );
@@ -1014,7 +1014,7 @@ export default function RequestForm({
             e.preventDefault();
             if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
           }}
-          className="flex h-11 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-brand-border text-sm text-brand-dark/70 hover:bg-brand-cream"
+          className="flex h-11 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-brand-border text-sm text-brand-muted hover:bg-[#F9F8F6]"
         >
           📎 Click to attach files or drag &amp; drop — PDF, JPG, PNG, Word, Excel
         </div>
@@ -1054,7 +1054,7 @@ export default function RequestForm({
                 ))}
               </select>
               <span className="flex-1 truncate text-brand-dark">{file.name}</span>
-              <span className="text-xs text-brand-dark/60">{formatBytes(file.size)}</span>
+              <span className="text-xs text-brand-muted">{formatBytes(file.size)}</span>
               <button
                 type="button"
                 onClick={() => removeFile(idx)}
@@ -1067,7 +1067,7 @@ export default function RequestForm({
         </div>
       </div>
 
-      <p className="text-xs text-brand-dark/50">
+      <p className="text-xs text-brand-subtle">
         Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
       </p>
 
@@ -1077,7 +1077,7 @@ export default function RequestForm({
         <button
           type="submit"
           disabled={submitting || secondaryBusy}
-          className="flex-1 rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:bg-brand-accent disabled:opacity-50"
+          className="mm-btn-primary h-11 flex-1 text-[15px]"
         >
           {submitting ? submittingLabel : submitLabel}
         </button>
@@ -1086,7 +1086,7 @@ export default function RequestForm({
             type="button"
             onClick={handleSecondary}
             disabled={submitting || secondaryBusy}
-            className="flex-1 rounded-md border-2 border-brand-brown px-4 py-2 font-medium text-brand-brown transition hover:bg-brand-cream disabled:opacity-50"
+            className="mm-btn-secondary h-11 flex-1 border-brand-brown text-[15px] text-brand-brown hover:bg-[#F9F8F6]"
           >
             {secondaryBusy ? secondaryAction.busyLabel : secondaryAction.label}
           </button>

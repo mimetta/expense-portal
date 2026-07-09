@@ -26,7 +26,7 @@ function Countdown({ request }: { request: ExpenseRequest }) {
   const deadline = resubmitDeadline(request);
   if (!deadline) return null;
   const msLeft = deadline.getTime() - Date.now();
-  if (msLeft <= 0) return <span className="text-xs text-brand-dark/50">Resubmit window closed</span>;
+  if (msLeft <= 0) return <span className="text-xs text-brand-subtle">Resubmit window closed</span>;
 
   const hours = Math.floor(msLeft / 3_600_000);
   const minutes = Math.floor((msLeft % 3_600_000) / 60_000);
@@ -79,13 +79,17 @@ function EditRequestModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4"
+      style={{ backdropFilter: "blur(2px)" }}
+      onClick={onClose}
+    >
       <div
-        className="mx-auto my-8 max-w-4xl rounded-md bg-white p-6 shadow-lg"
+        className="mx-auto my-8 max-w-4xl rounded-xl border border-brand-border bg-white p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex justify-end">
-          <button onClick={onClose} className="text-sm text-brand-dark/60 hover:text-brand-dark">
+          <button onClick={onClose} className="text-sm text-brand-muted hover:text-brand-dark">
             ✕ Close
           </button>
         </div>
@@ -111,13 +115,13 @@ function EditRequestModal({
                 </div>
               </div>
             ) : isEditApprovedRequest ? (
-              <div className="rounded-md border border-brand-border bg-brand-cream/50 p-3 text-sm text-brand-dark">
+              <div className="rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
                 <span className="font-medium">{request.edit_approved_by}</span> granted your edit request. Make
                 your changes and resubmit — the request will return to{" "}
                 <span className="font-medium">{request.status_before_edit ?? "its prior stage"}</span>.
               </div>
             ) : (
-              <div className="rounded-md border border-brand-border bg-brand-cream/50 p-3 text-sm text-brand-dark">
+              <div className="rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
                 You can edit this request freely until Procurement takes action on it.
               </div>
             )
@@ -189,12 +193,16 @@ function RequestEditReasonModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+      style={{ backdropFilter: "blur(2px)" }}
       onClick={() => !busy && onClose()}
     >
-      <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="mb-2 text-base font-semibold text-brand-dark">Request Edit</h3>
-        <p className="mb-3 text-sm text-brand-dark/70">
+        <p className="mb-3 text-sm text-brand-muted">
           Ask the current approver for permission to edit <span className="font-mono">{request.request_id}</span>.
         </p>
         <textarea
@@ -262,9 +270,9 @@ export default function MyRequestsPage() {
       <h1 className="mm-page-title mb-4">My Requests</h1>
       <FilterBar requests={requests} onFilteredChange={setFiltered} />
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">No requests yet.</p>
+        <p className="text-sm text-brand-muted">No requests yet.</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
@@ -288,10 +296,10 @@ export default function MyRequestsPage() {
                   <td>
                     <StatusBadge status={r.status} />
                     {isOwnerEditable(r) && (
-                      <div className="mt-0.5 text-[11px] text-brand-dark/50">Editable</div>
+                      <div className="mt-0.5 text-[11px] text-brand-subtle">Editable</div>
                     )}
                     {r.status === "SUBMITTED" && !isOwnerEditable(r) && (
-                      <div className="mt-0.5 text-[11px] text-brand-dark/50">Pending Procurement</div>
+                      <div className="mt-0.5 text-[11px] text-brand-subtle">Pending Procurement</div>
                     )}
                     {isEditRequestPending(r) && (
                       <div className="mt-0.5 text-[11px] font-medium text-amber-700">
@@ -376,7 +384,7 @@ export default function MyRequestsPage() {
                   setEditing(selected);
                   setSelected(null);
                 }}
-                className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:bg-brand-accent"
+                className="mm-btn-primary"
               >
                 Edit &amp; Resubmit
               </button>
@@ -409,15 +417,16 @@ export default function MyRequestsPage() {
 
       {deleting && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          style={{ backdropFilter: "blur(2px)" }}
           onClick={() => !deleteBusy && setDeleting(null)}
         >
           <div
-            className="w-full max-w-sm rounded-xl bg-white p-5 shadow-lg"
+            className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="mb-2 text-base font-semibold text-brand-dark">Delete request?</h3>
-            <p className="mb-4 text-sm text-brand-dark/70">
+            <p className="mb-4 text-sm text-brand-muted">
               Are you sure you want to delete <span className="font-mono">{deleting.request_id}</span>? This
               cannot be undone.
             </p>

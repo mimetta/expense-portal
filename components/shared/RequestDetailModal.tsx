@@ -75,7 +75,7 @@ interface RequestDetailModalProps {
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs text-brand-dark/60">{label}</div>
+      <div className="text-xs text-brand-muted">{label}</div>
       <div className="text-sm text-brand-dark">{children}</div>
     </div>
   );
@@ -370,22 +370,23 @@ export default function RequestDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+      style={{ backdropFilter: "blur(2px)" }}
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-lg"
-        style={{ maxWidth: 800 }}
+        className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg"
+        style={{ maxWidth: 780 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between border-b border-brand-border px-6 py-4">
+        <div className="flex items-start justify-between border-b border-[#F0EAE0] px-6 pb-4 pt-5">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-lg font-semibold text-[#1A1A1A]">{request.request_id}</span>
+              <span className="text-base font-semibold text-brand-dark">{request.request_id}</span>
               <StatusBadge status={request.status} />
-              <span className="rounded-full bg-brand-cream px-2 py-0.5 text-xs text-brand-dark">{request.bu}</span>
+              <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">{request.bu}</span>
             </div>
-            <p className="mt-1 text-xs text-brand-dark/60">Submitted {formatDate(request.timestamp)}</p>
+            <p className="mt-1 text-xs text-brand-subtle">Submitted {formatDate(request.timestamp)}</p>
           </div>
           <div className="flex items-center gap-3">
             {canOwnerEditNow && !fullEditMode && (
@@ -393,19 +394,22 @@ export default function RequestDetailModal({
                 ✏️ Edit
               </button>
             )}
-            <button onClick={onClose} className="text-xl leading-none text-brand-dark/60 hover:text-brand-dark">
+            <button
+              onClick={onClose}
+              className="rounded-md p-1 text-xl leading-none text-brand-muted transition-colors hover:bg-[#F5F0E8] hover:text-brand-dark"
+            >
               ✕
             </button>
           </div>
         </div>
 
-        <div className="space-y-5 overflow-y-auto px-5 py-4">
+        <div className="space-y-5 overflow-y-auto px-6 py-5">
           {fullEditMode ? (
             <RequestForm
               initial={requestToFormInitial(request)}
               title="Edit Request"
               banner={
-                <div className="flex items-center justify-between gap-3 rounded-md border border-brand-border bg-brand-cream/50 p-3 text-sm text-brand-dark">
+                <div className="flex items-center justify-between gap-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
                   <span>You can edit this request freely until Procurement takes action on it.</span>
                   <button
                     type="button"
@@ -439,7 +443,7 @@ export default function RequestDetailModal({
 
           {/* Request Info */}
           <section>
-            <h3 className="mb-2 text-sm font-semibold text-brand-dark">Request Info</h3>
+            <h3 className="mm-section-label">Request Info</h3>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               <Field label="Requester">{request.requester_name} ({request.requester_email})</Field>
               <Field label="Expense Type">{request.expense_type}</Field>
@@ -456,10 +460,10 @@ export default function RequestDetailModal({
 
           {/* Expense Items */}
           <section>
-            <h3 className="mb-2 text-sm font-semibold text-brand-dark">Expense Items</h3>
+            <h3 className="mm-section-label">Expense Items</h3>
             <div className="overflow-x-auto rounded-md border border-brand-border">
               <table className="w-full text-xs">
-                <thead className="bg-brand-cream text-left text-brand-dark">
+                <thead className="bg-[#F9F8F6] text-left text-brand-dark">
                   <tr>
                     <th className="px-2 py-1.5">Cat L1</th>
                     <th className="px-2 py-1.5">Cat L2</th>
@@ -524,7 +528,7 @@ export default function RequestDetailModal({
                     );
                   })}
                 </tbody>
-                <tfoot className="border-t border-brand-border bg-brand-cream/50 font-semibold">
+                <tfoot className="border-t border-brand-border bg-[#F9F8F6] font-semibold">
                   <tr>
                     <td colSpan={hasItemProductColumn ? 5 : 4} className="px-2 py-1.5 text-right">Totals</td>
                     <td className="px-2 py-1.5">{formatCurrency(totals.amount_net)}</td>
@@ -541,7 +545,7 @@ export default function RequestDetailModal({
           {/* Payment Details */}
           {!expenseConfig?.hidePaymentSection && (
             <section>
-              <h3 className="mb-2 text-sm font-semibold text-brand-dark">
+              <h3 className="mm-section-label">
                 {editable ? "📋 Procurement Details" : "Payment Details"}
               </h3>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -571,7 +575,7 @@ export default function RequestDetailModal({
                                   handleSupplierChange(s.name);
                                   setSupplierOpen(false);
                                 }}
-                                className="block w-full px-2 py-1.5 text-left hover:bg-brand-cream"
+                                className="block w-full px-2 py-1.5 text-left hover:bg-[#F9F8F6]"
                               >
                                 {s.name}
                               </button>
@@ -699,7 +703,7 @@ export default function RequestDetailModal({
           {/* PO Information */}
           {request.requires_po && (
             <section>
-              <h3 className="mb-2 text-sm font-semibold text-brand-dark">PO Information</h3>
+              <h3 className="mm-section-label">PO Information</h3>
               {editable ? (
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   <Field label={<>PO Number<RequiredMark /></>}>
@@ -765,16 +769,16 @@ export default function RequestDetailModal({
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-brand-dark/60">Awaiting PO upload</p>
+                <p className="text-sm text-brand-muted">Awaiting PO upload</p>
               )}
             </section>
           )}
 
           {/* Attachments */}
           <section>
-            <h3 className="mb-2 text-sm font-semibold text-brand-dark">Attachments</h3>
+            <h3 className="mm-section-label">Attachments</h3>
             {expenseConfig?.requiredDocs && (
-              <div className="mb-3 rounded-md bg-brand-cream p-3 text-sm">
+              <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
                 <p className="mb-1 font-medium text-brand-dark">
                   Required documents{expenseConfig.requiredDocs.mode === "any" ? " (at least one)" : ""}
                 </p>
@@ -782,7 +786,7 @@ export default function RequestDetailModal({
                   {expenseConfig.requiredDocs.docs.map((docLabel) => {
                     const satisfied = files.some((f) => f.doc_type === docLabel);
                     return (
-                      <li key={docLabel} className={satisfied ? "text-green-700" : "text-brand-dark/70"}>
+                      <li key={docLabel} className={satisfied ? "text-green-700" : "text-brand-muted"}>
                         {satisfied ? "✓" : "○"} {docLabel}
                       </li>
                     );
@@ -801,7 +805,7 @@ export default function RequestDetailModal({
               </a>
             )}
             {files.length === 0 ? (
-              <p className="mb-2 text-sm text-brand-dark/60">No files attached.</p>
+              <p className="mb-2 text-sm text-brand-muted">No files attached.</p>
             ) : (
               <ul className="mb-2 space-y-1">
                 {files.map((f, i) => (
@@ -820,7 +824,7 @@ export default function RequestDetailModal({
                         </select>
                       ) : (
                         f.doc_type && (
-                          <span className="rounded-full bg-brand-cream px-2 py-0.5 text-xs text-brand-dark">
+                          <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
                             {f.doc_type}
                           </span>
                         )
@@ -847,7 +851,7 @@ export default function RequestDetailModal({
                             ✍️ Needs Signature
                           </span>
                         )}
-                      {f.size !== undefined && <span className="text-xs text-brand-dark/60">{formatBytes(f.size)}</span>}
+                      {f.size !== undefined && <span className="text-xs text-brand-muted">{formatBytes(f.size)}</span>}
                       {signableAs && isPdfFile(f) && signingFileIndex !== i && (
                         <button
                           type="button"
@@ -889,7 +893,7 @@ export default function RequestDetailModal({
                     e.preventDefault();
                     if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
                   }}
-                  className="flex h-10 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-brand-border text-xs text-brand-dark/70 hover:bg-brand-cream"
+                  className="flex h-10 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-brand-border text-xs text-brand-muted hover:bg-[#F9F8F6]"
                 >
                   📎 Click to attach files or drag &amp; drop
                 </div>
@@ -912,7 +916,7 @@ export default function RequestDetailModal({
 
           {/* Approval Timeline */}
           <section>
-            <h3 className="mb-2 text-sm font-semibold text-brand-dark">Approval Timeline</h3>
+            <h3 className="mm-section-label">Approval Timeline</h3>
             {request.status === "REJECTED" && (
               <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm">
                 <p className="font-medium text-red-800">Rejected at {request.rejected_stage ?? "-"}</p>
@@ -933,7 +937,7 @@ export default function RequestDetailModal({
                   <div className={`mt-1 text-xs font-medium ${step.state === "current" ? "text-brand-brown" : "text-brand-dark"}`}>
                     {step.label}
                   </div>
-                  {step.detail && <div className="mt-0.5 text-[10px] text-brand-dark/60">{step.detail}</div>}
+                  {step.detail && <div className="mt-0.5 text-[10px] text-brand-muted">{step.detail}</div>}
                 </div>
               ))}
             </div>
@@ -950,7 +954,7 @@ export default function RequestDetailModal({
                 {showHistory ? "Hide" : "Show"} Rejection History ({request.rejection_history.length})
               </button>
               {showHistory && (
-                <ul className="mt-2 space-y-1 rounded-md border border-brand-border p-3 text-xs text-brand-dark/80">
+                <ul className="mt-2 space-y-1 rounded-md border border-brand-border p-3 text-xs text-brand-dark">
                   {request.rejection_history.map((h, i) => (
                     <li key={i}>
                       [{h.stage}] {formatDate(h.rejected_at)} by {h.actor_email}: {h.reason}
@@ -967,7 +971,7 @@ export default function RequestDetailModal({
         </div>
 
         {!fullEditMode && (actions || onSaveChanges || footerExtra) && (
-          <div className="flex items-center justify-between gap-2 border-t border-brand-border px-6 py-4">
+          <div className="flex items-center justify-between gap-2 border-t border-[#F0EAE0] px-6 py-4">
             <div>{footerExtra}</div>
             <div className="flex gap-2">
               {actions}

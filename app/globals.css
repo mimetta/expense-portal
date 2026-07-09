@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #EDE6D8;
+  --background: #FAF8F4;
   --foreground: #1A1A1A;
 }
 
@@ -30,103 +30,129 @@ body {
   }
 }
 
-/* Shared design-system primitives (see CLAUDE.md "UI Design System") —
-   Supabase-dashboard-inspired: white cards with subtle 1px borders, tight
-   spacing, muted page background, small rounded-full status badges, clean
-   form fields with a soft focus ring. Defined once here so every page
-   applies the identical look via one class instead of re-deriving the
-   same Tailwind utility string per component. */
+/* Shared design-system primitives (see CLAUDE.md "UI Design System") — the
+   Mimetta design system: white cards/inputs/nav/modals on a #FAF8F4 page
+   background, sandstone (#D8CBB0) borders everywhere, forest green
+   (#1F3A2B) as the only primary/active color, terracotta (#BD5A2E) as the
+   hover/accent color. Green is never a background on cards, sections, or
+   the nav bar — only on the primary button, active-tab underline, and
+   small badges. Defined once here so every page applies the identical
+   look via one class instead of re-deriving the same Tailwind utility
+   string per component. */
 @layer components {
   .mm-card {
-    @apply rounded-lg border border-brand-border bg-white p-4 px-5;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    @apply rounded-[10px] border border-brand-border bg-white px-6 py-5;
+    box-shadow: none;
   }
 
   .mm-section-label {
-    @apply text-[11px] font-medium uppercase tracking-wide text-gray-500;
+    @apply mb-4 border-b border-[#F0EAE0] pb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle;
   }
 
   .mm-page-title {
-    @apply text-2xl font-semibold text-[#1A1A1A];
+    @apply text-[22px] font-semibold text-brand-dark;
   }
 
   .mm-page-subtitle {
-    @apply text-sm text-gray-500;
+    @apply mb-5 mt-1 text-[13px] text-brand-muted;
+  }
+
+  .mm-label {
+    @apply mb-1.5 block text-[13px] font-medium text-[#374151];
   }
 
   .mm-input {
-    @apply h-9 w-full rounded-md border border-brand-border bg-white px-3 text-sm text-brand-dark placeholder:text-gray-400 focus:border-brand-brown focus:outline-none;
+    @apply h-9 w-full rounded-md border border-brand-border bg-white px-3 text-sm text-brand-dark placeholder:text-brand-subtle focus:border-brand-brown focus:outline-none;
+    font-family: inherit;
     box-shadow: none;
   }
   .mm-input:focus {
-    box-shadow: 0 0 0 2px rgba(31, 58, 43, 0.1);
+    box-shadow: 0 0 0 3px rgba(31, 58, 43, 0.08);
+  }
+  textarea.mm-input {
+    height: auto;
+    min-height: 88px;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
 
   .mm-btn {
-    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50;
+    transition: background-color 0.15s;
   }
   .mm-btn-sm {
-    @apply h-7 px-2.5 text-xs;
+    @apply h-7 rounded-[5px] px-2.5 text-xs;
   }
   .mm-btn-primary {
     @apply mm-btn bg-brand-brown text-white hover:bg-brand-accent;
   }
   .mm-btn-secondary {
-    @apply mm-btn border border-brand-border bg-white text-brand-dark hover:bg-brand-cream;
+    @apply mm-btn border border-brand-border bg-white text-brand-dark hover:bg-[#F9F8F6];
   }
   .mm-btn-danger {
-    @apply mm-btn border border-[#FCA5A5] bg-white text-[#DC2626] hover:bg-[#FEE2E2];
+    @apply mm-btn border border-[#FCA5A5] bg-white text-[#DC2626] hover:bg-[#FEF2F2];
   }
 
   .mm-table-wrap {
-    @apply overflow-hidden rounded-lg border border-brand-border;
+    @apply overflow-hidden rounded-[10px] border border-brand-border bg-white;
   }
   .mm-table {
-    @apply w-full text-sm;
+    @apply w-full text-[13px];
   }
   .mm-table thead {
-    background-color: #f9f7f4;
+    background-color: #f9f8f6;
     border-bottom: 1px solid #d8cbb0;
   }
   .mm-table th {
-    @apply px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500;
+    @apply px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-subtle;
   }
   .mm-table td {
-    @apply px-4 py-2.5;
+    @apply px-4 py-3 text-brand-dark;
   }
   .mm-table tbody tr {
-    border-top: 1px solid #f0eae0;
+    background-color: #fff;
+    border-bottom: 1px solid #f5f0e8;
+  }
+  .mm-table tbody tr:last-child {
+    border-bottom: none;
   }
   .mm-table tbody tr:hover {
-    background-color: #f9f7f4;
+    background-color: #fafaf7;
   }
 
   .mm-tabs {
-    @apply flex gap-4 border-b border-brand-border;
+    @apply flex gap-1 border-b border-brand-border;
   }
   .mm-tab {
-    @apply -mb-px border-b-2 border-transparent px-1 pb-2 text-sm text-gray-500 hover:text-[#1A1A1A];
+    @apply -mb-px flex cursor-pointer items-center border-b-2 border-transparent px-4 py-3 text-[13px] text-brand-muted hover:text-brand-dark;
   }
   .mm-tab-active {
     @apply border-brand-brown font-medium text-brand-brown;
   }
+  .mm-tab-count {
+    @apply ml-1.5 inline-flex items-center rounded-full bg-[#F3F4F6] px-1.5 py-px text-[11px] text-brand-muted;
+  }
+  .mm-tab-active .mm-tab-count {
+    @apply bg-brand-brown text-white;
+  }
 
   .mm-modal-overlay {
-    @apply fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm;
+    @apply fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-4;
+    backdrop-filter: blur(2px);
   }
   .mm-modal {
-    @apply my-8 w-full rounded-xl bg-white shadow-lg;
+    @apply my-8 w-full rounded-xl border border-brand-border bg-white shadow-lg;
   }
   .mm-modal-header {
-    @apply flex items-center justify-between border-b border-brand-border px-6 py-4;
+    @apply flex items-start justify-between border-b border-[#F0EAE0] px-6 pb-4 pt-5;
   }
   .mm-modal-title {
-    @apply text-lg font-semibold text-[#1A1A1A];
+    @apply text-base font-semibold text-brand-dark;
   }
   .mm-modal-body {
-    @apply px-6 py-4;
+    @apply px-6 py-5;
   }
   .mm-modal-footer {
-    @apply flex justify-end gap-2 border-t border-brand-border px-6 py-4;
+    @apply flex justify-end gap-2 border-t border-[#F0EAE0] px-6 py-4;
   }
 }

@@ -93,20 +93,20 @@ export default function ProcurementPage() {
       <FilterBar requests={requests} onFilteredChange={setFiltered} statuses={RELEVANT_STATUSES} />
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-brand-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-dark/60">Nothing here.</p>
+        <p className="text-sm text-brand-muted">Nothing here.</p>
       ) : (
         <div className="space-y-3">
           {filtered.map((r) => (
             <div
               key={r.request_id}
               onClick={() => setSelected(r)}
-              className="mm-card cursor-pointer hover:bg-[#F9F7F4]"
+              className="mm-card cursor-pointer hover:bg-[#FAFAF7]"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="font-mono text-xs text-brand-dark/70">{r.request_id}</span>
+                  <span className="font-mono text-xs text-brand-muted">{r.request_id}</span>
                   {r.skip_bo && (
                     <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
                       Skip BO — goes to CEO
@@ -122,7 +122,7 @@ export default function ProcurementPage() {
                 {formatCurrency(r.total)} · Supplier: {r.supplier_name ?? "-"}
               </div>
               {r.status === "PO_UPLOADED" && (
-                <div className="mt-2 text-xs text-brand-dark/70">
+                <div className="mt-2 text-xs text-brand-muted">
                   PO #{r.po_number} · Vendor: {r.po_vendor} · Uploaded {formatDate(r.po_uploaded_at)}
                 </div>
               )}

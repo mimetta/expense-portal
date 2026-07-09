@@ -1091,62 +1091,183 @@ attachment in the app still doesn't.
 
 Rebranded to Mimetta's new palette/typeface (was: brown `#9F8361`, cream `#FEFEE9`, border
 `#DFD5BC`, dark `#1E1E1E`, Inter). Current palette (`tailwind.config.ts` →
-`theme.extend.colors.brand`):
+`theme.extend.colors.brand`) — **`brand.cream` was retuned from `#EDE6D8` to `#FAF8F4`** in the
+later "Mimetta design system" pass below (a warmer, lighter off-white); every other value in
+this table is unchanged since the original rebrand:
 
 | Token | Hex | Role |
 |---|---|---|
-| `brand.brown` | `#1F3A2B` forest green | primary actions, active nav, buttons |
-| `brand.accent` | `#BD5A2E` burnt terracotta | hover states, badges, highlights |
-| `brand.cream` | `#EDE6D8` warm cream | page backgrounds |
-| `brand.border` | `#D8CBB0` sandstone beige | borders, cards, dividers |
-| `brand.sage` | `#9CAE8C` muted sage | success/approved/positive indicators |
-| `brand.dark` | `#1A1A1A` near-black | body text |
+| `brand.brown` | `#1F3A2B` forest green | primary actions, active nav underline, active tab underline |
+| `brand.accent` | `#BD5A2E` burnt terracotta | hover states, pinned badges, "Clear all" link |
+| `brand.cream` | `#FAF8F4` warm off-white | page/body background **only** — never cards or inputs |
+| `brand.border` | `#D8CBB0` sandstone beige | borders on every card/input/table/divider |
+| `brand.sage` | `#9CAE8C` muted sage | PAID badge, success indicators |
+| `brand.dark` | `#1A1A1A` near-black | body text, headings |
+| `brand.muted` | `#6B7280` | secondary text, inactive nav/tab labels |
+| `brand.subtle` | `#9CA3AF` | placeholder text, uppercase section labels/counts |
 
-### UI Design System (Supabase-dashboard-inspired)
+`muted`/`subtle` were added in the "Mimetta design system" pass — before that, secondary text
+was expressed ad hoc as `text-brand-dark/60` etc. (opacity-modified dark), which has since been
+swept to `text-brand-muted`/`text-brand-subtle` app-wide for a single source of truth per shade
+rather than each callsite picking its own opacity value.
 
-The rebrand above set the color tokens; this pass restyled the actual components to a
-Supabase-dashboard aesthetic — white cards with subtle 1px borders (not heavy shadows), tight
-consistent spacing, small muted rounded-full status badges (unchanged from the rebrand's
-`StatusBadge.tsx`), underline-style tabs, and clean 36px-tall form fields with a soft focus
-ring. Reusable primitives live in `app/globals.css` under `@layer components` as `.mm-*`
-classes (`mm-card`, `mm-btn-primary`/`mm-btn-secondary`/`mm-btn-danger` + `mm-btn-sm`,
-`mm-input`, `mm-table-wrap`/`mm-table`, `mm-tabs`/`mm-tab`/`mm-tab-active`, `mm-page-title`/
-`mm-page-subtitle`, `mm-modal-*`) rather than re-deriving the same Tailwind utility string per
-component — apply the `.mm-*` class instead of hand-rolling an equivalent one-off when
-touching any of these surfaces.
+**Token keys are still kept as their original names even where the *role* description has
+drifted** (e.g. `brand.border` is used for literally every border in the app now, not just
+"cards, dividers" as the original comment said) — same reasoning as the original rebrand:
+renaming would touch dozens of files for no functional difference, since Tailwind only cares
+about the resolved value.
 
-- **Nav** (`components/Nav.tsx`): 48px height, white bg, underline-style active state
-  (`border-b-2 border-brand-brown text-brand-brown font-medium` vs. `border-transparent
-  text-gray-500` inactive) — not the earlier background-pill style. Sign out is a ghost button.
-- **Page layout** (`app/layout.tsx`): `#EDE6D8` page background, `max-w-[1200px]` centered
-  content, 24px padding.
-- **Buttons**: Primary (`mm-btn-primary`, `#1F3A2B` → `#BD5A2E` on hover), Secondary/Ghost
-  (`mm-btn-secondary`), Danger (`mm-btn-danger`, `#FCA5A5` border / `#DC2626` text / `#FEE2E2`
-  hover) — all 36px tall by default, `mm-btn-sm` for the 28px inline-table-row variant.
-- **Tables**: `mm-table-wrap` + `mm-table` — `#F9F7F4` header row, 11px uppercase muted header
-  text, `#F0EAE0` row dividers, `#F9F7F4` row hover, no zebra striping.
-- **Tabs**: `mm-tabs`/`mm-tab`/`mm-tab-active` — borderless with a 2px `#1F3A2B` underline on
-  the active tab, replacing the earlier filled-pill tab style everywhere it appeared
-  (Procurement, BO/CEO Approvals, Accounting).
-- **Modals**: `components/shared/RequestDetailModal.tsx`'s shell (the one modal every list page
-  shares) now uses `rounded-xl` (12px), an 18px semibold title, and a bordered footer with
-  right-aligned actions, matching the redesign spec's Modals section.
-- **Filter bar** (`components/FilterBar.tsx`): collapsed behind a "🔽 Filters" toggle by
-  default (active-filter count shown on the button, e.g. "Filters (3)"), expanding to a
-  bordered card with compact (32px-tall) selects, each with a small grey label *above* it
-  rather than inline. A text-only "↺ Clear all" (terracotta `#BD5A2E`) appears only once at
-  least one filter is active. Same six filters as before (Month/Status/Category/Expense
-  Type/Payment Method/Supplier), each still defaulting to "All".
+### UI Design System ("Mimetta design system" — supersedes the earlier Supabase-inspired pass)
 
-**Coverage, honestly stated:** the shell/list-page layer (Nav, StatusBadge, FilterBar, the
-`RequestDetailModal` header/footer chrome, and every list page's page title/tabs/cards/tables/
-buttons — My Requests, Procurement, BO/CEO Approvals, Accounting) is fully converted. The deep
-body content of `RequestDetailModal.tsx` (Expense Items table, Payment Details, PO Information,
-Attachments, Approval Timeline) and all of `RequestForm.tsx` (the Submit/Edit form itself) were
-**not** touched — both are large, already-functioning components where a full pixel-level pass
-was out of scope for this batch; they still use the pre-redesign ad hoc Tailwind classes
-(functionally identical, just not yet using the `.mm-*` primitives). Apply the same primitives
-there in a follow-up pass if/when a full redesign of those two files specifically is requested.
+Two design passes have shipped in this app's history:
+1. An earlier Supabase-dashboard-inspired pass (white cards, muted badges, underline tabs,
+   `.mm-*` primitives first introduced).
+2. **This one** — a from-scratch color/spacing spec ("the Mimetta design system") that mostly
+   *tightens* pass 1's values (36px inputs stayed 36px, cards stayed white-with-sand-border)
+   rather than replacing its structure, plus a few genuine changes: `#FAF8F4` page background
+   (was `#EDE6D8`), 56px nav (was 48px), 1280px content width (was 1200px), a stricter color
+   rulebook, and — new this pass — the Submit page (`RequestForm.tsx`) and Settings page
+   (`settingsClient.tsx`) actually restyled, which pass 1 explicitly left untouched.
+
+The same `.mm-*` primitive classes from pass 1 still exist in `app/globals.css` under
+`@layer components` (`mm-card`, `mm-btn-primary`/`mm-btn-secondary`/`mm-btn-danger` + `mm-btn-
+sm`, `mm-input`, `mm-table-wrap`/`mm-table`, `mm-tabs`/`mm-tab`/`mm-tab-active`/`mm-tab-count`,
+`mm-page-title`/`mm-page-subtitle`/`mm-section-label`/`mm-label`, `mm-modal-*`) — this pass
+updated their internal values (padding, radius, exact hex) to match the new spec rather than
+introducing a second parallel set of classes. Apply the `.mm-*` class instead of hand-rolling
+an equivalent one-off when touching any of these surfaces.
+
+**Color usage rules, enforced across the sweep this pass did:**
+- `#FAF8F4` (`brand.cream`) → page/body background only. Never a card, input, or table
+  background — this was a real bug in several places before this pass (e.g. the Expense Items
+  table header, required-docs checklist panel, and several dropdown-hover states all used
+  `bg-brand-cream`, which is now `#F9F8F6` instead — a distinct light-neutral token that has no
+  Tailwind config entry of its own, used as a raw `bg-[#F9F8F6]` arbitrary value at each
+  callsite since it's a table/panel-specific shade, not a general-purpose brand color).
+- White is the only card/input/nav/modal background.
+- Green (`brand.brown`) is never a background on a card, page section, or the nav bar — only on
+  the primary button, the active-nav/active-tab underline, and a few small circular status
+  indicators (e.g. the approval-timeline "current step" dot in `RequestDetailModal.tsx`).
+- Sand (`brand.border`, `#D8CBB0`) is the one border color everywhere — cards, inputs, tables,
+  dividers, the nav's bottom border.
+
+**Nav** (`components/Nav.tsx`): 56px height (`h-14`, was 48px), padding `0 32px` (`px-8`), logo
+18px/bold (`text-lg font-bold`, was 14px/semibold), `max-w-[1280px]` inner wrapper (matches the
+page content width below). Sign-out button: sand border, white bg, muted text, hovers to red
+`#DC2626` (text-color only, no background/border change) rather than the old cream-background
+hover. Email is 13px `brand.subtle`.
+
+**Page layout** (`app/layout.tsx`): `#FAF8F4` page background, `max-w-[1280px]` centered content
+(was 1200px), `px-8 py-6` (32px/24px, was 24px/24px). `mm-page-title` is 22px/600 (was 24px/600
+via a plain Tailwind `text-2xl`); `mm-page-subtitle` is 13px `brand.muted`.
+
+**Cards**: `mm-card` — white, sand border, **10px radius** (was 8px), `px-6 py-5` (24px/20px,
+was 16px/20px), no shadow. `mm-section-label` — the uppercase 11px card-internal header style
+(`brand.subtle`, `0.05em` tracking, `1px solid #F0EAE0` bottom border, `16px` margin-below) —
+new this pass; previously section headers inside a card were just `text-sm font-semibold`.
+
+**Form inputs**: `mm-input` unchanged in height (36px) from pass 1, but the focus ring softened
+from `rgba(31,58,43,0.1)` to `rgba(31,58,43,0.08)` and placeholder color moved from generic
+gray to `brand.subtle`. Labels are now `mm-label` — 13px/500, `#374151` (a one-off hex not in
+the token table, matching the spec's literal "Labels" color) — rather than the plain `brand.dark`
+labels pass 1 used.
+
+**Buttons**: Danger hover softened from `#FEE2E2` to `#FEF2F2`; everything else (primary
+`#1F3A2B`→`#BD5A2E` hover, secondary sand border) unchanged from pass 1. `mm-btn-sm` gained a
+5px radius (was inheriting the parent 6px).
+
+**Tables**: header row background moved from `#F9F7F4` to `#F9F8F6`; row divider from `#F0EAE0`
+to `#F5F0E8`; row hover from `#F9F7F4` to `#FAFAF7`. Header text is now `font-semibold` (was
+`font-medium`). `mm-table-wrap` gained `bg-white` explicitly and a 10px radius (was 8px).
+
+**Status badges** (`components/StatusBadge.tsx`): `BO_APPROVED` changed materially — was solid
+sand background (`#D8CBB0`) with no border, now a near-white sage tint (`#F0F4EF`) with a
+`1px solid #9CAE8C` border, matching the new spec's more restrained "approved but not final"
+treatment. `PO_UPLOADED` gained a border (`#BFDBFE`) it didn't have before. Every other status
+is unchanged.
+
+**Tabs**: `mm-tab` padding increased to `12px 16px` (was `4px 4px` via `px-1 pb-2`) for a larger
+click target, and gained an optional `mm-tab-count` pill (inactive: light-grey `#F3F4F6`
+background; active, i.e. nested inside `mm-tab-active`: solid green) — not used everywhere yet,
+since most tab bars already spell counts directly into the label string (e.g. `"Edit Requests
+(3)"`) rather than as a separate pill; the class exists for future tab bars that want the pill
+treatment.
+
+**Filter bar** (`components/FilterBar.tsx`) — rewritten again this pass, a more literal
+translation of the spec than pass 1's version: a single always-visible toolbar row (`#FDFCFB`
+background, `1px solid #F0EAE0` full border + 10px radius, not just a bottom border in
+isolation — a bare bottom border alone would look visually incomplete floating inside the
+page's padded content column, so it was given a full border instead of interpreting the spec
+maximally literally) containing a Filter button that turns solid green with white text once any
+filter is active (label switches from `"Filter"` to `"Filter (N)"`), a terracotta "Clear all"
+text link (only rendered once active), and a live result count on the right (`"N results"`).
+Below that, an animated expand/collapse panel (`max-height` 0→120px, `0.2s ease`) holding the
+same six filters as before (Month/Status/Category/Expense Type/Payment Method/Supplier), each
+with a 10px uppercase `brand.subtle` label above a compact 30px-tall select. The Filter button's
+icon is a small inline SVG (three horizontal sliders) rather than an emoji or an external icon
+font — this app has no icon library installed, and the spec named a Tabler icon
+(`ti-adjustments-horizontal`) that isn't available, so a minimal hand-drawn equivalent was used
+instead of pulling in a new dependency for one icon.
+
+**Modals**: overlay is `rgba(0,0,0,0.45)` with a `2px` backdrop blur (was `0.4` opacity, no
+blur) — applied via inline `style={{ backdropFilter: "blur(2px)" }}` since Tailwind's
+`backdrop-blur-sm` utility is a fixed step (4px) not the spec's literal 2px. Modal shell gained
+an explicit `1px solid` sand border (previously relied on the shadow alone to read as
+elevated). `RequestDetailModal.tsx`'s header padding is `24px 20px 16px` (was a flat `24px`
+vertical), title dropped from 18px to 16px to match the spec's literal "title 16px font-weight
+600" (the request ID, which doubles as this modal's title, is now `text-base font-semibold`
+instead of `text-lg`). Every other modal in the app (`app/my/page.tsx`'s Edit/Request-Edit/
+Delete-confirm modals, `settingsClient.tsx`'s shared `Modal` component) was updated to the same
+overlay/border/radius treatment — `settingsClient.tsx`'s `Modal` now composes the same
+`mm-modal-overlay`/`mm-modal`/`mm-modal-header`/`mm-modal-title`/`mm-modal-body` classes
+`RequestDetailModal.tsx` uses inline, rather than hand-rolling its own equivalent.
+
+**Homepage stat cards & announcements** (`app/homeClient.tsx`): each Quick Stats card is now an
+`mm-card` with a 3px colored left border (`inline style`, since Tailwind has no built-in
+per-side-width border-color utility combo for an arbitrary 3px — green for "My Pending
+Requests", terracotta for "Pending My Approval", sage for "Paid This Month") and restyled
+label/value/subtext (11px uppercase `brand.subtle` label, 26px/600 dark value). The Announcements
+card's per-item layout changed from a bottom-divider list to a `3px solid` terracotta
+left-border list (matching the spec's card-item treatment), and the pinned badge recolored from
+generic amber (`bg-amber-100`/`text-amber-800`) to the spec's terracotta pairing (`#FDF2EE`
+background, `#BD5A2E` text, `#F5C4A3` border) — the same pinned-badge treatment was applied to
+Settings > Announcements' management table for consistency between the two places a pinned
+badge appears.
+
+**Submit page** (`components/shared/RequestForm.tsx`) — genuinely redesigned this pass, unlike
+pass 1 which explicitly left it alone. All five sections (Basic Info, PO Required, Expense
+Items, Payment Details, Attachments) are now `mm-card`s with `mm-section-label` headers, `12px`
+gap between sections (was `24px`, via the form's outer `space-y-3` instead of `space-y-6`).
+**PO Required was already two small inline radio buttons, not big bordered selectable cards**
+by the time this pass started — the spec asked for this explicitly as if it needed changing,
+but it had already been built that way in an earlier session; only the wrapper was converted to
+`mm-card` for this pass, the inline-radio content itself was left as-is since it already
+matched. The Expense Items table's header row (a flex-based pseudo-table, not a real `<table>`
+— see the `COL` column-width constants) gained an `#F9F8F6` background. Submit/secondary buttons
+grew from a plain `py-2` to a `44px`-tall (`h-11`) primary button — not literally the spec's
+generic 36px button height, since a full-width bottom-of-form call-to-action reads better
+slightly taller; the general 36px button height still applies to every other button on this
+page (Add Expense Item, Remove, etc.).
+
+**Settings page** (`app/settings/settingsClient.tsx`) — also newly converted this pass (pass 1
+didn't touch it either). The shared `Modal` component, tab bar, and all six tabs' tables now use
+the same `.mm-*` primitives as everywhere else (`mm-tabs`/`mm-tab`, `mm-table-wrap`/`mm-table`,
+`mm-modal-*`) via edits to this file's own shared `inputClass`/`labelClass`/`buttonPrimary`/
+`buttonSecondary` constants (mirroring the same "update the shared constant, not every
+callsite" approach used in `RequestForm.tsx`) — most of the six tabs' forms/tables picked up
+the new look automatically from those constant updates rather than needing per-tab edits.
+
+**Coverage, honestly stated:** every page and shared component in the app now uses the current
+token values and `.mm-*` primitives — the "not yet converted" carve-out pass 1 documented for
+`RequestForm.tsx`/`settingsClient.tsx`'s deep content no longer applies, since both were
+explicitly redesigned this pass. `app/dashboard/dashboardClient.tsx` remains genuinely
+unconverted and is expected to stay that way — see "Dashboard nav removal" above, the route
+unconditionally redirects to `/` and this component is unreferenced in the running app, so
+restyling it would be pure busywork. The CEO-signature-required banner in
+`RequestDetailModal.tsx` (`#DBEAFE` background, `#3B82F6` left border) is also deliberately
+untouched — it's a distinct, pre-existing informational banner with its own established exact
+colors from an earlier spec, not one of the surfaces (cards/tables/badges/buttons) this pass's
+color rulebook governs.
 
 **Token keys were kept as their original brown/cream/border/dark names even though the values
 no longer literally match** (`brand.brown` is forest green, not brown) — renaming them would
@@ -1173,15 +1294,18 @@ reskins the vast majority of the UI):
   automatic retheme and was deliberately left alone — nothing in the spec asked to change every
   cream hover in the app to the border color, only navigation's.
 
-Font: **DM Sans** (weights 300/400/500/600/700) + Noto Sans Thai fallback, both loaded via
-`next/font/google` in `app/layout.tsx` (self-hosted at build time, no runtime Google Fonts
-request/FOUC) — kept this existing pattern rather than switching to a manual `<link>`/`@import`
-tag, which the spec's literal wording ("Import DM Sans from Google Fonts... update Google
-Fonts import link") suggested but would have been a real regression from what was already
-there. `--font-inter` (the CSS variable name, referenced in `tailwind.config.ts`'s
-`fontFamily.sans`) was renamed to `--font-dm-sans` for clarity, unlike the color token keys
-above — there's exactly one call site for this one (`tailwind.config.ts`), so renaming it was
-free, unlike the 50+ call sites a color token rename would have touched.
+Font: **DM Sans** (weights 400/500/600/700 — trimmed from an original 300/400/500/600/700 when
+the "Mimetta design system" pass's spec asked for exactly these four weights and 300 wasn't
+used anywhere in the app) + Noto Sans Thai fallback, both loaded via `next/font/google` in
+`app/layout.tsx` (self-hosted at build time, no runtime Google Fonts request/FOUC) — kept this
+existing pattern rather than switching to a manual `<link>`/`@import` tag, which more than one
+spec's literal wording ("Import DM Sans from Google Fonts...") has suggested but would have
+been a real regression from what was already there; this decision has now been made twice
+against two separate literal-wording specs and stands. `--font-inter` (the CSS variable name,
+referenced in `tailwind.config.ts`'s `fontFamily.sans`) was renamed to `--font-dm-sans` for
+clarity, unlike the color token keys above — there's exactly one call site for this one
+(`tailwind.config.ts`), so renaming it was free, unlike the 50+ call sites a color token rename
+would have touched.
 
 ---
 

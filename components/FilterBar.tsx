@@ -6,8 +6,8 @@ import { STATUS_LABELS } from "@/lib/status";
 import type { CategoryRow, ExpenseRequest, SupplierRow } from "@/types/database";
 
 const selectClass =
-  "h-8 rounded-md border border-brand-border bg-white px-2 text-[13px] text-brand-dark focus:border-brand-brown focus:outline-none";
-const labelClass = "mb-1 block text-[11px] text-gray-500";
+  "h-[30px] rounded-md border border-brand-border bg-white px-2 text-xs text-brand-dark focus:border-brand-brown focus:outline-none";
+const labelClass = "mb-1 block text-[10px] uppercase tracking-wide text-brand-subtle";
 
 interface FilterBarProps {
   requests: ExpenseRequest[];
@@ -16,6 +16,19 @@ interface FilterBarProps {
   // to every status). Applied client-side to already-loaded data — no new
   // API calls.
   statuses?: readonly Status[];
+}
+
+function AdjustmentsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+      <circle cx="11" cy="18" r="2" fill="currentColor" stroke="none" />
+    </svg>
+  );
 }
 
 export default function FilterBar({ requests, onFilteredChange, statuses = STATUSES }: FilterBarProps) {
@@ -75,28 +88,39 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
   };
 
   return (
-    <div className="mb-4">
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="mm-btn-secondary mm-btn-sm"
-        >
-          🔽 Filters{activeCount > 0 ? ` (${activeCount})` : ""}
-        </button>
-        {activeCount > 0 && (
+    <div className="mb-4 overflow-hidden rounded-[10px] border border-[#F0EAE0]" style={{ background: "#FDFCFB" }}>
+      <div className="flex items-center justify-between px-5 py-2.5">
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={clear}
-            className="text-[13px] font-medium text-[#BD5A2E] hover:underline"
+            onClick={() => setOpen((o) => !o)}
+            className={`mm-btn-sm inline-flex items-center gap-1.5 rounded-md border transition-colors ${
+              activeCount > 0
+                ? "border-brand-brown bg-brand-brown text-white"
+                : "border-brand-border bg-white text-brand-dark hover:bg-[#F9F8F6]"
+            }`}
           >
-            ↺ Clear all
+            <AdjustmentsIcon />
+            {activeCount > 0 ? `Filter (${activeCount})` : "Filter"}
           </button>
-        )}
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={clear}
+              className="text-[13px] font-medium text-[#BD5A2E] hover:underline"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+        <span className="text-[13px] text-brand-subtle">{filtered.length} results</span>
       </div>
 
-      {open && (
-        <div className="mm-card mt-2 flex flex-wrap items-end gap-3 !p-4">
+      <div
+        className="overflow-hidden"
+        style={{ maxHeight: open ? 120 : 0, transition: "max-height 0.2s ease" }}
+      >
+        <div className="flex flex-wrap gap-3 px-5 pb-4 pt-1">
           <div>
             <label className={labelClass}>Month</label>
             <input
@@ -152,7 +176,7 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
             </select>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

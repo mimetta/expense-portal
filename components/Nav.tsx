@@ -56,10 +56,10 @@ export default function Nav() {
 
   return (
     <>
-      <nav className="h-12 border-b border-brand-border bg-white">
-        <div className="mx-auto flex h-full max-w-[1200px] flex-wrap items-center justify-between gap-2 px-6">
+      <nav className="h-14 border-b border-brand-border bg-white">
+        <div className="mx-auto flex h-full max-w-[1280px] flex-wrap items-center justify-between gap-2 px-8">
           <div className="flex h-full items-center gap-1">
-            <Link href="/" className="mr-4 text-sm font-semibold text-brand-brown">
+            <Link href="/" className="mr-4 text-lg font-bold text-brand-brown">
               Mimetta
             </Link>
             {LINKS.filter((link) => data.access?.[link.page]).map((link) => {
@@ -71,7 +71,7 @@ export default function Nav() {
                   className={`flex h-full items-center border-b-2 px-3 text-sm transition ${
                     active
                       ? "border-brand-brown font-medium text-brand-brown"
-                      : "border-transparent font-normal text-gray-500 hover:text-brand-dark"
+                      : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
                   }`}
                 >
                   {link.label}
@@ -79,11 +79,11 @@ export default function Nav() {
               );
             })}
           </div>
-          <div className="flex items-center gap-3 text-sm text-gray-500">
-            <span>{data.user.email}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] text-brand-subtle">{data.user.email}</span>
             <button
               onClick={handleSignOut}
-              className="rounded-md border border-brand-border px-3 py-1 text-sm text-brand-dark hover:bg-brand-cream"
+              className="rounded-md border border-brand-border bg-white px-3 py-1 text-sm text-brand-muted transition-colors hover:text-[#DC2626]"
             >
               Sign out
             </button>

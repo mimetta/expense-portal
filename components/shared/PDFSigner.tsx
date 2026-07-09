@@ -400,7 +400,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
 
   if (loading) {
     return (
-      <div className="rounded-md border border-brand-border bg-white p-3 text-sm text-brand-dark/60">
+      <div className="rounded-md border border-brand-border bg-white p-3 text-sm text-brand-muted">
         Loading PDF...
       </div>
     );
@@ -414,14 +414,14 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           <a
             href={file.url}
             download={file.name}
-            className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-brand-cream"
+            className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
           >
             ดาวน์โหลด
           </a>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-brand-cream"
+            className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
           >
             Cancel
           </button>
@@ -454,7 +454,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         </button>
       </div>
 
-      <div className="flex justify-center overflow-auto rounded-md border border-brand-border bg-brand-cream/30 p-2">
+      <div className="flex justify-center overflow-auto rounded-md border border-brand-border bg-[#F9F8F6] p-2">
         <canvas
           ref={pageCanvasRef}
           className={`max-w-full touch-none ${canDragOnCurrentPage ? "cursor-move" : ""}`}
@@ -468,7 +468,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         />
       </div>
       {canDragOnCurrentPage && (
-        <p className="mt-1 text-center text-[11px] text-brand-dark/50">
+        <p className="mt-1 text-center text-[11px] text-brand-subtle">
           Drag the signature on the page to fine-tune its position
         </p>
       )}
@@ -488,7 +488,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           onTouchEnd={stopPadDraw}
         />
         <div
-          className={`pointer-events-none absolute inset-0 flex max-w-[400px] items-center justify-center text-xs text-brand-dark/40 transition-opacity duration-300 ${
+          className={`pointer-events-none absolute inset-0 flex max-w-[400px] items-center justify-center text-xs text-brand-subtle transition-opacity duration-300 ${
             hasDrawnSig ? "opacity-0" : "opacity-100"
           }`}
         >
@@ -498,13 +498,13 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
       <button
         type="button"
         onClick={clearPad}
-        className="mt-2 rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-brand-cream"
+        className="mt-2 rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
       >
         Clear
       </button>
 
       <div className="mt-3">
-        <p className="mb-1.5 text-xs font-medium text-brand-dark/70">
+        <p className="mb-1.5 text-xs font-medium text-brand-muted">
           Signature position — pick a corner, or drag it on the page above once placed
         </p>
         <div className="flex flex-wrap gap-2">
@@ -516,7 +516,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
               className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
                 selectedCorner === c.key
                   ? "border-brand-brown bg-brand-brown text-white"
-                  : "border-brand-border text-brand-dark hover:bg-brand-cream"
+                  : "border-brand-border text-brand-dark hover:bg-[#F9F8F6]"
               }`}
             >
               {c.label}
@@ -530,7 +530,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           type="button"
           disabled={!hasDrawnSig}
           onClick={placeSignature}
-          className="rounded-md border border-brand-brown px-3 py-1.5 text-sm font-medium text-brand-brown hover:bg-brand-cream disabled:opacity-40"
+          className="rounded-md border border-brand-brown px-3 py-1.5 text-sm font-medium text-brand-brown hover:bg-[#F9F8F6] disabled:opacity-40"
         >
           Place Signature
         </button>
@@ -545,7 +545,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-brand-cream"
+          className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
         >
           Cancel
         </button>
