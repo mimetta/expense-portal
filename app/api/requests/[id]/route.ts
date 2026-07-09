@@ -3,13 +3,22 @@ import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import { canViewRequest, hasRole, isSuperadmin, visibleRejectionHistory } from "@/lib/permissions";
-import { isBoActionable, isCeoActionable, isOwnerEditable } from "@/lib/status";
+import { isBoActionable, isCeoActionable, isEditApproved, isOwnerEditable } from "@/lib/status";
 import { getRequestOrThrow, updateRequest } from "@/lib/request-repo";
 import { computeTotals } from "@/lib/totals";
 import { logAudit } from "@/lib/audit";
-import { notify } from "@/lib/discord";
+import { notify, type NotificationEvent } from "@/lib/discord";
 import { buildEditableFields, resubmitRequest, type EditableRequestBody } from "@/lib/resubmit";
 import type { ExpenseRequest, FileEntry, RequestItem } from "@/types/database";
+
+// status_before_edit is always one of these three — canRequestEdit
+// (lib/status.ts) only allows requesting an edit from BO_APPROVED/
+// CEO_APPROVED/PAID in the first place.
+const EDIT_RESUBMIT_NOTIFY_EVENT: Record<string, NotificationEvent> = {
+  BO_APPROVED: "BO_APPROVED",
+  CEO_APPROVED: "CEO_APPROVED",
+  PAID: "PAID",
+};
 
 export async function GET(
   _request: Request,
@@ -111,7 +120,7 @@ function buildProcurementPatch(body: ProcurementEditBody, existing: ExpenseReque
   };
 }
 
-// Five things happen through this single endpoint, mutually exclusive by
+// Six things happen through this single endpoint, mutually exclusive by
 // status/body shape:
 //   1. { resubmit: true, ...editable fields }  — REJECTED only, steps the
 //      status back one stage (see lib/resubmit.ts). Requester or SUPERADMIN.
@@ -139,6 +148,14 @@ function buildProcurementPatch(body: ProcurementEditBody, existing: ExpenseReque
 //      status/rejection-marker changes. Requester or SUPERADMIN. Logged as
 //      REQUEST_EDITED. No explicit flag needed: REJECTED never overlaps
 //      with #4's SUBMITTED/PO_UPLOADED gate, so there's no ambiguity here.
+//   6. { edit_resubmit: true, ...editable fields } — the Edit Request
+//      approval workflow's own resubmit (see request-edit/route.ts and
+//      approve-edit/route.ts for steps 1-2): only once an approver has
+//      granted the request (status EDIT_REQUESTED, edit_approved_by set —
+//      lib/status.ts#isEditApproved). Same full field set as #1/#3/#5 via
+//      buildEditableFields, but the target status is status_before_edit
+//      (stamped by approve-edit, not rejected_stage) and all five edit_*
+//      markers are cleared. Logged as EDIT_RESUBMITTED.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -154,6 +171,7 @@ export async function PATCH(
         resubmit?: boolean;
         attach_signature?: boolean;
         owner_edit?: boolean;
+        edit_resubmit?: boolean;
         files_json?: FileEntry[];
       };
 
@@ -176,6 +194,32 @@ export async function PATCH(
       }
       const updated = await updateRequest(admin, id, { files_json: body.files_json });
       await logAudit(user.email, id, "SIGNATURE_ATTACHED", {});
+      return NextResponse.json({ request: updated });
+    }
+
+    if (body.edit_resubmit === true) {
+      const canEditResubmit =
+        isEditApproved(existing) && (existing.requester_email === user.email || isSuperadmin(user));
+      if (!canEditResubmit) {
+        return NextResponse.json(
+          { error: "Cannot resubmit — no approved edit request for this request" },
+          { status: 403 },
+        );
+      }
+      const targetStatus = (existing.status_before_edit as ExpenseRequest["status"] | null) ?? "SUBMITTED";
+      const editableFields = await buildEditableFields(admin, body, existing);
+      const updated = await updateRequest(admin, id, {
+        ...editableFields,
+        status: targetStatus,
+        edit_requested_at: null,
+        edit_requested_reason: null,
+        edit_approved_by: null,
+        edit_approved_at: null,
+        status_before_edit: null,
+      });
+      await logAudit(user.email, id, "EDIT_RESUBMITTED", { target_status: targetStatus });
+      const notifyEvent = EDIT_RESUBMIT_NOTIFY_EVENT[targetStatus];
+      if (notifyEvent) await notify(notifyEvent, updated);
       return NextResponse.json({ request: updated });
     }
 
@@ -220,6 +264,46 @@ export async function PATCH(
     }
 
     throw new ForbiddenError();
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+// Owner (or SUPERADMIN) deleting their own request outright — only while
+// it's still untouched by Procurement, i.e. the exact same window as
+// isOwnerEditable (lib/status.ts): status SUBMITTED and no po_number/
+// po_uploaded_by/po_uploaded_at set yet. A hard delete, not a status
+// change — nothing downstream (BO/CEO/Accounting) has ever seen this
+// request, so there's no approval record to preserve the way REJECTED
+// keeps one; the audit_log row (logged before the delete, per the
+// standard requireUser -> check -> mutate -> logAudit order) is the only
+// remaining trace.
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+
+    const admin = createAdminClient();
+    const existing = await getRequestOrThrow(admin, id);
+
+    const canDelete =
+      (existing.requester_email === user.email || isSuperadmin(user)) &&
+      existing.status === "SUBMITTED" &&
+      !existing.po_number?.trim() &&
+      !existing.po_uploaded_by?.trim() &&
+      !existing.po_uploaded_at;
+
+    if (!canDelete) throw new ForbiddenError();
+
+    await logAudit(user.email, id, "DELETE_REQUEST", {});
+
+    const { error } = await admin.from("requests").delete().eq("request_id", id);
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return handleApiError(err);
   }

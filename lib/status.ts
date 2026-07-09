@@ -41,6 +41,7 @@ export const STATUS_LABELS: Record<ExpenseRequest["status"], string> = {
   CEO_APPROVED: "CEO Approved",
   PAID: "Paid",
   REJECTED: "Rejected",
+  EDIT_REQUESTED: "Edit Requested",
 };
 
 // Rejected requests can only be resubmitted within this window of
@@ -69,4 +70,50 @@ export function isOwnerEditable(r: ExpenseRequest): boolean {
     !r.po_uploaded_by?.trim() &&
     !r.po_uploaded_at
   );
+}
+
+// --- Edit Request approval workflow ---------------------------------------
+// A separate, later-stage escape hatch from isOwnerEditable above: once a
+// request has already been approved (or paid), the owner can still ask
+// permission to edit it, but an approver has to grant that first. See
+// CLAUDE.md "Edit Request approval workflow" for the full flow.
+
+const EDIT_REQUESTABLE_STATUSES: ReadonlySet<ExpenseRequest["status"]> = new Set<ExpenseRequest["status"]>([
+  "BO_APPROVED",
+  "CEO_APPROVED",
+  "PAID",
+]);
+
+export function canRequestEdit(r: ExpenseRequest): boolean {
+  return EDIT_REQUESTABLE_STATUSES.has(r.status) && !r.edit_requested_at;
+}
+
+// True from the moment the owner clicks "Request Edit" until an approver
+// acts (allow or reject) — status is still whatever it originally was
+// (BO_APPROVED/CEO_APPROVED/PAID), not yet EDIT_REQUESTED.
+export function isEditRequestPending(r: ExpenseRequest): boolean {
+  return !!r.edit_requested_at && r.status !== "EDIT_REQUESTED";
+}
+
+// Which stage's approver should see/act on this pending edit request —
+// null once it's no longer pending (isEditRequestPending is false) or if
+// the status is somehow none of the three edit-requestable ones.
+export function editRequestApproverStage(r: ExpenseRequest): "BO" | "CEO" | "ACCOUNTING" | null {
+  if (!isEditRequestPending(r)) return null;
+  switch (r.status) {
+    case "BO_APPROVED":
+      return "BO";
+    case "CEO_APPROVED":
+      return "CEO";
+    case "PAID":
+      return "ACCOUNTING";
+    default:
+      return null;
+  }
+}
+
+// The request is unlocked for full-form owner editing (an approver already
+// said yes) — same shape of check as isOwnerEditable, different gate.
+export function isEditApproved(r: ExpenseRequest): boolean {
+  return r.status === "EDIT_REQUESTED" && !!r.edit_approved_by;
 }

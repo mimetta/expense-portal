@@ -29,3 +29,104 @@ body {
     display: none;
   }
 }
+
+/* Shared design-system primitives (see CLAUDE.md "UI Design System") —
+   Supabase-dashboard-inspired: white cards with subtle 1px borders, tight
+   spacing, muted page background, small rounded-full status badges, clean
+   form fields with a soft focus ring. Defined once here so every page
+   applies the identical look via one class instead of re-deriving the
+   same Tailwind utility string per component. */
+@layer components {
+  .mm-card {
+    @apply rounded-lg border border-brand-border bg-white p-4 px-5;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .mm-section-label {
+    @apply text-[11px] font-medium uppercase tracking-wide text-gray-500;
+  }
+
+  .mm-page-title {
+    @apply text-2xl font-semibold text-[#1A1A1A];
+  }
+
+  .mm-page-subtitle {
+    @apply text-sm text-gray-500;
+  }
+
+  .mm-input {
+    @apply h-9 w-full rounded-md border border-brand-border bg-white px-3 text-sm text-brand-dark placeholder:text-gray-400 focus:border-brand-brown focus:outline-none;
+    box-shadow: none;
+  }
+  .mm-input:focus {
+    box-shadow: 0 0 0 2px rgba(31, 58, 43, 0.1);
+  }
+
+  .mm-btn {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .mm-btn-sm {
+    @apply h-7 px-2.5 text-xs;
+  }
+  .mm-btn-primary {
+    @apply mm-btn bg-brand-brown text-white hover:bg-brand-accent;
+  }
+  .mm-btn-secondary {
+    @apply mm-btn border border-brand-border bg-white text-brand-dark hover:bg-brand-cream;
+  }
+  .mm-btn-danger {
+    @apply mm-btn border border-[#FCA5A5] bg-white text-[#DC2626] hover:bg-[#FEE2E2];
+  }
+
+  .mm-table-wrap {
+    @apply overflow-hidden rounded-lg border border-brand-border;
+  }
+  .mm-table {
+    @apply w-full text-sm;
+  }
+  .mm-table thead {
+    background-color: #f9f7f4;
+    border-bottom: 1px solid #d8cbb0;
+  }
+  .mm-table th {
+    @apply px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500;
+  }
+  .mm-table td {
+    @apply px-4 py-2.5;
+  }
+  .mm-table tbody tr {
+    border-top: 1px solid #f0eae0;
+  }
+  .mm-table tbody tr:hover {
+    background-color: #f9f7f4;
+  }
+
+  .mm-tabs {
+    @apply flex gap-4 border-b border-brand-border;
+  }
+  .mm-tab {
+    @apply -mb-px border-b-2 border-transparent px-1 pb-2 text-sm text-gray-500 hover:text-[#1A1A1A];
+  }
+  .mm-tab-active {
+    @apply border-brand-brown font-medium text-brand-brown;
+  }
+
+  .mm-modal-overlay {
+    @apply fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm;
+  }
+  .mm-modal {
+    @apply my-8 w-full rounded-xl bg-white shadow-lg;
+  }
+  .mm-modal-header {
+    @apply flex items-center justify-between border-b border-brand-border px-6 py-4;
+  }
+  .mm-modal-title {
+    @apply text-lg font-semibold text-[#1A1A1A];
+  }
+  .mm-modal-body {
+    @apply px-6 py-4;
+  }
+  .mm-modal-footer {
+    @apply flex justify-end gap-2 border-t border-brand-border px-6 py-4;
+  }
+}

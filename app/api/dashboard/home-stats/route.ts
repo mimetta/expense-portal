@@ -27,19 +27,24 @@ export async function GET() {
     const actsAsCeo = isSuperadmin(user) || hasRole(user, "CEO");
     const actsAsAccounting = isSuperadmin(user) || hasRole(user, "ACCOUNTING");
 
+    // "/" is just an internal sentinel meaning "no real link picked yet" —
+    // this only ever reaches the client when pendingMyApprovalRelevant is
+    // also false, in which case the homepage doesn't render this card at
+    // all (see CLAUDE.md "Homepage"), so it's never actually shown as a
+    // link. Was "/dashboard" before Dashboard was removed from the nav.
     let pendingMyApproval = 0;
-    let approvalLink = "/dashboard";
+    let approvalLink = "/";
     if (actsAsBo) {
       pendingMyApproval += all.filter((r) => isBoActionable(r) && canBoActOnRequest(user, r)).length;
       approvalLink = "/bo-approvals";
     }
     if (actsAsCeo) {
       pendingMyApproval += all.filter((r) => isCeoActionable(r)).length;
-      if (approvalLink === "/dashboard") approvalLink = "/ceo-approvals";
+      if (approvalLink === "/") approvalLink = "/ceo-approvals";
     }
     if (actsAsAccounting) {
       pendingMyApproval += all.filter((r) => isAccountingActionable(r)).length;
-      if (approvalLink === "/dashboard") approvalLink = "/accounting";
+      if (approvalLink === "/") approvalLink = "/accounting";
     }
 
     const now = new Date();

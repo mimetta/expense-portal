@@ -5,9 +5,10 @@ import StatusBadge from "@/components/StatusBadge";
 import FilterBar from "@/components/FilterBar";
 import RequestDetailModal from "@/components/shared/RequestDetailModal";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { isEditRequestPending } from "@/lib/status";
 import type { ExpenseRequest } from "@/types/database";
 
-type Tab = "pending" | "paid";
+type Tab = "pending" | "paid" | "edit-requests";
 const RELEVANT_STATUSES = ["CEO_APPROVED", "PAID"] as const;
 
 export default function AccountingPage() {
@@ -17,6 +18,7 @@ export default function AccountingPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<ExpenseRequest | null>(null);
+  const [editRequestCount, setEditRequestCount] = useState(0);
 
   const load = () => {
     setLoading(true);
@@ -27,6 +29,12 @@ export default function AccountingPage() {
   };
 
   useEffect(load, [tab]);
+
+  useEffect(() => {
+    fetch("/api/requests?scope=accounting&tab=edit-requests")
+      .then((res) => res.json())
+      .then((data) => setEditRequestCount((data.requests ?? []).length));
+  }, [tab]);
 
   const setPaid = async (id: string, paid: boolean) => {
     setBusy(id);
@@ -72,19 +80,40 @@ export default function AccountingPage() {
     }
   };
 
+  const actOnEditRequest = async (id: string, allow: boolean) => {
+    if (!allow && !confirm("Reject this edit request? The requester will be notified.")) return;
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/requests/${id}/approve-edit`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allow }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Failed to act on edit request");
+      }
+      setSelected(null);
+      load();
+      setEditRequestCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to act on edit request");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-brand-dark">Accounting</h1>
-      <div className="mb-4 flex gap-2">
-        {(["pending", "paid"] as Tab[]).map((t) => (
+      <h1 className="mm-page-title mb-4">Accounting</h1>
+      <div className="mm-tabs mb-4">
+        {(["pending", "paid", "edit-requests"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              tab === t ? "bg-brand-brown text-white" : "border border-brand-border text-brand-dark"
-            }`}
+            className={`mm-tab ${tab === t ? "mm-tab-active" : ""}`}
           >
-            {t === "pending" ? "Awaiting Payment" : "Paid"}
+            {t === "pending" ? "Awaiting Payment" : t === "paid" ? "Paid" : `Edit Requests (${editRequestCount})`}
           </button>
         ))}
       </div>
@@ -96,59 +125,76 @@ export default function AccountingPage() {
       ) : filtered.length === 0 ? (
         <p className="text-sm text-brand-dark/60">Nothing here.</p>
       ) : (
-        <div className="overflow-hidden rounded-md border border-brand-border">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-cream text-left text-brand-dark">
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead>
               <tr>
-                <th className="px-3 py-2">Request ID</th>
-                <th className="px-3 py-2">Requester</th>
-                <th className="px-3 py-2">Department</th>
-                <th className="px-3 py-2">Total</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Slip Receiver</th>
-                <th className="px-3 py-2">{tab === "pending" ? "CEO Approved" : "Paid At"}</th>
-                <th className="px-3 py-2" />
+                <th>Request ID</th>
+                <th>Requester</th>
+                <th>Department</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Slip Receiver</th>
+                <th>{tab === "pending" ? "CEO Approved" : tab === "paid" ? "Paid At" : "Edit Reason"}</th>
+                <th />
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr
-                  key={r.request_id}
-                  onClick={() => setSelected(r)}
-                  className="cursor-pointer border-t border-brand-border hover:bg-brand-cream/30"
-                >
-                  <td className="px-3 py-2 font-mono text-xs">{r.request_id}</td>
-                  <td className="px-3 py-2">{r.requester_name}</td>
-                  <td className="px-3 py-2">{r.department}</td>
-                  <td className="px-3 py-2">{formatCurrency(r.total)}</td>
-                  <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
-                  <td className="px-3 py-2 text-xs text-brand-dark/70">{r.slip_receiver_email ?? "-"}</td>
-                  <td className="px-3 py-2 text-xs text-brand-dark/70">
-                    {formatDate(tab === "pending" ? r.ceo_approved_at : r.paid_at)}
+                <tr key={r.request_id} onClick={() => setSelected(r)} className="cursor-pointer">
+                  <td className="font-mono text-xs">{r.request_id}</td>
+                  <td>{r.requester_name}</td>
+                  <td>{r.department}</td>
+                  <td>{formatCurrency(r.total)}</td>
+                  <td><StatusBadge status={r.status} /></td>
+                  <td className="text-xs text-brand-dark/70">{r.slip_receiver_email ?? "-"}</td>
+                  <td className="text-xs text-brand-dark/70">
+                    {tab === "edit-requests"
+                      ? r.edit_requested_reason ?? "-"
+                      : formatDate(tab === "pending" ? r.ceo_approved_at : r.paid_at)}
                   </td>
-                  <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                  <td className="text-right" onClick={(e) => e.stopPropagation()}>
                     {tab === "pending" ? (
                       <div className="flex justify-end gap-2">
                         <button
                           disabled={busy === r.request_id}
                           onClick={() => setPaid(r.request_id, true)}
-                          className="rounded-md bg-brand-brown px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-accent disabled:opacity-50"
+                          className="mm-btn-primary mm-btn-sm"
                         >
                           Mark Paid
                         </button>
                         <button
                           disabled={busy === r.request_id}
                           onClick={() => reject(r.request_id)}
-                          className="rounded-md border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          className="mm-btn-danger mm-btn-sm"
                         >
                           Reject
                         </button>
                       </div>
+                    ) : tab === "edit-requests" ? (
+                      isEditRequestPending(r) && (
+                        <div className="flex justify-end gap-2">
+                          <button
+                            disabled={busy === r.request_id}
+                            onClick={() => actOnEditRequest(r.request_id, true)}
+                            className="mm-btn-primary mm-btn-sm"
+                          >
+                            Allow Edit
+                          </button>
+                          <button
+                            disabled={busy === r.request_id}
+                            onClick={() => actOnEditRequest(r.request_id, false)}
+                            className="mm-btn-danger mm-btn-sm"
+                          >
+                            Reject Edit
+                          </button>
+                        </div>
+                      )
                     ) : (
                       <button
                         disabled={busy === r.request_id}
                         onClick={() => setPaid(r.request_id, false)}
-                        className="rounded-md border border-brand-border px-3 py-1.5 text-xs hover:bg-brand-cream disabled:opacity-50"
+                        className="mm-btn-secondary mm-btn-sm"
                       >
                         Mark Unpaid
                       </button>
@@ -166,19 +212,36 @@ export default function AccountingPage() {
           request={selected}
           onClose={() => setSelected(null)}
           actions={
-            selected.status === "CEO_APPROVED" ? (
+            selected.status === "PAID" && isEditRequestPending(selected) ? (
+              <>
+                <button
+                  disabled={busy === selected.request_id}
+                  onClick={() => actOnEditRequest(selected.request_id, true)}
+                  className="mm-btn-primary"
+                >
+                  Allow Edit
+                </button>
+                <button
+                  disabled={busy === selected.request_id}
+                  onClick={() => actOnEditRequest(selected.request_id, false)}
+                  className="mm-btn-danger"
+                >
+                  Reject Edit Request
+                </button>
+              </>
+            ) : selected.status === "CEO_APPROVED" ? (
               <>
                 <button
                   disabled={busy === selected.request_id}
                   onClick={() => setPaid(selected.request_id, true)}
-                  className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-50"
+                  className="mm-btn-primary"
                 >
                   Mark Paid
                 </button>
                 <button
                   disabled={busy === selected.request_id}
                   onClick={() => reject(selected.request_id)}
-                  className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="mm-btn-danger"
                 >
                   Reject
                 </button>
@@ -187,7 +250,7 @@ export default function AccountingPage() {
               <button
                 disabled={busy === selected.request_id}
                 onClick={() => setPaid(selected.request_id, false)}
-                className="rounded-md border border-brand-border px-4 py-2 text-sm hover:bg-brand-cream disabled:opacity-50"
+                className="mm-btn-secondary"
               >
                 Mark Unpaid
               </button>

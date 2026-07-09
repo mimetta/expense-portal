@@ -48,6 +48,7 @@ export const STATUSES = [
   "CEO_APPROVED",
   "PAID",
   "REJECTED",
+  "EDIT_REQUESTED",
 ] as const;
 export type Status = (typeof STATUSES)[number];
 

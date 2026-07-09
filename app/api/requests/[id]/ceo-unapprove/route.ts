@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { hasRole, isSuperadmin } from "@/lib/permissions";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 
-// Did not exist before — see bo-unapprove/route.ts for the same reasoning
-// (restricted to the CEO who actually approved it, or SUPERADMIN; no
-// Discord notification on reversal).
+// See bo-unapprove/route.ts — same later-spec change (any CEO can unapprove
+// any CEO_APPROVED request, not just the one who approved it; CEO has no
+// scope concept the way BO does, so this is just a role check now) and the
+// same "/api/approve/route.ts" false-premise note.
 export async function PATCH(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -23,8 +24,8 @@ export async function PATCH(
     if (existing.status !== "CEO_APPROVED") {
       throw new ConflictError(`Request ${id} is not CEO_APPROVED (status: ${existing.status})`);
     }
-    if (!isSuperadmin(user) && existing.ceo_approver !== user.email) {
-      throw new ForbiddenError("You can only unapprove requests you approved");
+    if (!isSuperadmin(user) && !hasRole(user, "CEO")) {
+      throw new ForbiddenError();
     }
 
     const targetStatus = existing.skip_bo

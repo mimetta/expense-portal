@@ -2,15 +2,21 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { canBoActOnRequest, hasRole, isSuperadmin } from "@/lib/permissions";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 
-// Did not exist before — BO approvals had no reversal at all. Restricted
-// from the start to the BO who actually approved it (or SUPERADMIN), since
-// letting any BO unwind another BO's decision would undermine the approval
-// record. No Discord notification, matching the existing convention for
-// reversals elsewhere (Accounting's "Mark Unpaid" also doesn't notify).
+// Originally restricted to "only the BO who approved it" — a later spec
+// explicitly asked to remove that ("Any BO can unapprove any BO_APPROVED
+// request (within their scope)"), while keeping the scope check, so any BO
+// whose bu_scope/dept_scope/cat_l1_scope actually covers this request can
+// unapprove it, not just the one who happened to click Approve. The spec
+// referenced "/api/approve/route.ts" as the file to update — that file has
+// never existed in this codebase (bo-unapprove/ceo-unapprove are, and
+// always have been, separate routes; see CLAUDE.md "BO/CEO unapprove"),
+// same kind of false premise as the earlier "fix unapprove logic" request
+// that led to these routes being built in the first place. Still no
+// Discord notification on reversal, matching the existing convention.
 export async function PATCH(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -25,8 +31,8 @@ export async function PATCH(
     if (existing.status !== "BO_APPROVED") {
       throw new ConflictError(`Request ${id} is not BO_APPROVED (status: ${existing.status})`);
     }
-    if (!isSuperadmin(user) && existing.bo_approver !== user.email) {
-      throw new ForbiddenError("You can only unapprove requests you approved");
+    if (!isSuperadmin(user) && !(hasRole(user, "BO") && canBoActOnRequest(user, existing))) {
+      throw new ForbiddenError("This request is outside your BO scope");
     }
 
     const targetStatus = existing.requires_po ? "PO_UPLOADED" : "SUBMITTED";

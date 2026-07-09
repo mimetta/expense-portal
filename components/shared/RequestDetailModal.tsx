@@ -374,14 +374,14 @@ export default function RequestDetailModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full flex-col overflow-hidden rounded-md bg-white shadow-lg"
+        className="flex max-h-[90vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-lg"
         style={{ maxWidth: 800 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between border-b border-brand-border px-5 py-4">
+        <div className="flex items-start justify-between border-b border-brand-border px-6 py-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm text-brand-dark/70">{request.request_id}</span>
+              <span className="text-lg font-semibold text-[#1A1A1A]">{request.request_id}</span>
               <StatusBadge status={request.status} />
               <span className="rounded-full bg-brand-cream px-2 py-0.5 text-xs text-brand-dark">{request.bu}</span>
             </div>
@@ -389,10 +389,7 @@ export default function RequestDetailModal({
           </div>
           <div className="flex items-center gap-3">
             {canOwnerEditNow && !fullEditMode && (
-              <button
-                onClick={() => setFullEditMode(true)}
-                className="rounded-md border border-brand-brown px-3 py-1.5 text-sm font-medium text-brand-brown hover:bg-brand-cream"
-              >
+              <button onClick={() => setFullEditMode(true)} className="mm-btn-secondary mm-btn-sm">
                 ✏️ Edit
               </button>
             )}
@@ -970,16 +967,12 @@ export default function RequestDetailModal({
         </div>
 
         {!fullEditMode && (actions || onSaveChanges || footerExtra) && (
-          <div className="flex items-center justify-between gap-2 border-t border-brand-border px-5 py-3">
+          <div className="flex items-center justify-between gap-2 border-t border-brand-border px-6 py-4">
             <div>{footerExtra}</div>
             <div className="flex gap-2">
               {actions}
               {onSaveChanges && (
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-50"
-                >
+                <button onClick={handleSave} disabled={saving} className="mm-btn-primary">
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               )}

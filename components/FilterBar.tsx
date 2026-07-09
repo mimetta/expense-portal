@@ -6,7 +6,8 @@ import { STATUS_LABELS } from "@/lib/status";
 import type { CategoryRow, ExpenseRequest, SupplierRow } from "@/types/database";
 
 const selectClass =
-  "rounded-md border border-brand-border bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown";
+  "h-8 rounded-md border border-brand-border bg-white px-2 text-[13px] text-brand-dark focus:border-brand-brown focus:outline-none";
+const labelClass = "mb-1 block text-[11px] text-gray-500";
 
 interface FilterBarProps {
   requests: ExpenseRequest[];
@@ -18,6 +19,7 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({ requests, onFilteredChange, statuses = STATUSES }: FilterBarProps) {
+  const [open, setOpen] = useState(false);
   const [month, setMonth] = useState("");
   const [status, setStatus] = useState("");
   const [catL1, setCatL1] = useState("");
@@ -61,6 +63,8 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
+  const activeCount = [month, status, catL1, expenseType, payMethod, supplier].filter(Boolean).length;
+
   const clear = () => {
     setMonth("");
     setStatus("");
@@ -71,51 +75,84 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
   };
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-brand-border bg-white p-2">
-      <input
-        type="month"
-        className={selectClass}
-        value={month}
-        onChange={(e) => setMonth(e.target.value)}
-        title="Budget period"
-      />
-      <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}>
-        <option value="">All statuses</option>
-        {statuses.map((s) => (
-          <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-        ))}
-      </select>
-      <select className={selectClass} value={catL1} onChange={(e) => setCatL1(e.target.value)}>
-        <option value="">All categories</option>
-        {catL1Options.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-      <select className={selectClass} value={expenseType} onChange={(e) => setExpenseType(e.target.value)}>
-        <option value="">All expense types</option>
-        {EXPENSE_TYPES.map((t) => (
-          <option key={t.label} value={t.label}>{t.label}</option>
-        ))}
-      </select>
-      <select className={selectClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-        <option value="">All payment methods</option>
-        {PAYMENT_METHODS.map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
-      <select className={selectClass} value={supplier} onChange={(e) => setSupplier(e.target.value)}>
-        <option value="">All suppliers</option>
-        {suppliers.map((s) => (
-          <option key={s.id} value={s.name}>{s.name}</option>
-        ))}
-      </select>
-      <button
-        type="button"
-        onClick={clear}
-        className="text-sm text-[#1F3A2B] hover:underline"
-      >
-        ↺ Reset
-      </button>
+    <div className="mb-4">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="mm-btn-secondary mm-btn-sm"
+        >
+          🔽 Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+        </button>
+        {activeCount > 0 && (
+          <button
+            type="button"
+            onClick={clear}
+            className="text-[13px] font-medium text-[#BD5A2E] hover:underline"
+          >
+            ↺ Clear all
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="mm-card mt-2 flex flex-wrap items-end gap-3 !p-4">
+          <div>
+            <label className={labelClass}>Month</label>
+            <input
+              type="month"
+              className={selectClass}
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Status</label>
+            <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All</option>
+              {statuses.map((s) => (
+                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Category</label>
+            <select className={selectClass} value={catL1} onChange={(e) => setCatL1(e.target.value)}>
+              <option value="">All</option>
+              {catL1Options.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Expense Type</label>
+            <select className={selectClass} value={expenseType} onChange={(e) => setExpenseType(e.target.value)}>
+              <option value="">All</option>
+              {EXPENSE_TYPES.map((t) => (
+                <option key={t.label} value={t.label}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Payment Method</label>
+            <select className={selectClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+              <option value="">All</option>
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Supplier</label>
+            <select className={selectClass} value={supplier} onChange={(e) => setSupplier(e.target.value)}>
+              <option value="">All</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

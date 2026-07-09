@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${dmSans.variable} ${notoSansThai.variable} font-sans antialiased`}>
         <Nav />
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        <main className="mx-auto max-w-[1200px] px-6 py-6">{children}</main>
       </body>
     </html>
   );

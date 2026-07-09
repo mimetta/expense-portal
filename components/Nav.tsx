@@ -12,6 +12,9 @@ interface RoleMeResponse {
   access?: Record<Page, boolean>;
 }
 
+// "dashboard" deliberately omitted — the homepage (/) now serves as the
+// dashboard; the /dashboard route itself still exists (redirects to /) in
+// case anything still links there directly. See CLAUDE.md "Homepage".
 const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "submit", href: "/submit", label: "Submit" },
   { page: "my", href: "/my", label: "My Requests" },
@@ -19,7 +22,6 @@ const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "bo-approvals", href: "/bo-approvals", label: "BO Approvals" },
   { page: "ceo-approvals", href: "/ceo-approvals", label: "CEO Approvals" },
   { page: "accounting", href: "/accounting", label: "Accounting" },
-  { page: "dashboard", href: "/dashboard", label: "Dashboard" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];
 
@@ -54,10 +56,10 @@ export default function Nav() {
 
   return (
     <>
-      <nav className="border-b border-brand-border bg-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-1">
-            <Link href="/" className="mr-3 font-semibold text-brand-brown">
+      <nav className="h-12 border-b border-brand-border bg-white">
+        <div className="mx-auto flex h-full max-w-[1200px] flex-wrap items-center justify-between gap-2 px-6">
+          <div className="flex h-full items-center gap-1">
+            <Link href="/" className="mr-4 text-sm font-semibold text-brand-brown">
               Mimetta
             </Link>
             {LINKS.filter((link) => data.access?.[link.page]).map((link) => {
@@ -66,10 +68,10 @@ export default function Nav() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                  className={`flex h-full items-center border-b-2 px-3 text-sm transition ${
                     active
-                      ? "bg-brand-brown text-white"
-                      : "text-brand-dark hover:bg-brand-border"
+                      ? "border-brand-brown font-medium text-brand-brown"
+                      : "border-transparent font-normal text-gray-500 hover:text-brand-dark"
                   }`}
                 >
                   {link.label}
@@ -77,11 +79,11 @@ export default function Nav() {
               );
             })}
           </div>
-          <div className="flex items-center gap-3 text-sm text-brand-dark/70">
+          <div className="flex items-center gap-3 text-sm text-gray-500">
             <span>{data.user.email}</span>
             <button
               onClick={handleSignOut}
-              className="rounded-md border border-brand-border px-3 py-1.5 font-medium hover:bg-brand-border"
+              className="rounded-md border border-brand-border px-3 py-1 text-sm text-brand-dark hover:bg-brand-cream"
             >
               Sign out
             </button>

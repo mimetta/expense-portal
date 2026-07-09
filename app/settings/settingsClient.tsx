@@ -1537,21 +1537,13 @@ const emptyAnnouncementForm = () => ({
 
 const MAX_ANNOUNCEMENT_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-    reader.readAsDataURL(file);
-  });
-}
-
 function AnnouncementTab() {
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ mode: "add" | "edit"; id?: number } | null>(null);
   const [form, setForm] = useState(emptyAnnouncementForm());
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -1579,22 +1571,43 @@ function AnnouncementTab() {
     setModal({ mode: "edit", id: a.id });
   };
 
+  // Uploads to the 'announcements' Supabase Storage bucket (not base64 —
+  // unlike every other attachment in this app, this one was explicitly
+  // asked to use real Storage this time; see CLAUDE.md "Announcements").
+  // Reuses the same generic /api/storage/upload endpoint PDFSigner.tsx
+  // uses for the signed-documents bucket.
   const handleAttachmentFile = async (file: File) => {
     if (file.size > MAX_ANNOUNCEMENT_ATTACHMENT_BYTES) {
       alert(`${file.name} is larger than 2MB and can't be attached.`);
       return;
     }
+    setUploading(true);
     try {
-      const dataUrl = await fileToDataUrl(file);
-      setForm((f) => ({ ...f, attachment_url: dataUrl, attachment_type: file.type }));
-    } catch {
-      alert(`Failed to read ${file.name}`);
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+      formData.append("bucket", "announcements");
+      formData.append("filename", file.name);
+      const res = await fetch("/api/storage/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error([body.error, body.hint].filter(Boolean).join(" — ") || "Failed to upload attachment");
+      }
+      const { url } = await res.json();
+      setForm((f) => ({ ...f, attachment_url: url, attachment_type: file.type }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : `Failed to upload ${file.name}`);
+    } finally {
+      setUploading(false);
     }
   };
 
   const save = async () => {
     if (!form.title.trim()) {
       alert("Title is required");
+      return;
+    }
+    if (!form.message.trim()) {
+      alert("Message is required");
       return;
     }
     setBusy(true);
@@ -1721,7 +1734,7 @@ function AnnouncementTab() {
               />
             </div>
             <div>
-              <label className={labelClass}>Message</label>
+              <label className={labelClass}>Message<RequiredMark /></label>
               <textarea
                 className={`${inputClass} w-full`}
                 rows={3}
@@ -1742,6 +1755,7 @@ function AnnouncementTab() {
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/gif,application/pdf"
+                disabled={uploading}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) handleAttachmentFile(file);
@@ -1749,11 +1763,13 @@ function AnnouncementTab() {
                 }}
                 className="text-sm"
               />
+              {uploading && <p className="mt-1 text-xs text-brand-dark/50">Uploading...</p>}
               {form.attachment_url && (
                 <div className="mt-2 flex items-center gap-2">
                   {form.attachment_type.startsWith("image/") ? (
-                    // Inline base64 data URL (see CLAUDE.md "File Storage"), not a remote asset
-                    // next/image can optimize.
+                    // Real Supabase Storage URL ('announcements' bucket), not a data URL —
+                    // still a plain <img>, not next/image, since this is a small admin-only
+                    // preview thumbnail and not worth remotePatterns config for.
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={form.attachment_url} alt="" className="h-16 w-16 rounded-md border border-brand-border object-cover" />
                   ) : (
@@ -1776,7 +1792,7 @@ function AnnouncementTab() {
               <button onClick={() => setModal(null)} className={buttonSecondary}>
                 Cancel
               </button>
-              <button onClick={save} disabled={busy} className={buttonPrimary}>
+              <button onClick={save} disabled={busy || uploading} className={buttonPrimary}>
                 {busy ? "Saving..." : "Save"}
               </button>
             </div>

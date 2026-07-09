@@ -5,17 +5,12 @@ import StatusBadge from "@/components/StatusBadge";
 import FilterBar from "@/components/FilterBar";
 import RequestDetailModal from "@/components/shared/RequestDetailModal";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { isCeoActionable } from "@/lib/status";
-import type { ExpenseRequest, RoleRow } from "@/types/database";
+import { hasRole, isSuperadmin } from "@/lib/permissions";
+import { isCeoActionable, isEditRequestPending } from "@/lib/status";
+import type { CurrentUser, ExpenseRequest } from "@/types/database";
 
-type Tab = "pending" | "needs-signature" | "all";
+type Tab = "pending" | "needs-signature" | "edit-requests" | "all";
 const RELEVANT_STATUSES = ["SUBMITTED", "PO_UPLOADED", "BO_APPROVED", "CEO_APPROVED"] as const;
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: "pending", label: "Pending" },
-  { key: "needs-signature", label: "Needs Signature" },
-  { key: "all", label: "All" },
-];
 
 export default function CeoApprovalsPage() {
   const [tab, setTab] = useState<Tab>("pending");
@@ -24,7 +19,8 @@ export default function CeoApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<ExpenseRequest | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ email: string; allRoles: RoleRow[] } | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [editRequestCount, setEditRequestCount] = useState(0);
 
   const load = () => {
     setLoading(true);
@@ -37,15 +33,23 @@ export default function CeoApprovalsPage() {
   useEffect(load, [tab]);
 
   useEffect(() => {
+    fetch("/api/requests?scope=ceo&tab=edit-requests")
+      .then((res) => res.json())
+      .then((data) => setEditRequestCount((data.requests ?? []).length));
+  }, [tab]);
+
+  useEffect(() => {
     fetch("/api/roles/me")
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) setCurrentUser({ email: data.user.email, allRoles: data.user.allRoles ?? [] });
+        if (data.user) setCurrentUser(data.user as CurrentUser);
       });
   }, []);
 
-  const isSuperadminUser = currentUser?.allRoles.some((r) => r.role === "SUPERADMIN") ?? false;
-  const canUnapprove = (r: ExpenseRequest) => isSuperadminUser || r.ceo_approver === currentUser?.email;
+  // Any CEO can unapprove any CEO_APPROVED request now, not just the one
+  // who approved it — matches the server-side check in
+  // ceo-unapprove/route.ts (the actual enforcement; this is UX only).
+  const canUnapprove = () => !!currentUser && (isSuperadmin(currentUser) || hasRole(currentUser, "CEO"));
 
   const approve = async (id: string) => {
     setBusy(id);
@@ -105,17 +109,45 @@ export default function CeoApprovalsPage() {
     }
   };
 
+  const actOnEditRequest = async (id: string, allow: boolean) => {
+    if (!allow && !confirm("Reject this edit request? The requester will be notified.")) return;
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/requests/${id}/approve-edit`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allow }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Failed to act on edit request");
+      }
+      setSelected(null);
+      load();
+      setEditRequestCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to act on edit request");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const TABS: { key: Tab; label: string }[] = [
+    { key: "pending", label: "Pending" },
+    { key: "needs-signature", label: "Needs Signature" },
+    { key: "edit-requests", label: `Edit Requests (${editRequestCount})` },
+    { key: "all", label: "All" },
+  ];
+
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-brand-dark">CEO Approvals</h1>
-      <div className="mb-4 flex gap-2">
+      <h1 className="mm-page-title mb-4">CEO Approvals</h1>
+      <div className="mm-tabs mb-4">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              tab === t.key ? "bg-brand-brown text-white" : "border border-brand-border text-brand-dark"
-            }`}
+            className={`mm-tab ${tab === t.key ? "mm-tab-active" : ""}`}
           >
             {t.label}
           </button>
@@ -134,7 +166,7 @@ export default function CeoApprovalsPage() {
             <div
               key={r.request_id}
               onClick={() => setSelected(r)}
-              className="cursor-pointer rounded-md border border-brand-border p-4 hover:bg-brand-cream/30"
+              className="mm-card cursor-pointer hover:bg-[#F9F7F4]"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -165,7 +197,7 @@ export default function CeoApprovalsPage() {
               {r.status === "CEO_APPROVED" && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-brand-dark/70">
                   <span>Approved by {r.ceo_approver ?? "-"} at {formatDate(r.ceo_approved_at)}</span>
-                  {canUnapprove(r) && (
+                  {canUnapprove() && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -179,6 +211,34 @@ export default function CeoApprovalsPage() {
                   )}
                 </div>
               )}
+              {tab === "edit-requests" && isEditRequestPending(r) && (
+                <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                  <p className="font-medium">Edit requested by {r.requester_name}</p>
+                  <p>Reason: {r.edit_requested_reason ?? "-"}</p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        actOnEditRequest(r.request_id, true);
+                      }}
+                      disabled={busy === r.request_id}
+                      className="mm-btn-primary mm-btn-sm"
+                    >
+                      Allow Edit
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        actOnEditRequest(r.request_id, false);
+                      }}
+                      disabled={busy === r.request_id}
+                      className="mm-btn-danger mm-btn-sm"
+                    >
+                      Reject Edit Request
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -189,28 +249,45 @@ export default function CeoApprovalsPage() {
           request={selected}
           onClose={() => setSelected(null)}
           actions={
-            isCeoActionable(selected) ? (
+            selected.status === "CEO_APPROVED" && isEditRequestPending(selected) ? (
+              <>
+                <button
+                  disabled={busy === selected.request_id}
+                  onClick={() => actOnEditRequest(selected.request_id, true)}
+                  className="mm-btn-primary"
+                >
+                  Allow Edit
+                </button>
+                <button
+                  disabled={busy === selected.request_id}
+                  onClick={() => actOnEditRequest(selected.request_id, false)}
+                  className="mm-btn-danger"
+                >
+                  Reject Edit Request
+                </button>
+              </>
+            ) : isCeoActionable(selected) ? (
               <>
                 <button
                   disabled={busy === selected.request_id}
                   onClick={() => approve(selected.request_id)}
-                  className="rounded-md bg-brand-brown px-4 py-2 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-50"
+                  className="mm-btn-primary"
                 >
                   Approve
                 </button>
                 <button
                   disabled={busy === selected.request_id}
                   onClick={() => reject(selected.request_id)}
-                  className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="mm-btn-danger"
                 >
                   Reject
                 </button>
               </>
-            ) : selected.status === "CEO_APPROVED" && canUnapprove(selected) ? (
+            ) : selected.status === "CEO_APPROVED" && canUnapprove() ? (
               <button
                 disabled={busy === selected.request_id}
                 onClick={() => unapprove(selected.request_id)}
-                className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                className="mm-btn-danger"
               >
                 Unapprove
               </button>

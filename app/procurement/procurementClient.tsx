@@ -77,15 +77,13 @@ export default function ProcurementPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-brand-dark">Procurement</h1>
-      <div className="mb-4 flex gap-2">
+      <h1 className="mm-page-title mb-4">Procurement</h1>
+      <div className="mm-tabs mb-4">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              tab === t.key ? "bg-brand-brown text-white" : "border border-brand-border text-brand-dark"
-            }`}
+            className={`mm-tab ${tab === t.key ? "mm-tab-active" : ""}`}
           >
             {t.label}
           </button>
@@ -104,7 +102,7 @@ export default function ProcurementPage() {
             <div
               key={r.request_id}
               onClick={() => setSelected(r)}
-              className="cursor-pointer rounded-md border border-brand-border p-4 hover:bg-brand-cream/30"
+              className="mm-card cursor-pointer hover:bg-[#F9F7F4]"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -144,7 +142,7 @@ export default function ProcurementPage() {
               <button
                 disabled={busy}
                 onClick={() => reject(selected.request_id)}
-                className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                className="mm-btn-danger"
               >
                 Reject
               </button>

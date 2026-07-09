@@ -119,6 +119,11 @@ export function resubmitTargetStatus(existing: ExpenseRequest): ExpenseRequest["
   return (existing.rejected_stage as ExpenseRequest["status"] | null) ?? "SUBMITTED";
 }
 
+// resubmitTargetStatus realistically only ever returns one of the first
+// four (a rejection's rejected_stage is always a pre-rejection stage) —
+// PAID/REJECTED/EDIT_REQUESTED are included only so this Record stays
+// exhaustively typed against the full Status union; they'll never actually
+// be looked up here.
 const NOTIFY_EVENT_FOR_STATUS: Record<ExpenseRequest["status"], NotificationEvent> = {
   SUBMITTED: "SUBMITTED",
   PO_UPLOADED: "PO_UPLOADED",
@@ -126,6 +131,7 @@ const NOTIFY_EVENT_FOR_STATUS: Record<ExpenseRequest["status"], NotificationEven
   CEO_APPROVED: "CEO_APPROVED",
   PAID: "PAID",
   REJECTED: "REJECTED",
+  EDIT_REQUESTED: "EDIT_REQUESTED",
 };
 
 export async function resubmitRequest(

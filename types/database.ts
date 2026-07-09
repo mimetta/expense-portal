@@ -90,6 +90,15 @@ export interface ExpenseRequest {
   product_code: string | null;
   skip_bo: boolean;
   skip_ceo: boolean;
+  // Edit Request approval workflow (see CLAUDE.md) — set when the owner
+  // requests permission to edit a BO_APPROVED/CEO_APPROVED/PAID request.
+  // status_before_edit captures the status to restore on resubmit, same
+  // role rejected_stage plays for the REJECTED/resubmit flow.
+  edit_requested_at: string | null;
+  edit_requested_reason: string | null;
+  edit_approved_by: string | null;
+  edit_approved_at: string | null;
+  status_before_edit: string | null;
   created_at: string;
   updated_at: string;
 }

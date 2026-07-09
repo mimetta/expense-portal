@@ -2,22 +2,24 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { hasRole, isSuperadmin } from "@/lib/permissions";
+import { hasAnyRole } from "@/lib/permissions";
 
-// Generic by shape (FormData: file + filename + bucket) per spec, but only
-// components/shared/PDFSigner.tsx calls this today, uploading a signed PDF
-// to the 'signed-documents' bucket. The bucket allowlist keeps this from
-// becoming an arbitrary-storage-write endpoint; the BO/CEO/SUPERADMIN check
-// matches who's actually allowed to reach the Sign flow client-side (see
-// isBoActionable/isCeoActionable-gated buttons in RequestDetailModal.tsx).
-const ALLOWED_BUCKETS = ["signed-documents"];
+// Generic by shape (FormData: file + filename + bucket), but each bucket
+// this route will actually write to is allowlisted with its own role
+// check, matching who can reach that upload client-side — this route isn't
+// meant to become an arbitrary-storage-write endpoint for buckets nobody's
+// asked for yet.
+const BUCKET_ROLES: Record<string, ("SUPERADMIN" | "BO" | "CEO" | "ACCOUNTING" | "PROCUREMENT" | "EMPLOYEE")[]> = {
+  // components/shared/PDFSigner.tsx — signing during BO/CEO's own actionable stage.
+  "signed-documents": ["SUPERADMIN", "BO", "CEO"],
+  // Settings > Announcements attachment — same roles as the announcements
+  // mutation endpoints (see CLAUDE.md "Settings tab permissions").
+  announcements: ["SUPERADMIN", "CEO"],
+};
 
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user) && !hasRole(user, "BO") && !hasRole(user, "CEO")) {
-      throw new ForbiddenError();
-    }
 
     const formData = await request.formData();
     const file = formData.get("file");
@@ -27,14 +29,16 @@ export async function POST(request: Request) {
     if (!(file instanceof Blob) || typeof bucket !== "string" || typeof filenameField !== "string") {
       return NextResponse.json({ error: "file, filename, and bucket are required" }, { status: 400 });
     }
-    if (!ALLOWED_BUCKETS.includes(bucket)) {
+    const allowedRoles = BUCKET_ROLES[bucket];
+    if (!allowedRoles) {
       return NextResponse.json({ error: `Bucket "${bucket}" is not allowed` }, { status: 400 });
     }
+    if (!hasAnyRole(user, allowedRoles)) throw new ForbiddenError();
 
     const admin = createAdminClient();
     const path = `${Date.now()}_${filenameField.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const { error } = await admin.storage.from(bucket).upload(path, file, {
-      contentType: file.type || "application/pdf",
+      contentType: file.type || "application/octet-stream",
       upsert: false,
     });
     if (error) throw error;

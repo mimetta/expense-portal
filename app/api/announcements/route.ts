@@ -4,6 +4,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import { hasAnyRole } from "@/lib/permissions";
 
+// PostgREST's code for "this table isn't in my schema cache" — what you get
+// when the `announcements` table doesn't exist yet (see
+// supabase/migrations/008_announcements.sql, not yet applied to the live
+// database — same SUPABASE_ACCESS_TOKEN constraint as every other migration
+// in this project). Distinct from a real Postgres error code like 42P01;
+// PostgREST intercepts schema-cache misses before the query ever reaches
+// Postgres.
+const TABLE_NOT_FOUND = "PGRST205";
+
 // Homepage announcements. Any signed-in user reads only active ones,
 // pinned first then newest; SUPERADMIN/CEO manage the full list via
 // Settings > Announcements (which passes ?all=1 to also see inactive rows).
@@ -24,7 +33,15 @@ export async function GET(request: Request) {
     if (!wantsAll) query = query.eq("is_active", true);
 
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      // Degrade to "no announcements" rather than breaking the homepage —
+      // once the migration is applied this branch is simply never hit
+      // again, no code changes needed.
+      if (error.code === TABLE_NOT_FOUND) {
+        return NextResponse.json({ announcements: [] });
+      }
+      throw error;
+    }
     return NextResponse.json({ announcements: data ?? [] });
   } catch (err) {
     return handleApiError(err);

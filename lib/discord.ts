@@ -11,7 +11,8 @@ export type NotificationEvent =
   | "BO_APPROVED"
   | "CEO_APPROVED"
   | "PAID"
-  | "REJECTED";
+  | "REJECTED"
+  | "EDIT_REQUESTED";
 
 function webhookUrlFor(envName: string | undefined): string | null {
   if (!envName) return null;
@@ -54,6 +55,14 @@ function formatMessage(event: NotificationEvent, r: ExpenseRequest): string {
       return `💰 Marked as paid\n${base}`;
     case "REJECTED":
       return `❌ Rejected at ${r.rejected_stage ?? "-"}\n${base}\nReason: ${r.reject_reason ?? "-"}`;
+    case "EDIT_REQUESTED":
+      // Not actually used by the Edit Request workflow itself — that flow
+      // posts its own bespoke messages (naming the specific approver) via
+      // postToWebhook/departmentWebhookUrl directly, same pattern as the
+      // document-reminder cron. This case only exists so NotificationEvent
+      // stays exhaustively handled; kept as a reasonable fallback in case
+      // notify() is ever called with this event some other way.
+      return `✏️ Edit requested\n${base}\nReason: ${r.edit_requested_reason ?? "-"}`;
   }
 }
 

@@ -73,8 +73,10 @@ several scope rows can act on a request if **any** row matches (`canBoActOnReque
 inferred and should be revisited if wrong:
 - Every `@mimetta.co` user gets Submit + My Requests regardless of other roles (everyone can
   incur expenses).
-- `/dashboard` is granted to `SUPERADMIN`, `CEO`, and `ACCOUNTING` (finance-facing roles) —
-  not explicitly listed in the roles table, but the natural reading of a "budget dashboard."
+- `/dashboard`'s `canAccessPage` entry (`SUPERADMIN`/`CEO`/`ACCOUNTING`) is now moot in
+  practice — the route unconditionally redirects to `/` regardless of role (see "Dashboard nav
+  removal" below), so this check never actually gets exercised, but was left in place rather
+  than removed since the underlying page/data still exist.
 - `/settings` is granted to every role **except** a pure `EMPLOYEE` (see "Settings tab
   permissions" below for which of its six tabs each role actually sees once inside).
 - See `canAccessPage()` in `lib/permissions.ts` to adjust.
@@ -148,6 +150,74 @@ written, so there was no historical data to migrate).
 actionable at my stage" checks live in `lib/status.ts`:
 `needsProcurement` / `isBoActionable` / `isCeoActionable` / `isAccountingActionable`.
 
+`EDIT_REQUESTED` is a fifth non-terminal status, added for the Edit Request approval workflow
+(see below) — a request only ever passes through it after already reaching `BO_APPROVED`,
+`CEO_APPROVED`, or `PAID`, and always returns to exactly the status it was in before (never
+forward). It sits outside the normal linear flow above rather than extending it.
+
+### Edit Request approval workflow
+
+An escape hatch for a requester who needs to change a request that's already past
+`isOwnerEditable`'s free-edit window (SUBMITTED, untouched by Procurement — see "Owner edit
+permission" below): once a request reaches `BO_APPROVED`, `CEO_APPROVED`, or `PAID`, the owner
+can ask the current-stage approver for permission to edit it, rather than editing being
+permanently locked out. Two-phase state machine, deliberately not a single status flip:
+
+1. **Request** — `PATCH /api/requests/[id]/request-edit` (requester or SUPERADMIN, body
+   `{ reason }`). Only sets `edit_requested_at`/`edit_requested_reason` — **status does not
+   change**, so the request stays visible/actionable wherever it already was until an
+   approver actually acts. `lib/status.ts#canRequestEdit` gates this to
+   `BO_APPROVED`/`CEO_APPROVED`/`PAID` with no edit request already pending;
+   `isEditRequestPending` is true from this point until step 2. Posts to the department
+   Discord channel naming the approver (BO_APPROVED → `bo_approver`; CEO_APPROVED →
+   `ceo_approver`; PAID → Accounting, hardcoded `ladda.t@mimetta.co`/`chutikarn.p@mimetta.co`
+   since there's no Accounting-role-scoped lookup elsewhere in this schema) — same "no literal
+   per-user Discord DM" constraint as the document-reminder cron, so the approver is named in
+   the message text rather than actually pinged.
+2. **Approve/reject** — `PATCH /api/requests/[id]/approve-edit` (the approver at whichever
+   stage the request is currently sitting at — `lib/status.ts#editRequestApproverStage` returns
+   `"BO"|"CEO"|"ACCOUNTING"` — or SUPERADMIN; body `{ allow: boolean }`).
+   - **Allow**: status flips to `EDIT_REQUESTED`, `status_before_edit` is stamped with the
+     request's status *before* this flip (so `BO_APPROVED`/`CEO_APPROVED`/`PAID`, never
+     `EDIT_REQUESTED` itself), and `edit_approved_by`/`edit_approved_at` are set.
+     `lib/status.ts#isEditApproved` (`status === "EDIT_REQUESTED" && edit_approved_by` set) now
+     unlocks the owner's full-form edit.
+   - **Reject**: only clears `edit_requested_at`/`edit_requested_reason` — status was never
+     touched, so there's nothing to revert. Posts a rejection notice to the department channel.
+3. **Resubmit** — `PATCH /api/requests/[id]` with `{ edit_resubmit: true, ...fields }` (the
+   6th and final mutually-exclusive branch of that endpoint — see "PATCH
+   /api/requests/[id]" below), gated on `isEditApproved`. Same full editable-field set as
+   `resubmit`/`owner_edit` via `buildEditableFields`, but the target status is
+   `status_before_edit` (not `rejected_stage` — this is a different field for a different
+   flow) and all five `edit_*` markers are cleared back to null. Fires whichever
+   Discord notification matches the landed-on status (`BO_APPROVED`/`CEO_APPROVED`/`PAID`).
+
+Database columns (`supabase/migrations/009_edit_request.sql`): `edit_requested_at
+TIMESTAMPTZ`, `edit_requested_reason TEXT`, `edit_approved_by TEXT`, `edit_approved_at
+TIMESTAMPTZ` (the migration spec as given said `TEXT` for this column — corrected to
+`TIMESTAMPTZ` to match every other `_at` column's convention in the schema), and
+`status_before_edit TEXT`, plus dropping/recreating the `requests_status_check` CHECK
+constraint to allow `'EDIT_REQUESTED'` (same pattern `004_new_features.sql` used to *remove*
+`'EXPIRED'`). Both new routes catch Postgrest's `42703` ("column does not exist") and return a
+friendly 503 if this migration hasn't been applied yet, same graceful-degradation pattern as
+the `is_auto_registered` fallback.
+
+UI: My Requests shows a "✏️ Request Edit" button (via `canRequestEdit`) that opens a small
+reason-prompt modal, an "Edit requested — awaiting approval" sublabel while pending, and an
+"↩ Edit & Resubmit" button once `isEditApproved` — reusing the same `EditRequestModal` /
+`RequestForm` component as the REJECTED edit-and-resubmit flow, with a third banner/label
+branch for this case. BO Approvals, CEO Approvals, and Accounting each gained an "Edit
+Requests (N)" tab (`GET /api/requests?scope=bo|ceo|accounting&tab=edit-requests`, filtered to
+`isEditRequestPending` at that stage's status) showing the reason and Allow/Reject buttons,
+mirrored in `RequestDetailModal`'s `actions` prop when a pending edit request is open there.
+
+`EDIT_REQUESTED` was added to `lib/discord.ts`'s `NotificationEvent` union and
+`lib/resubmit.ts`'s `NOTIFY_EVENT_FOR_STATUS` map purely for TypeScript exhaustiveness — the
+real Edit Request notifications (steps 1 and 2 above) are bespoke `postToWebhook` calls
+outside the `notify()`/`NotificationEvent` mechanism, since they need to name a specific
+approver, which doesn't fit that mechanism's fixed per-status message shape. This case is
+unreachable in practice.
+
 ### Rejection & Resubmit
 
 A rejected request can only be **resubmitted** (status change) within `RESUBMIT_WINDOW_HOURS`
@@ -187,7 +257,7 @@ only shown/enabled within the 24h window). Both exclude `request_id`/`requester_
 
 ### PATCH /api/requests/[id] — unified per-request edit endpoint
 
-One route, five mutually-exclusive behaviors gated by request status / body shape (see
+One route, six mutually-exclusive behaviors gated by request status / body shape (see
 `app/api/requests/[id]/route.ts`):
 
 1. **`{ resubmit: true, ... }`** — only when `status === "REJECTED"`. Requester or
@@ -223,10 +293,14 @@ One route, five mutually-exclusive behaviors gated by request status / body shap
    `buildEditableFields`), status unchanged. Logged as `REQUEST_EDITED`. This is the "Save
    Changes" button in the Edit & Resubmit modal above. No explicit flag needed: `REJECTED`
    never overlaps with #4's `SUBMITTED`/`PO_UPLOADED` gate, so there's no ambiguity to resolve.
+6. **`{ edit_resubmit: true, ... }`** — the Edit Request approval workflow's resubmit step,
+   only once an approver has granted the request (`lib/status.ts#isEditApproved`). See "Edit
+   Request approval workflow" above for the full three-step flow this is the last step of.
 
-Any other status/role combination → 403. Editing a `BO_APPROVED`/`CEO_APPROVED`/`PAID`
-request through this endpoint is not supported — wasn't asked for, and those stages have
-their own dedicated approve/paid routes.
+A `BO_APPROVED`/`CEO_APPROVED`/`PAID` request is otherwise not editable through this endpoint
+at all — those are exactly the three statuses the Edit Request workflow (#6) exists to unlock,
+by first stepping the request to `EDIT_REQUESTED`. Any other status/role/body combination →
+403.
 
 ### Owner edit permission (SUBMITTED, before Procurement)
 
@@ -292,17 +366,37 @@ as a special case; flag if a per-role audit action name is genuinely needed late
 prior request asked to "fix unapprove logic in /api/approve/route.ts" as if it already
 existed and just needed a permission restriction — there was no `/api/approve/route.ts` in
 this codebase and no unapprove capability at all for BO or CEO (only Accounting's Mark
-Paid/Unpaid toggle was reversible). Built from scratch with the restriction already baked in:
-only the BO/CEO who actually approved (`existing.bo_approver`/`ceo_approver === user.email`)
-or SUPERADMIN can unapprove; anyone else gets a 403 ("You can only unapprove requests you
-approved"). Reverts to the status the request was in immediately before that approval —
-`requires_po ? "PO_UPLOADED" : "SUBMITTED"` for BO, `skip_bo ? (requires_po ?
-"PO_UPLOADED" : "SUBMITTED") : "BO_APPROVED"` for CEO — clearing only that stage's
-approver/approved_at. No Discord notification, matching the existing convention that
-reversals don't notify (Accounting's Mark Unpaid doesn't either). `/bo-approvals` and
-`/ceo-approvals` both show "Approved by X" on the relevant status's rows/cards and an
-Unapprove action (card + modal) gated by the same rule client-side (real enforcement is
-server-side regardless).
+Paid/Unpaid toggle was reversible). Built from scratch. Reverts to the status the request was
+in immediately before that approval — `requires_po ? "PO_UPLOADED" : "SUBMITTED"` for BO,
+`skip_bo ? (requires_po ? "PO_UPLOADED" : "SUBMITTED") : "BO_APPROVED"` for CEO — clearing only
+that stage's approver/approved_at. No Discord notification, matching the existing convention
+that reversals don't notify (Accounting's Mark Unpaid doesn't either).
+
+**Unapprove is scoped to the role, not to who personally approved it** (loosened from this
+build's original approver-only restriction — a later spec explicitly asked for this, again
+against a nonexistent `/api/approve/route.ts` file, same false-premise pattern as when this
+capability was first built). Any BO whose scope (`bu_scope`/`dept_scope`/`cat_l1_scope`)
+covers the request can unapprove it (`hasRole(user, "BO") && canBoActOnRequest(user,
+existing)` — the same scope check every other BO action already uses, not a new concept), any
+CEO can unapprove any `CEO_APPROVED` request (no scope concept exists for CEO anywhere else in
+this schema, so none was invented here), and Accounting's existing Mark Paid/Unpaid toggle was
+already unrestricted to begin with (no change needed there). SUPERADMIN can unapprove
+anything, as before. `/bo-approvals` and `/ceo-approvals` both show "Approved by X" on the
+relevant status's rows/cards and an Unapprove action (card + modal) gated by the same
+role/scope rule client-side — real enforcement is server-side regardless.
+
+### Request owner delete (SUBMITTED, before Procurement)
+
+`DELETE /api/requests/[id]` — a hard delete, not a status change, for a request the owner
+decided not to pursue after all. Gated to exactly the same window as `isOwnerEditable`/the
+owner-edit path above: `status === "SUBMITTED"` and `po_number`/`po_uploaded_by`/
+`po_uploaded_at` all still empty (requester or SUPERADMIN only). Nothing downstream
+(BO/CEO/Accounting) has ever seen a request in this state, so there's no approval record to
+preserve the way a `REJECTED` status keeps one — the `DELETE_REQUEST` audit_log row (written
+before the delete, per the standard `requireUser → check → mutate → logAudit` order) is the
+only remaining trace. My Requests shows a "🗑️ Delete" button next to "✏️ Edit" wherever
+`isOwnerEditable` holds, opening a plain confirm modal ("Are you sure you want to delete
+`EXP-...`? This cannot be undone.") before calling the route.
 
 ### Request Detail Modal (read view + optional inline edit)
 
@@ -684,17 +778,32 @@ submit-form picker counterpart:
   rules to regular staff, unlike the other reference tables which are harmless to read. CEO
   needs GET now too, not just the mutation verbs, since the tab has to actually load the
   existing rules before a CEO can edit them.
-- **Announcements** (`announcements` table, new in `supabase/migrations/005_homepage_settings.sql`,
-  `/api/announcements` + `/api/announcements/[id]`) — Settings > Announcements manages the
-  homepage's pinned/unpinned announcement feed. `GET` defaults to active-only, pinned-first;
-  `?all=1` (SUPERADMIN + CEO) also returns inactive rows for the management table. Deleting is
-  a hard delete; "Deactivate" (`is_active: false` via PATCH) is the soft alternative, used to
-  retire an announcement without losing its history. `attachment_url`/`attachment_type`
-  (`supabase/migrations/006_announcement_attachments.sql`) hold an optional base64 jpg/png/
-  gif/pdf, same inline-storage pattern as every other attachment in this app — capped at 2MB
-  (smaller than the 5MB request-attachment cap, since this loads on **every** homepage visit
-  for **everyone**, not just when someone opens one specific request). Rendered on the
-  homepage as an `<img>` for images, a "View attached document" link for PDFs.
+- **Announcements** (`announcements` table, `/api/announcements` + `/api/announcements/[id]`)
+  — Settings > Announcements manages the homepage's pinned/unpinned announcement feed. `GET`
+  defaults to active-only, pinned-first; `?all=1` (SUPERADMIN + CEO) also returns inactive rows
+  for the management table. Deleting is a hard delete; "Deactivate" (`is_active: false` via
+  PATCH) is the soft alternative, used to retire an announcement without losing its history.
+
+  **`supabase/migrations/008_announcements.sql`** is a self-contained, idempotent
+  (`CREATE TABLE IF NOT EXISTS`) migration superseding the still-unapplied
+  `005_homepage_settings.sql` + `006_announcement_attachments.sql` pair — written this way
+  rather than as a third file layered on top of two nobody has run yet, to avoid genuine
+  redundancy. `GET /api/announcements` also catches Postgrest's `PGRST205` ("table not found
+  in schema cache") and returns `{ announcements: [] }` instead of a 500, so the homepage and
+  Settings tab degrade gracefully (empty list, not an error) until this migration is actually
+  applied.
+
+  **Attachments now go to a real Supabase Storage bucket (`announcements`, public, 2MB limit,
+  image/pdf mime types) instead of base64** — a later spec explicitly asked for real Storage
+  here (the base64-in-JSONB pattern used everywhere else in this app was an earlier explicit
+  choice, not a default, so this doesn't contradict it). `POST /api/storage/upload` was
+  generalized from a single hardcoded bucket to a `BUCKET_ROLES: Record<string, Role[]>`
+  allowlist (`signed-documents` → BO/CEO/SUPERADMIN, `announcements` → SUPERADMIN/CEO) so both
+  buckets share one upload route. Buckets themselves are created via the Storage REST API
+  (works without `SUPABASE_ACCESS_TOKEN` — it isn't DDL, unlike the `announcements` table
+  itself). Settings > Announcements shows a real image preview and disables Save while
+  uploading. `attachment_url` now holds a Storage URL, not a data URL; `attachment_type` is
+  unchanged.
 
 **Mutation permissions** (POST/PATCH/DELETE) per table, since a later spec scoped these
 per-role instead of SUPERADMIN-only everywhere: Suppliers → SUPERADMIN/ACCOUNTING/PROCUREMENT;
@@ -784,18 +893,21 @@ See `supabase/migrations/001_initial_schema.sql` for the full DDL: `requests`, `
 all have live data as of this writing) adds `suppliers` and `products` (feeding Settings and
 the Supplier/Payee and Product Code pickers), `requests.account_no` and
 `requests.slip_receiver_email`, and rewrites the `requests.status` CHECK constraint to drop
-`'EXPIRED'`. `supabase/migrations/005_homepage_settings.sql` adds `announcements` (feeding the
-homepage) plus a seed welcome row. `supabase/migrations/006_announcement_attachments.sql`
-adds `announcements.attachment_url`/`attachment_type` (see "Announcements — photo/file
-attachments" below). `supabase/migrations/007_roles_update.sql` adds
-`roles.is_auto_registered` (see "Auto-registration for new @mimetta.co users" above) —
-numbered 007, not 006 as originally requested, since 006 was already taken this session by
-`006_announcement_attachments.sql`.
+`'EXPIRED'`. `supabase/migrations/005_homepage_settings.sql` and
+`006_announcement_attachments.sql` originally added `announcements` (+ seed row) and its
+`attachment_url`/`attachment_type` columns — **both are now superseded by
+`008_announcements.sql`** (see "Settings & Reference Data" above), a single self-contained,
+idempotent migration that creates the same end state; only 008 needs to be applied, not all
+three. `supabase/migrations/007_roles_update.sql` adds `roles.is_auto_registered` (see
+"Auto-registration for new @mimetta.co users" above) — numbered 007, not 006 as originally
+requested, since 006 was already taken this session by `006_announcement_attachments.sql`.
+`supabase/migrations/009_edit_request.sql` adds the five `edit_*`/`status_before_edit` columns
+and the `EDIT_REQUESTED` status (see "Edit Request approval workflow" above).
 
-**Migrations 005, 006, and 007 have not been applied to the live database as of this
-writing** (005/006 confirmed live — `GET .../announcements` 404s with `PGRST205`; 007
-confirmed live — `GET .../roles?select=is_auto_registered` 42703s "column does not exist") —
-same constraint as before, the agent environment has no `SUPABASE_ACCESS_TOKEN`/linked project
+**Migrations 007, 008, and 009 have not been applied to the live database as of this
+writing** (confirmed live via direct REST queries — `GET .../announcements` 404s with
+`PGRST205`; `GET .../roles?select=is_auto_registered` 42703s "column does not exist") — same
+constraint as before, the agent environment has no `SUPABASE_ACCESS_TOKEN`/linked project
 (`supabase login`/`db push` both fail), only the DML-capable service-role REST key. Apply all
 three manually (Supabase SQL editor, or `supabase db push` with real credentials).
 
@@ -836,14 +948,14 @@ more conservative reading. See `app/api/dashboard/budget/route.ts`.
 
 | Route | Notes |
 |---|---|
-| `/` | Homepage (was a plain redirect to `/submit`; now a real page). Announcements, Quick Stats, Payment Calendar — see "Homepage" below. Every signed-in user has access. |
+| `/` | Homepage (was a plain redirect to `/submit`; now a real page, and now the de facto dashboard — see "Dashboard nav removal" below). Announcements, Quick Stats, Payment Calendar — see "Homepage" below. Every signed-in user has access. |
 | `/submit` | Multi-item expense form (`components/shared/RequestForm.tsx` in create mode). Every signed-in user has access. |
-| `/my` | Table (not cards). Actions column: "✏️ Edit" when `isOwnerEditable` (SUBMITTED, no PO activity yet), "↩ Edit & Resubmit" when REJECTED — both open the same `EditRequestModal` (`RequestForm` pre-filled). Status column shows a grey "Editable"/"Pending Procurement" sublabel. Row click still opens `RequestDetailModal` (read-only by default), which now also gets its own in-place "✏️ Edit" header button for the SUBMITTED case (see "Owner edit permission" below) — a second, separate entry point to the same edit capability. |
+| `/my` | Table (not cards). Actions column: "✏️ Edit" when `isOwnerEditable` (SUBMITTED, no PO activity yet), "🗑️ Delete" in the same window (see "Request owner delete" below), "↩ Edit & Resubmit" when REJECTED, "✏️ Request Edit" when `canRequestEdit` (BO_APPROVED/CEO_APPROVED/PAID, no edit request pending yet), "↩ Edit & Resubmit" again when `isEditApproved` — see "Edit Request approval workflow" above. Status column shows a grey "Editable"/"Pending Procurement"/"Edit requested — awaiting approval"/"Edit approved — resubmit" sublabel. Row click still opens `RequestDetailModal` (read-only by default), which now also gets its own in-place "✏️ Edit" header button for the SUBMITTED case (see "Owner edit permission" below) — a second, separate entry point to the same edit capability. |
 | `/procurement` | Row click opens `RequestDetailModal` in editable mode — items (Net/VAT/WHT), payment fields, attachments, and PO Details are all inline-editable; no separate "Upload PO" modal anymore. Tabs: Pending PO / PO Uploaded / All. |
-| `/bo-approvals` | Row click opens `RequestDetailModal` with Approve/Reject in the footer, or **Unapprove** on `BO_APPROVED` rows (only for the BO who approved it, or SUPERADMIN). Cards show "Approved by X" on `BO_APPROVED` rows. BU filter, skip-BO badges, CEO-signature-required badges. |
-| `/ceo-approvals` | Row click opens `RequestDetailModal` — same Approve/Reject/**Unapprove** pattern as BO Approvals, restricted to the CEO who approved it (or SUPERADMIN). Signed/needs-signature file badges + a signature-required banner are unconditional now (see "Request Detail Modal" below), not scoped to this page anymore. Tabs: Pending / Needs Signature / All. |
-| `/accounting` | Row click opens `RequestDetailModal` with Mark Paid/Unpaid + **Reject** (added — see "Rejection & Resubmit"). Shows a Slip Receiver column. |
-| `/dashboard` | Budget vs. actual, monthly trend, revenue overlay. |
+| `/bo-approvals` | Row click opens `RequestDetailModal` with Approve/Reject in the footer, or **Unapprove** on `BO_APPROVED` rows (any in-scope BO, or SUPERADMIN — see "BO/CEO unapprove" above). Cards show "Approved by X" on `BO_APPROVED` rows. BU filter, skip-BO badges, CEO-signature-required badges. Tabs: Pending / **Edit Requests (N)** (new) / All. |
+| `/ceo-approvals` | Row click opens `RequestDetailModal` — same Approve/Reject/**Unapprove** pattern as BO Approvals, any CEO (or SUPERADMIN) can act. Signed/needs-signature file badges + a signature-required banner are unconditional now (see "Request Detail Modal" below), not scoped to this page anymore. Tabs: Pending / Needs Signature / **Edit Requests (N)** (new) / All. |
+| `/accounting` | Row click opens `RequestDetailModal` with Mark Paid/Unpaid + **Reject** (added — see "Rejection & Resubmit"). Shows a Slip Receiver column. Tabs: Awaiting Payment / Paid / **Edit Requests (N)** (new). |
+| `/dashboard` | **No longer in the nav** (see "Dashboard nav removal" below) — the homepage now serves as the dashboard. The route itself still exists and redirects to `/` unconditionally, in case anything still links there directly; `dashboardClient.tsx` and its API routes are left in place, unreferenced. |
 | `/settings` | Any role except a pure EMPLOYEE (was SUPERADMIN only). Six tabs, each independently role-gated — see "Settings tab permissions" below; SUPERADMIN sees all six. User Management gets a "New (X)" badge + Pending Users section for auto-registered accounts awaiting a real role. |
 
 Each role-gated page (`procurement`, `bo-approvals`, `ceo-approvals`, `accounting`,
@@ -853,10 +965,24 @@ and interaction. `/`, `/submit`, and `/my` skip the `canAccessPage` wrapper sinc
 signed-in user has access to all three (`/` and `/my` still redirect to `/login` if there's no
 session at all).
 
+### Dashboard nav removal
+
+`components/Nav.tsx`'s `LINKS` array no longer includes a Dashboard entry — the homepage (`/`)
+already surfaces Announcements/Quick Stats/Payment Calendar (see "Homepage" below) and was
+judged to make a separate nav-level Dashboard link redundant. The `/dashboard` route itself
+(`dashboardClient.tsx`, budget-vs-actual/monthly-trend/revenue-overlay charts, and its backing
+`/api/dashboard/*` routes) is **not deleted** — `app/dashboard/page.tsx` was rewritten to an
+unconditional `redirect("/")` instead, so any bookmarked or hardcoded link still lands
+somewhere sensible rather than 404ing, while the nav item and the standalone page experience
+are both gone. `app/api/dashboard/home-stats/route.ts`'s `approvalLink` fallback sentinel
+changed from `"/dashboard"` to `"/"` to match.
+
 `/my`, `/procurement`, `/bo-approvals`, `/ceo-approvals`, and `/accounting` all render a
 `<FilterBar>` (`components/FilterBar.tsx`) below their tab navigation — month/status/category/
 expense-type/payment-method/supplier filters applied **client-side** to the already-loaded
 request list (no extra API calls). Each page passes its own relevant `statuses` subset.
+Collapsed behind a "🔽 Filters" toggle button (with an active-count badge, e.g. "Filters (3)")
+by default rather than always-visible — see "UI Design System" below.
 
 CEO rejection-history visibility is scoped per the spec — `lib/permissions.ts#
 visibleRejectionHistory` filters `rejection_history` so a CEO viewer only sees entries they
@@ -975,6 +1101,52 @@ Rebranded to Mimetta's new palette/typeface (was: brown `#9F8361`, cream `#FEFEE
 | `brand.border` | `#D8CBB0` sandstone beige | borders, cards, dividers |
 | `brand.sage` | `#9CAE8C` muted sage | success/approved/positive indicators |
 | `brand.dark` | `#1A1A1A` near-black | body text |
+
+### UI Design System (Supabase-dashboard-inspired)
+
+The rebrand above set the color tokens; this pass restyled the actual components to a
+Supabase-dashboard aesthetic — white cards with subtle 1px borders (not heavy shadows), tight
+consistent spacing, small muted rounded-full status badges (unchanged from the rebrand's
+`StatusBadge.tsx`), underline-style tabs, and clean 36px-tall form fields with a soft focus
+ring. Reusable primitives live in `app/globals.css` under `@layer components` as `.mm-*`
+classes (`mm-card`, `mm-btn-primary`/`mm-btn-secondary`/`mm-btn-danger` + `mm-btn-sm`,
+`mm-input`, `mm-table-wrap`/`mm-table`, `mm-tabs`/`mm-tab`/`mm-tab-active`, `mm-page-title`/
+`mm-page-subtitle`, `mm-modal-*`) rather than re-deriving the same Tailwind utility string per
+component — apply the `.mm-*` class instead of hand-rolling an equivalent one-off when
+touching any of these surfaces.
+
+- **Nav** (`components/Nav.tsx`): 48px height, white bg, underline-style active state
+  (`border-b-2 border-brand-brown text-brand-brown font-medium` vs. `border-transparent
+  text-gray-500` inactive) — not the earlier background-pill style. Sign out is a ghost button.
+- **Page layout** (`app/layout.tsx`): `#EDE6D8` page background, `max-w-[1200px]` centered
+  content, 24px padding.
+- **Buttons**: Primary (`mm-btn-primary`, `#1F3A2B` → `#BD5A2E` on hover), Secondary/Ghost
+  (`mm-btn-secondary`), Danger (`mm-btn-danger`, `#FCA5A5` border / `#DC2626` text / `#FEE2E2`
+  hover) — all 36px tall by default, `mm-btn-sm` for the 28px inline-table-row variant.
+- **Tables**: `mm-table-wrap` + `mm-table` — `#F9F7F4` header row, 11px uppercase muted header
+  text, `#F0EAE0` row dividers, `#F9F7F4` row hover, no zebra striping.
+- **Tabs**: `mm-tabs`/`mm-tab`/`mm-tab-active` — borderless with a 2px `#1F3A2B` underline on
+  the active tab, replacing the earlier filled-pill tab style everywhere it appeared
+  (Procurement, BO/CEO Approvals, Accounting).
+- **Modals**: `components/shared/RequestDetailModal.tsx`'s shell (the one modal every list page
+  shares) now uses `rounded-xl` (12px), an 18px semibold title, and a bordered footer with
+  right-aligned actions, matching the redesign spec's Modals section.
+- **Filter bar** (`components/FilterBar.tsx`): collapsed behind a "🔽 Filters" toggle by
+  default (active-filter count shown on the button, e.g. "Filters (3)"), expanding to a
+  bordered card with compact (32px-tall) selects, each with a small grey label *above* it
+  rather than inline. A text-only "↺ Clear all" (terracotta `#BD5A2E`) appears only once at
+  least one filter is active. Same six filters as before (Month/Status/Category/Expense
+  Type/Payment Method/Supplier), each still defaulting to "All".
+
+**Coverage, honestly stated:** the shell/list-page layer (Nav, StatusBadge, FilterBar, the
+`RequestDetailModal` header/footer chrome, and every list page's page title/tabs/cards/tables/
+buttons — My Requests, Procurement, BO/CEO Approvals, Accounting) is fully converted. The deep
+body content of `RequestDetailModal.tsx` (Expense Items table, Payment Details, PO Information,
+Attachments, Approval Timeline) and all of `RequestForm.tsx` (the Submit/Edit form itself) were
+**not** touched — both are large, already-functioning components where a full pixel-level pass
+was out of scope for this batch; they still use the pre-redesign ad hoc Tailwind classes
+(functionally identical, just not yet using the `.mm-*` primitives). Apply the same primitives
+there in a follow-up pass if/when a full redesign of those two files specifically is requested.
 
 **Token keys were kept as their original brown/cream/border/dark names even though the values
 no longer literally match** (`brand.brown` is forest green, not brown) — renaming them would

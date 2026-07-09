@@ -16,6 +16,7 @@ import {
   isAccountingActionable,
   isBoActionable,
   isCeoActionable,
+  isEditRequestPending,
   needsProcurement,
 } from "@/lib/status";
 import { computeTotals } from "@/lib/totals";
@@ -59,6 +60,9 @@ export async function GET(request: Request) {
         }
         rows = rows.filter((r) => canBoActOnRequest(user, r));
         if (tab === "pending") rows = rows.filter(isBoActionable);
+        else if (tab === "edit-requests") {
+          rows = rows.filter((r) => isEditRequestPending(r) && r.status === "BO_APPROVED");
+        }
         break;
       }
 
@@ -69,6 +73,8 @@ export async function GET(request: Request) {
         if (tab === "pending") rows = rows.filter(isCeoActionable);
         else if (tab === "needs-signature") {
           rows = rows.filter((r) => isCeoActionable(r) && r.ceo_signature_required === true);
+        } else if (tab === "edit-requests") {
+          rows = rows.filter((r) => isEditRequestPending(r) && r.status === "CEO_APPROVED");
         }
         break;
       }
@@ -79,6 +85,9 @@ export async function GET(request: Request) {
         }
         if (tab === "pending") rows = rows.filter(isAccountingActionable);
         else if (tab === "paid") rows = rows.filter((r) => r.status === "PAID");
+        else if (tab === "edit-requests") {
+          rows = rows.filter((r) => isEditRequestPending(r) && r.status === "PAID");
+        }
         break;
       }
 
