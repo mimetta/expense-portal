@@ -38,6 +38,47 @@ export default function HomeClient() {
         <p className="mm-page-subtitle !mb-0">Here&apos;s what&apos;s happening today.</p>
       </div>
 
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Link
+          href="/my"
+          className="mm-card block transition hover:bg-[#FAFAF7]"
+          style={{ borderLeft: "3px solid #1F3A2B" }}
+        >
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
+            My Pending Requests
+          </div>
+          <div className="text-[26px] font-semibold text-brand-dark">{stats ? stats.myPending : "-"}</div>
+        </Link>
+        {stats?.pendingMyApprovalRelevant && (
+          <Link
+            href={stats.approvalLink}
+            className="mm-card block transition hover:bg-[#FAFAF7]"
+            style={{ borderLeft: "3px solid #BD5A2E" }}
+          >
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
+              Pending My Approval
+            </div>
+            <div className="text-[26px] font-semibold text-brand-dark">{stats.pendingMyApproval}</div>
+          </Link>
+        )}
+        <Link
+          href="/accounting"
+          className="mm-card block transition hover:bg-[#FAFAF7]"
+          style={{ borderLeft: "3px solid #9CAE8C" }}
+        >
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
+            Paid This Month
+          </div>
+          <div className="text-[26px] font-semibold text-brand-dark">
+            {stats ? formatCurrency(stats.paidThisMonth) : "-"}
+          </div>
+        </Link>
+      </div>
+
+      {/* Calendar */}
+      <CalendarWidget />
+
       {/* Announcements */}
       <div className="mm-card">
         <h2 className="mm-section-label">📢 Announcements</h2>
@@ -85,47 +126,6 @@ export default function HomeClient() {
           </div>
         )}
       </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Link
-          href="/my"
-          className="mm-card block transition hover:bg-[#FAFAF7]"
-          style={{ borderLeft: "3px solid #1F3A2B" }}
-        >
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
-            My Pending Requests
-          </div>
-          <div className="text-[26px] font-semibold text-brand-dark">{stats ? stats.myPending : "-"}</div>
-        </Link>
-        {stats?.pendingMyApprovalRelevant && (
-          <Link
-            href={stats.approvalLink}
-            className="mm-card block transition hover:bg-[#FAFAF7]"
-            style={{ borderLeft: "3px solid #BD5A2E" }}
-          >
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
-              Pending My Approval
-            </div>
-            <div className="text-[26px] font-semibold text-brand-dark">{stats.pendingMyApproval}</div>
-          </Link>
-        )}
-        <Link
-          href="/accounting"
-          className="mm-card block transition hover:bg-[#FAFAF7]"
-          style={{ borderLeft: "3px solid #9CAE8C" }}
-        >
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
-            Paid This Month
-          </div>
-          <div className="text-[26px] font-semibold text-brand-dark">
-            {stats ? formatCurrency(stats.paidThisMonth) : "-"}
-          </div>
-        </Link>
-      </div>
-
-      {/* Calendar */}
-      <CalendarWidget />
     </div>
   );
 }
