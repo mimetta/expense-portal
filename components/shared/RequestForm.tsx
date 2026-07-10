@@ -544,7 +544,7 @@ export default function RequestForm({
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Department<RequiredMark /></label>
+            <label className={labelClass}>Segment<RequiredMark /></label>
             <select
               className={inputClass}
               value={department}
@@ -601,7 +601,7 @@ export default function RequestForm({
             </select>
             {productOptionsFor("Retail").length === 0 && (
               <p className="mt-1 text-xs text-brand-subtle">
-                No branches yet — add them in Settings &gt; Product/SKU Management (Department = Retail).
+                No branches yet — add them in Settings &gt; Product/SKU Management (Segment = Retail).
               </p>
             )}
           </div>

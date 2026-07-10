@@ -549,7 +549,7 @@ function UserTab() {
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Role</th>
                 <th className="px-3 py-2">BU Scope</th>
-                <th className="px-3 py-2">Dept Scope</th>
+                <th className="px-3 py-2">Seg Scope</th>
                 <th className="px-3 py-2">Cat L1 Scope</th>
                 <th className="px-3 py-2" />
               </tr>
@@ -615,7 +615,7 @@ function UserTab() {
                 />
               </div>
               <div>
-                <label className={labelClass}>Dept Scope</label>
+                <label className={labelClass}>Seg Scope</label>
                 <input
                   className={`${inputClass} w-full`}
                   placeholder="* or list"
@@ -759,7 +759,7 @@ function ProductTab() {
               <tr>
                 <th className="px-3 py-2">SKU Code</th>
                 <th className="px-3 py-2">Product Name</th>
-                <th className="px-3 py-2">Department</th>
+                <th className="px-3 py-2">Segment</th>
                 <th className="px-3 py-2">BU</th>
                 <th className="px-3 py-2" />
               </tr>
@@ -809,7 +809,7 @@ function ProductTab() {
               />
             </div>
             <div>
-              <label className={labelClass}>Department</label>
+              <label className={labelClass}>Segment</label>
               <select
                 className={`${inputClass} w-full`}
                 value={form.department}
@@ -1149,7 +1149,7 @@ function CategoryTab() {
             <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
                 <th className="px-3 py-2">BU</th>
-                <th className="px-3 py-2">Department</th>
+                <th className="px-3 py-2">Segment</th>
                 <th className="px-3 py-2">Cat L1</th>
                 <th className="px-3 py-2">Cat L2</th>
                 <th className="px-3 py-2">Product</th>
@@ -1199,7 +1199,7 @@ function CategoryTab() {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Department<RequiredMark /></label>
+                <label className={labelClass}>Segment<RequiredMark /></label>
                 <select
                   className={`${inputClass} w-full`}
                   value={form.department}
@@ -1374,7 +1374,7 @@ function DeptConfigTab() {
     <div>
       <p className="mb-3 text-xs text-brand-muted">
         Drives skip_bo/skip_ceo and CEO-signature requirements — matched score-based by
-        Department + BU + Cat L1 (exact matches score higher than &quot;*&quot; wildcards; see
+        Segment + BU + Cat L1 (exact matches score higher than &quot;*&quot; wildcards; see
         CLAUDE.md &quot;DeptConfig Matching&quot;).
       </p>
       <div className="mb-3 flex justify-end">
@@ -1392,7 +1392,7 @@ function DeptConfigTab() {
           <table className="mm-table">
             <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
-                <th className="px-3 py-2">Department</th>
+                <th className="px-3 py-2">Segment</th>
                 <th className="px-3 py-2">BU</th>
                 <th className="px-3 py-2">Cat L1</th>
                 <th className="px-3 py-2">BO Email</th>
@@ -1437,13 +1437,13 @@ function DeptConfigTab() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Department<RequiredMark /></label>
+                <label className={labelClass}>Segment<RequiredMark /></label>
                 <select
                   className={`${inputClass} w-full`}
                   value={form.dept}
                   onChange={(e) => setForm({ ...form, dept: e.target.value })}
                 >
-                  <option value="*">* (all departments)</option>
+                  <option value="*">* (all segments)</option>
                   {DEPARTMENTS.map((d) => (
                     <option key={d} value={d}>{d}</option>
                   ))}

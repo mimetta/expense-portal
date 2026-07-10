@@ -280,7 +280,7 @@ export default function MyRequestsPage() {
               <tr>
                 <th>Request ID</th>
                 <th>Date</th>
-                <th>Department</th>
+                <th>Segment</th>
                 <th>Total</th>
                 <th>Status</th>
                 <th>Actions</th>

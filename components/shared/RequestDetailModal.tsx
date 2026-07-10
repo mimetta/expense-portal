@@ -447,7 +447,7 @@ export default function RequestDetailModal({
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               <Field label="Requester">{request.requester_name} ({request.requester_email})</Field>
               <Field label="Expense Type">{request.expense_type}</Field>
-              <Field label="Department">{request.department}</Field>
+              <Field label="Segment">{request.department}</Field>
               <Field label="Budget Period">{request.budget_period}</Field>
               {expenseConfig?.isUrgent && request.urgent_reason && (
                 <div className="col-span-2">

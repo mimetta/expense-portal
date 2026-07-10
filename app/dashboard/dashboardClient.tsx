@@ -143,7 +143,7 @@ export default function DashboardPage() {
               <thead className="bg-brand-cream text-left text-brand-dark">
                 <tr>
                   <th className="px-3 py-2">BU</th>
-                  <th className="px-3 py-2">Department</th>
+                  <th className="px-3 py-2">Segment</th>
                   <th className="px-3 py-2">Cat L1</th>
                   <th className="px-3 py-2">Budget</th>
                   <th className="px-3 py-2">Actual</th>

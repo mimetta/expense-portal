@@ -131,7 +131,7 @@ export default function AccountingPage() {
               <tr>
                 <th>Request ID</th>
                 <th>Requester</th>
-                <th>Department</th>
+                <th>Segment</th>
                 <th>Total</th>
                 <th>Status</th>
                 <th>Slip Receiver</th>
