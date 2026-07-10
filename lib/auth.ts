@@ -7,16 +7,52 @@ import type { CurrentUser, RoleRow } from "@/types/database";
 export { isAllowedDomain };
 
 const LEGACY_ROLE_COLUMNS = "id, email, role, bu_scope, dept_scope, cat_l1_scope";
-const ROLE_COLUMNS = `${LEGACY_ROLE_COLUMNS}, created_at, is_auto_registered`;
+const MID_ROLE_COLUMNS = `${LEGACY_ROLE_COLUMNS}, created_at, is_auto_registered`;
+const ROLE_COLUMNS = `${MID_ROLE_COLUMNS}, chapter`;
 
 // Postgrest's "column does not exist" code — thrown if
 // supabase/migrations/007_roles_update.sql (adds roles.is_auto_registered)
-// hasn't been applied to this database yet. See CLAUDE.md "Database
-// Schema": there's no way to run DDL from this agent environment, so this
-// code has to ship able to run correctly both before and after someone
-// applies it by hand — not "ship broken until the migration happens to
-// land first."
+// and/or 011_chapter.sql (adds roles.chapter) haven't been applied to this
+// database yet. See CLAUDE.md "Database Schema": there's no way to run DDL
+// from this agent environment, so this code has to ship able to run
+// correctly both before and after someone applies either migration by
+// hand, in whichever order — not "ship broken until the migration happens
+// to land first."
 const UNDEFINED_COLUMN = "42703";
+
+// Fills in the fields a narrower fallback tier below can't select yet, so
+// every return path still produces a well-typed RoleRow.
+function withDefaults(rows: Record<string, unknown>[], extra: Partial<RoleRow>): RoleRow[] {
+  return rows.map((r) => ({ ...r, ...extra })) as RoleRow[];
+}
+
+function defaultsFor(columns: string): Partial<RoleRow> {
+  if (columns === ROLE_COLUMNS) return {};
+  if (columns === MID_ROLE_COLUMNS) return { chapter: null };
+  return { created_at: "", is_auto_registered: false, chapter: null };
+}
+
+// Tries the full column set first, then progressively narrower fallbacks
+// for whichever of migrations 007 (is_auto_registered)/011 (chapter)
+// haven't been applied yet — independently, in whichever order someone
+// happens to apply them. Returns whichever tier's select actually
+// succeeded so the auto-register insert below (which must select back the
+// same columns it just wrote) uses a column set guaranteed to exist.
+async function selectRolesByEmail(
+  admin: ReturnType<typeof createAdminClient>,
+  email: string,
+): Promise<{ rows: RoleRow[]; columns: string }> {
+  for (const columns of [ROLE_COLUMNS, MID_ROLE_COLUMNS, LEGACY_ROLE_COLUMNS]) {
+    const { data, error } = await admin.from("roles").select(columns).eq("email", email);
+    if (!error) {
+      return { rows: withDefaults((data ?? []) as unknown as Record<string, unknown>[], defaultsFor(columns)), columns };
+    }
+    if (error.code !== UNDEFINED_COLUMN) {
+      throw new Error(`Failed to load roles for ${email}: ${error.message}`);
+    }
+  }
+  throw new Error(`Failed to load roles for ${email}: legacy column set also failed`);
+}
 
 // Resolves the signed-in user from the request's Supabase session and loads
 // every roles row for their email. Returns null if there is no session or
@@ -36,37 +72,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   }
 
   const admin = createAdminClient();
-  const { data: roles, error } = await admin
-    .from("roles")
-    .select(ROLE_COLUMNS)
-    .eq("email", user.email);
-
-  if (error) {
-    if (error.code === UNDEFINED_COLUMN) {
-      // Migration 007 isn't applied yet — fall back to the pre-007 column
-      // set so sign-in (and everything else) keeps working exactly as
-      // before this batch. Auto-registration, the yellow banner, and the
-      // Pending Users badge are simply unavailable until it's applied;
-      // nothing here needs to change once it is — the primary select above
-      // will just stop erroring and this whole branch stops being reached.
-      const fallback = await admin.from("roles").select(LEGACY_ROLE_COLUMNS).eq("email", user.email);
-      if (fallback.error) {
-        throw new Error(`Failed to load roles for ${user.email}: ${fallback.error.message}`);
-      }
-      return {
-        email: user.email,
-        name: (user.user_metadata?.full_name as string | undefined) ?? user.email,
-        allRoles: (fallback.data ?? []).map((r) => ({
-          ...r,
-          created_at: "",
-          is_auto_registered: false,
-        })) as RoleRow[],
-      };
-    }
-    throw new Error(`Failed to load roles for ${user.email}: ${error.message}`);
-  }
-
-  let allRoles = (roles ?? []) as RoleRow[];
+  const { rows, columns } = await selectRolesByEmail(admin, user.email);
+  let allRoles = rows;
 
   // First-ever sign-in for this @mimetta.co address — no roles row exists.
   // Auto-register as EMPLOYEE (the baseline every signed-in user already
@@ -81,27 +88,27 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   // race to insert. On conflict this just re-writes the identical row and
   // returns it, so it's a harmless no-op either way.
   if (allRoles.length === 0) {
+    const insertPayload: Record<string, unknown> = {
+      email: user.email,
+      role: "EMPLOYEE",
+      bu_scope: "*",
+      dept_scope: "*",
+      cat_l1_scope: "*",
+    };
+    // Only set if this tier's column actually exists — see selectRolesByEmail.
+    if (columns !== LEGACY_ROLE_COLUMNS) insertPayload.is_auto_registered = true;
+
     const { data: inserted, error: insertError } = await admin
       .from("roles")
-      .upsert(
-        {
-          email: user.email,
-          role: "EMPLOYEE",
-          bu_scope: "*",
-          dept_scope: "*",
-          cat_l1_scope: "*",
-          is_auto_registered: true,
-        },
-        { onConflict: "email,role,bu_scope,dept_scope,cat_l1_scope" },
-      )
-      .select(ROLE_COLUMNS)
+      .upsert(insertPayload, { onConflict: "email,role,bu_scope,dept_scope,cat_l1_scope" })
+      .select(columns)
       .single();
 
     if (insertError) {
       throw new Error(`Failed to auto-register ${user.email}: ${insertError.message}`);
     }
 
-    allRoles = [inserted as RoleRow];
+    allRoles = withDefaults([inserted as unknown as Record<string, unknown>], defaultsFor(columns));
     await logAudit(user.email, null, "AUTO_REGISTERED", { role: "EMPLOYEE" });
   }
 
@@ -109,6 +116,11 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     email: user.email,
     name: (user.user_metadata?.full_name as string | undefined) ?? user.email,
     allRoles,
+    // Multi-role users can in principle have different chapter values per
+    // row (chapter isn't scoped like bu_scope/dept_scope) — first non-empty
+    // one wins, same "first match" convention canBoActOnRequest-adjacent
+    // logic elsewhere in this file's callers already uses.
+    chapter: allRoles.map((r) => r.chapter).find((c) => !!c?.trim()) ?? null,
   };
 }
 

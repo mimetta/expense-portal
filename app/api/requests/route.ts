@@ -23,6 +23,10 @@ import { computeTotals } from "@/lib/totals";
 import { getExpenseTypeConfig } from "@/lib/constants";
 import type { DeptConfigRow, ExpenseRequest, RequestItem } from "@/types/database";
 
+// Postgrest's "column does not exist" code — see the insertPayload/
+// UNDEFINED_COLUMN handling in POST below for why this route needs it.
+const UNDEFINED_COLUMN = "42703";
+
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
@@ -170,61 +174,74 @@ export async function POST(request: Request) {
     const skipCeo = matched?.skip_ceo ?? false;
     const ceoSignatureRequired = computeCeoSignatureRequired(matched, totals.total);
 
-    const { data: inserted, error: insertError } = await admin
-      .from("requests")
-      .insert({
-        requester_email: user.email,
-        requester_name: user.name,
-        bu: body.bu,
-        expense_type: body.expense_type,
-        urgent_reason: body.urgent_reason ?? null,
-        department: body.department,
-        budget_period: body.budget_period,
-        product: body.product ?? null,
-        cat_l1: body.cat_l1 ?? null,
-        cat_l2: body.cat_l2 ?? null,
-        description: body.description ?? null,
-        amount_net: totals.amount_net,
-        vat_rate: totals.vat_rate,
-        vat_amount: totals.vat_amount,
-        wht_rate: totals.wht_rate,
-        wht_amount: totals.wht_amount,
-        total: totals.total,
-        supplier_name: expenseTypeConfig?.hidePaymentSection ? null : body.supplier_name ?? null,
-        pay_method: expenseTypeConfig?.hidePaymentSection ? null : body.pay_method ?? null,
-        bank_name:
-          expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
-            ? null
-            : body.bank_name ?? null,
-        card_type:
-          expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
-            ? null
-            : body.card_type ?? null,
-        pay_ref:
-          expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
-            ? null
-            : body.pay_ref ?? null,
-        account_no:
-          expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
-            ? null
-            : body.account_no ?? null,
-        credit_term_days: body.credit_term_days ?? null,
-        due_date: body.due_date ?? null,
-        slip_receiver_email: body.slip_receiver_email ?? user.email,
-        status: "SUBMITTED",
-        files_folder_url: body.files_folder_url ?? null,
-        files_json: body.files_json ?? [],
-        requires_po: requiresPo,
-        items_json: body.items,
-        items_summary: totals.items_summary,
-        items_count: totals.items_count,
-        skip_bo: skipBo,
-        skip_ceo: skipCeo,
-        ceo_signature_required: ceoSignatureRequired,
-      })
-      .select()
-      .single();
+    const basePayload = {
+      requester_email: user.email,
+      requester_name: user.name,
+      bu: body.bu,
+      expense_type: body.expense_type,
+      urgent_reason: body.urgent_reason ?? null,
+      department: body.department,
+      budget_period: body.budget_period,
+      product: body.product ?? null,
+      cat_l1: body.cat_l1 ?? null,
+      cat_l2: body.cat_l2 ?? null,
+      description: body.description ?? null,
+      amount_net: totals.amount_net,
+      vat_rate: totals.vat_rate,
+      vat_amount: totals.vat_amount,
+      wht_rate: totals.wht_rate,
+      wht_amount: totals.wht_amount,
+      total: totals.total,
+      supplier_name: expenseTypeConfig?.hidePaymentSection ? null : body.supplier_name ?? null,
+      pay_method: expenseTypeConfig?.hidePaymentSection ? null : body.pay_method ?? null,
+      bank_name:
+        expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
+          ? null
+          : body.bank_name ?? null,
+      card_type:
+        expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
+          ? null
+          : body.card_type ?? null,
+      pay_ref:
+        expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
+          ? null
+          : body.pay_ref ?? null,
+      account_no:
+        expenseTypeConfig?.hidePaymentSection || expenseTypeConfig?.hideBankFields
+          ? null
+          : body.account_no ?? null,
+      credit_term_days: body.credit_term_days ?? null,
+      due_date: body.due_date ?? null,
+      slip_receiver_email: body.slip_receiver_email ?? user.email,
+      status: "SUBMITTED",
+      files_folder_url: body.files_folder_url ?? null,
+      files_json: body.files_json ?? [],
+      requires_po: requiresPo,
+      items_json: body.items,
+      items_summary: totals.items_summary,
+      items_count: totals.items_count,
+      skip_bo: skipBo,
+      skip_ceo: skipCeo,
+      ceo_signature_required: ceoSignatureRequired,
+    };
 
+    let inserted;
+    let insertError;
+    ({ data: inserted, error: insertError } = await admin
+      .from("requests")
+      .insert({ ...basePayload, chapter: user.chapter })
+      .select()
+      .single());
+    if (insertError?.code === UNDEFINED_COLUMN) {
+      // supabase/migrations/011_chapter.sql (adds requests.chapter) isn't
+      // applied yet — retry without it rather than blocking every
+      // submission on a column that doesn't exist. Silent, not a 503: this
+      // is the core Submit flow every user hits constantly, unlike the
+      // opt-in Edit Request routes that return a friendly 503 for the same
+      // situation (see request-edit/route.ts) — degrading loudly here would
+      // be a real regression, not a graceful one.
+      ({ data: inserted, error: insertError } = await admin.from("requests").insert(basePayload).select().single());
+    }
     if (insertError) throw insertError;
 
     const created = inserted as ExpenseRequest;

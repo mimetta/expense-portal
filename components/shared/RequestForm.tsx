@@ -115,6 +115,7 @@ export interface RequestFormPayload {
 
 export interface RequestFormInitial {
   requesterName: string;
+  chapter: string | null;
   bu: string;
   department: string;
   expenseType: string;
@@ -142,6 +143,7 @@ export interface RequestFormInitial {
 export function requestToFormInitial(r: ExpenseRequest): Partial<RequestFormInitial> {
   return {
     requesterName: r.requester_name,
+    chapter: r.chapter,
     bu: r.bu,
     department: r.department,
     expenseType: r.expense_type,
@@ -194,7 +196,9 @@ export default function RequestForm({
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ email: string; name: string; chapter?: string | null } | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [secondaryBusy, setSecondaryBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -511,6 +515,16 @@ export default function RequestForm({
             <input
               className={`${inputClass} bg-[#F9F8F6]`}
               value={initial?.requesterName ?? currentUser?.name ?? ""}
+              disabled
+              readOnly
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Chapter</label>
+            <input
+              className={`${inputClass} bg-[#F9F8F6]`}
+              value={initial?.chapter ?? currentUser?.chapter ?? ""}
+              placeholder="— not assigned —"
               disabled
               readOnly
             />

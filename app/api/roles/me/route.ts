@@ -24,7 +24,7 @@ export async function GET() {
     const access = Object.fromEntries(PAGES.map((p) => [p, canAccessPage(user, p)]));
 
     return NextResponse.json({
-      user: { email: user.email, name: user.name, allRoles: user.allRoles },
+      user: { email: user.email, name: user.name, allRoles: user.allRoles, chapter: user.chapter },
       access,
     });
   } catch (err) {

@@ -85,6 +85,59 @@ Page access is enforced twice: server-side redirect in each gated page's `page.t
 (`getCurrentUser` + `canAccessPage`, redirects to `/login` or `/`), and again in every API
 route handler (the actual security boundary — pages are just UX).
 
+### Chapter field
+
+A read-only, admin-set-elsewhere attribute on `roles.chapter` (new column,
+`supabase/migrations/011_chapter.sql`), surfaced on `/submit`'s Basic Info section directly
+after Requester Name — same read-only/grey-background styling, auto-filled from the signed-in
+user's chapter, "— not assigned —" placeholder when null. **Built from scratch, not "fixed"**
+— a request arrived describing this as an already-built-but-broken feature to debug (with a
+specific checklist: check `types/index.ts` for a `UserInfo` type, check `getCurrentUser()`,
+check `app/submit/page.tsx`), but none of it existed: there is no `types/index.ts` in this
+project (only `types/database.ts`), no `UserInfo` type (the equivalent is `CurrentUser`), no
+`chapter` column on the live `roles` table (confirmed via a direct REST query), and zero
+occurrences of "chapter" anywhere in the codebase before this. Same false-premise pattern as
+several earlier asks this project has had (`/api/approve/route.ts`, the pre-existing "fix
+unapprove" request) — flagged here rather than silently complying with a debugging checklist
+against nonexistent files, and built properly since the requirements given were otherwise
+complete and unambiguous.
+
+**Multi-role resolution**: a user can hold several `roles` rows (see above), and `chapter`
+isn't scope-partitioned the way `bu_scope`/`dept_scope` are — `lib/auth.ts#getCurrentUser`
+picks the first non-empty `chapter` across `allRoles` and exposes it as a new top-level
+`CurrentUser.chapter` field (not nested under `allRoles`), so consumers don't need to know
+about the multi-role array just to read one attribute. `GET /api/roles/me` explicitly
+whitelists response fields (`email`/`name`/`allRoles`) rather than spreading the whole user
+object — `chapter` had to be added there explicitly too, not just to the type.
+
+**Snapshotted, not joined**: `requests.chapter` (new column, same migration) is a copy of the
+submitting user's chapter taken at submission time — set server-side in `POST /api/requests`
+from `user.chapter`, deliberately never trusted from the client request body, matching the
+existing convention `requester_name`/`requester_email` already use. If someone's chapter
+changes later, past requests keep whatever chapter was true when they submitted, the same
+reasoning already documented for why `requester_name` is copied rather than joined live.
+
+**Graceful degradation for a *required-on-every-load* auth path**: `lib/auth.ts#getCurrentUser`
+runs on every single page load and API call via `requireUser()`, so it can't just 503 until
+migration 011 is applied — unlike the Edit Request workflow's routes, which only touch their
+new columns on an opt-in action and can afford to return a friendly 503 in the meantime. Since
+this project also already has an unapplied migration 007 (`roles.is_auto_registered`) that
+`getCurrentUser` was already falling back around, `chapter` needed to compose with that
+existing fallback rather than add a second, independent one — `lib/auth.ts` now tries three
+progressively narrower `roles` column sets in order (full → `is_auto_registered`+`created_at`
+but no `chapter` → neither), so sign-in keeps working correctly regardless of which of
+migrations 007/011 have been applied, independently, in either order. `POST /api/requests`
+has its own, simpler two-step version of the same idea: insert with `chapter` first, and only
+if that specifically fails with Postgrest's `42703` ("column does not exist"), retry the exact
+same insert without it — silently, not user-facing, since this is the core Submit flow every
+user hits constantly and a loud failure here would be a real regression, not a graceful one.
+
+**Not yet built**: there is no admin UI anywhere to *set* a user's chapter (Settings > User
+Management's role edit form still only has BU/Segment/Cat L1 scope fields) — this batch only
+asked for the read-only Submit-page display and the storage plumbing behind it, not a way to
+assign chapters through the UI. For now, setting `roles.chapter` requires a direct database
+edit. Flag if an admin-facing editor is wanted as a follow-up.
+
 ### Auto-registration for new @mimetta.co users
 
 `lib/auth.ts#getCurrentUser()` used to return a `CurrentUser` with an empty `allRoles` array
@@ -905,13 +958,16 @@ requested, since 006 was already taken this session by `006_announcement_attachm
 and the `EDIT_REQUESTED` status (see "Edit Request approval workflow" above).
 `supabase/migrations/010_calendar_events.sql` adds the standalone `calendar_events` table (see
 "Homepage" below) — self-contained/idempotent, no dependency on any earlier migration.
+`supabase/migrations/011_chapter.sql` adds `roles.chapter` and `requests.chapter` (see
+"Chapter field" above).
 
-**Migrations 007 through 010 have not been applied to the live database as of this
+**Migrations 007 through 011 have not been applied to the live database as of this
 writing** (confirmed live via direct REST queries — `GET .../announcements` 404s with
 `PGRST205`; `GET .../roles?select=is_auto_registered` 42703s "column does not exist"; `GET
-.../calendar_events` 404s with `PGRST205`) — same constraint as before, the agent environment
-has no `SUPABASE_ACCESS_TOKEN`/linked project (`supabase login`/`db push` both fail), only the
-DML-capable service-role REST key. Apply all four manually (Supabase SQL editor, or `supabase
+.../calendar_events` 404s with `PGRST205`; `GET .../roles?select=chapter` 42703s "column does
+not exist") — same constraint as before, the agent environment has no
+`SUPABASE_ACCESS_TOKEN`/linked project (`supabase login`/`db push` both fail), only the
+DML-capable service-role REST key. Apply all five manually (Supabase SQL editor, or `supabase
 db push` with real credentials).
 
 **Unlike 005/006, shipping 007 unapplied does not break anything** — `lib/auth.ts#getCurrentUser`,

@@ -99,6 +99,10 @@ export interface ExpenseRequest {
   edit_approved_by: string | null;
   edit_approved_at: string | null;
   status_before_edit: string | null;
+  // Snapshot of requester_email's roles.chapter at submission time (see
+  // "Chapter field" in CLAUDE.md) — not joined live, same convention as
+  // requester_name/requester_email.
+  chapter: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -112,6 +116,7 @@ export interface RoleRow {
   cat_l1_scope: string;
   created_at: string;
   is_auto_registered: boolean;
+  chapter: string | null;
 }
 
 export interface DeptConfigRow {
@@ -139,6 +144,10 @@ export interface CurrentUser {
   email: string;
   name: string;
   allRoles: RoleRow[];
+  // Derived in lib/auth.ts#getCurrentUser from allRoles (first non-empty
+  // chapter across the user's roles rows) — not a column on any table
+  // this type otherwise mirrors 1:1.
+  chapter: string | null;
 }
 
 export interface SupplierRow {
