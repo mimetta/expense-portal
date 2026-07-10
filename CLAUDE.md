@@ -903,13 +903,16 @@ three. `supabase/migrations/007_roles_update.sql` adds `roles.is_auto_registered
 requested, since 006 was already taken this session by `006_announcement_attachments.sql`.
 `supabase/migrations/009_edit_request.sql` adds the five `edit_*`/`status_before_edit` columns
 and the `EDIT_REQUESTED` status (see "Edit Request approval workflow" above).
+`supabase/migrations/010_calendar_events.sql` adds the standalone `calendar_events` table (see
+"Homepage" below) — self-contained/idempotent, no dependency on any earlier migration.
 
-**Migrations 007, 008, and 009 have not been applied to the live database as of this
+**Migrations 007 through 010 have not been applied to the live database as of this
 writing** (confirmed live via direct REST queries — `GET .../announcements` 404s with
-`PGRST205`; `GET .../roles?select=is_auto_registered` 42703s "column does not exist") — same
-constraint as before, the agent environment has no `SUPABASE_ACCESS_TOKEN`/linked project
-(`supabase login`/`db push` both fail), only the DML-capable service-role REST key. Apply all
-three manually (Supabase SQL editor, or `supabase db push` with real credentials).
+`PGRST205`; `GET .../roles?select=is_auto_registered` 42703s "column does not exist"; `GET
+.../calendar_events` 404s with `PGRST205`) — same constraint as before, the agent environment
+has no `SUPABASE_ACCESS_TOKEN`/linked project (`supabase login`/`db push` both fail), only the
+DML-capable service-role REST key. Apply all four manually (Supabase SQL editor, or `supabase
+db push` with real credentials).
 
 **Unlike 005/006, shipping 007 unapplied does not break anything** — `lib/auth.ts#getCurrentUser`,
 `GET /api/roles`, and `PATCH /api/roles/[id]` all catch Postgrest's `42703` ("column does not
@@ -948,7 +951,7 @@ more conservative reading. See `app/api/dashboard/budget/route.ts`.
 
 | Route | Notes |
 |---|---|
-| `/` | Homepage (was a plain redirect to `/submit`; now a real page, and now the de facto dashboard — see "Dashboard nav removal" below). Announcements, Quick Stats, Payment Calendar — see "Homepage" below. Every signed-in user has access. |
+| `/` | Homepage (was a plain redirect to `/submit`; now a real page, and now the de facto dashboard — see "Dashboard nav removal" below). Announcements, Quick Stats, Calendar — see "Homepage" below. Every signed-in user has access. |
 | `/submit` | Multi-item expense form (`components/shared/RequestForm.tsx` in create mode). Every signed-in user has access. |
 | `/my` | Table (not cards). Actions column: "✏️ Edit" when `isOwnerEditable` (SUBMITTED, no PO activity yet), "🗑️ Delete" in the same window (see "Request owner delete" below), "↩ Edit & Resubmit" when REJECTED, "✏️ Request Edit" when `canRequestEdit` (BO_APPROVED/CEO_APPROVED/PAID, no edit request pending yet), "↩ Edit & Resubmit" again when `isEditApproved` — see "Edit Request approval workflow" above. Status column shows a grey "Editable"/"Pending Procurement"/"Edit requested — awaiting approval"/"Edit approved — resubmit" sublabel. Row click still opens `RequestDetailModal` (read-only by default), which now also gets its own in-place "✏️ Edit" header button for the SUBMITTED case (see "Owner edit permission" below) — a second, separate entry point to the same edit capability. |
 | `/procurement` | Row click opens `RequestDetailModal` in editable mode — items (Net/VAT/WHT), payment fields, attachments, and PO Details are all inline-editable; no separate "Upload PO" modal anymore. Tabs: Pending PO / PO Uploaded / All. |
@@ -968,7 +971,7 @@ session at all).
 ### Dashboard nav removal
 
 `components/Nav.tsx`'s `LINKS` array no longer includes a Dashboard entry — the homepage (`/`)
-already surfaces Announcements/Quick Stats/Payment Calendar (see "Homepage" below) and was
+already surfaces Announcements/Quick Stats/Calendar (see "Homepage" below) and was
 judged to make a separate nav-level Dashboard link redundant. The `/dashboard` route itself
 (`dashboardClient.tsx`, budget-vs-actual/monthly-trend/revenue-overlay charts, and its backing
 `/api/dashboard/*` routes) is **not deleted** — `app/dashboard/page.tsx` was rewritten to an
@@ -1001,15 +1004,71 @@ to everyone who can see the request.
   approval-stat card links to whichever of `/bo-approvals` → `/ceo-approvals` → `/accounting`
   the user actually has access to (first match, in that priority order) and only renders at
   all if at least one applies.
-- **Payment Calendar** — `GET /api/dashboard/payment-calendar`: requests with `due_date` in
-  the current calendar month. **Excludes both `PAID` and `REJECTED`** — the spec said "not yet
-  PAID", but a `REJECTED` request will never be paid unless resubmitted (at which point it's
-  live again with a fresh due date), so including dead rejected requests in a forward-looking
-  "what's coming due" view would just be clutter. Scoped to `lib/permissions.ts#
-  canViewRequest` (same visibility rule as `GET /api/requests/[id]`), so a plain employee only
-  sees their own due items, while CEO/Accounting/Procurement/SUPERADMIN see everything.
-  Grouped by due date client-side; color-coded red (past due) / orange (due today) / green
-  (upcoming).
+- **Calendar** (`components/CalendarWidget.tsx`) — replaced the earlier "Payment Calendar"
+  section (a flat list of requests grouped by `due_date`, driven by `GET
+  /api/dashboard/payment-calendar`) with a full month-grid calendar backed by its own table.
+  That route and its request-derived due-date list are **not deleted** — same "leave the old
+  route in place, unreferenced" convention as `/api/requests/[id]/po` and the `/dashboard`
+  route — but the homepage no longer calls it, so `app/homeClient.tsx` dropped the
+  `calendar`/`groupedByDueDate`/`formatDateOnly`/`dueDateColor` state and helpers entirely
+  rather than leaving dead code that still fetched data nothing renders.
+
+  **Spec said to edit `app/page.tsx`** — that file is only a thin server component
+  (`getCurrentUser` + redirect-to-login, then renders `<HomeClient />`); it has never held any
+  homepage markup. The actual integration point is `app/homeClient.tsx`, same file every
+  earlier homepage change in this project's history has touched — edited there instead.
+
+  **Schema**: `calendar_events` (`supabase/migrations/010_calendar_events.sql` — self-
+  contained/idempotent, same pattern as `008_announcements.sql`; **not yet applied to the live
+  database**, same `SUPABASE_ACCESS_TOKEN`-less constraint as every migration in this project).
+  `id BIGSERIAL`, `title TEXT NOT NULL`, `description TEXT`, `event_date DATE NOT NULL`,
+  `event_type TEXT NOT NULL DEFAULT 'general'`, `created_by TEXT NOT NULL`, `created_at
+  TIMESTAMPTZ`. `event_type` has no DB `CHECK` constraint — validated against
+  `lib/constants.ts#CALENDAR_EVENT_TYPES` (`payment`/`deadline`/`reminder`/`important`/
+  `general`) in the API layer instead, the same "free-text tag, not a state machine" reasoning
+  `dept_config`/`categories`' wildcard columns already use elsewhere in this schema.
+
+  **API** (`app/api/calendar-events/route.ts` + `.../[id]/route.ts`): `GET` — any signed-in
+  user, optional `?month=YYYY-MM` narrows to that calendar month (`event_date` between the
+  1st and last day, computed via `new Date(year, month, 0).getDate()` for the month-length
+  lookup). `POST`/`DELETE` — `lib/constants.ts#CALENDAR_MANAGE_ROLES`
+  (`SUPERADMIN`/`ACCOUNTING`/`CEO`/`PROCUREMENT`, matching the spec's named role list exactly).
+  `GET` degrades to `{ events: [] }` on Postgrest's `PGRST205` ("table not found in schema
+  cache") and `POST` returns a friendly 503, same graceful-degradation pattern as
+  `announcements`/the Edit Request workflow routes — the homepage doesn't break before
+  migration 010 is applied, it just shows an empty calendar.
+
+  **`CalendarWidget.tsx`** fetches two independent event lists: `monthEvents` (re-fetched via
+  the `?month=` filter every time the displayed month changes — Prev/Next literally triggers a
+  new network request, not a client-side filter of an already-loaded superset) drives the grid,
+  while `sidebarEvents` (fetched once with no month filter, refreshed after any add/delete) is
+  a separate always-current pool the Today/Upcoming panels read from — so browsing to a future
+  or past month in the grid never makes the sidebar show stale "today" data. "Upcoming" is the
+  next 5 events with `event_date >= today` sorted ascending (today's own events can appear in
+  both the Today card and the top of Upcoming — not deduplicated between the two, since they
+  answer different questions: "what's today" vs. "what's coming").
+
+  **Month grid**: a real `<table>` (`table-layout: fixed`, 7 × 14.28% columns), row count varies
+  4–6 depending on how the month falls (not forced to always render 6 rows) — built by
+  `buildGrid()`, which pads leading/trailing cells with adjacent-month dates so every row is a
+  full Sun–Sat week. Clicking any cell with ≥1 event opens a day-detail modal (click-outside via
+  the overlay's own `onClick` + `stopPropagation` on the modal box, same pattern used
+  everywhere else in this app); hovering an event pill shows a cursor-following tooltip
+  (position recalculated on `onMouseMove`, not a one-shot `onMouseEnter` position) rendered via
+  `position: fixed` at `clientX+12`/`clientY-40`.
+
+  **Delete affordance**: the spec's DELETE endpoint had no corresponding UI trigger described
+  anywhere in its own spec — a built-but-unreachable capability, the same category of gap
+  flagged for BO/CEO unapprove earlier in this doc, just self-inflicted this time rather than
+  from a false "already exists" premise. Added a small "Delete" text button per event row inside
+  the day-detail modal, visible only to `CALENDAR_MANAGE_ROLES`, so the endpoint is actually
+  reachable from the UI it was built for.
+
+  **Event type colors** (`TYPE_STYLE` in `CalendarWidget.tsx`) are the exact pairs the spec
+  gave for pills/badges (`payment` blue, `deadline` red, `reminder` amber, `important` green,
+  `general` grey) and are reused for the day-modal's `border-left` + tinted background (bg hex
+  with a literal `22` alpha suffix appended, e.g. `#EFF6FF22`, per the spec's own notation) and
+  the Today/Upcoming cards' left-border accent — one color map, not a separate one per surface.
 
 ---
 

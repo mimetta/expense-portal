@@ -171,3 +171,15 @@ export interface AnnouncementRow {
   attachment_url: string | null;
   attachment_type: string | null;
 }
+
+export type CalendarEventType = "payment" | "deadline" | "reminder" | "important" | "general";
+
+export interface CalendarEventRow {
+  id: number;
+  title: string;
+  description: string | null;
+  event_date: string;
+  event_type: CalendarEventType;
+  created_by: string;
+  created_at: string;
+}

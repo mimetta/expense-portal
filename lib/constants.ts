@@ -1,3 +1,5 @@
+import type { CalendarEventType } from "@/types/database";
+
 export const OLD_EMAIL_DOMAIN = "coroand.co";
 export const NEW_EMAIL_DOMAIN = "mimetta.co";
 
@@ -164,6 +166,20 @@ export const DOCUMENT_TYPES = [
   "ใบรับของจากระบบ AccCloud",
   "Other",
 ] as const;
+
+// Homepage calendar (see CLAUDE.md "Homepage Calendar") — not a DB CHECK
+// constraint on calendar_events.event_type, validated against this list
+// client- and server-side instead. Roles allowed to create/delete events —
+// same set the spec named for both actions, kept as one constant rather
+// than two identical arrays.
+export const CALENDAR_EVENT_TYPES: { value: CalendarEventType; label: string }[] = [
+  { value: "payment", label: "Payment" },
+  { value: "deadline", label: "Deadline" },
+  { value: "reminder", label: "Reminder" },
+  { value: "important", label: "Important" },
+  { value: "general", label: "General" },
+];
+export const CALENDAR_MANAGE_ROLES: Role[] = ["SUPERADMIN", "ACCOUNTING", "CEO", "PROCUREMENT"];
 
 // Departments without a dedicated Discord channel fall back to
 // DISCORD_WEBHOOK_DEFAULT (Factory Investment, People & HR & System,

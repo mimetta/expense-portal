@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import StatusBadge from "@/components/StatusBadge";
+import CalendarWidget from "@/components/CalendarWidget";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { AnnouncementRow, ExpenseRequest } from "@/types/database";
+import type { AnnouncementRow } from "@/types/database";
 
 interface HomeStats {
   myPending: number;
@@ -14,55 +14,22 @@ interface HomeStats {
   paidThisMonth: number;
 }
 
-function formatDateOnly(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function dueDateColor(dateStr: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  if (dateStr < today) return "text-red-700";
-  if (dateStr === today) return "text-orange-600";
-  return "text-green-700";
-}
-
 export default function HomeClient() {
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [stats, setStats] = useState<HomeStats | null>(null);
-  const [calendar, setCalendar] = useState<ExpenseRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/announcements").then((r) => r.json()),
       fetch("/api/dashboard/home-stats").then((r) => r.json()),
-      fetch("/api/dashboard/payment-calendar").then((r) => r.json()),
     ])
-      .then(([a, s, c]) => {
+      .then(([a, s]) => {
         setAnnouncements(a.announcements ?? []);
         setStats(s);
-        setCalendar(c.requests ?? []);
       })
       .finally(() => setLoading(false));
   }, []);
-
-  const monthLabel = useMemo(
-    () => new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-    [],
-  );
-
-  const groupedByDueDate = useMemo(() => {
-    const map = new Map<string, ExpenseRequest[]>();
-    for (const r of calendar) {
-      const key = r.due_date ?? "-";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(r);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [calendar]);
 
   return (
     <div className="space-y-6">
@@ -157,41 +124,8 @@ export default function HomeClient() {
         </Link>
       </div>
 
-      {/* Payment Calendar */}
-      <div className="mm-card">
-        <h2 className="mm-section-label">📅 Payment Calendar — {monthLabel}</h2>
-        {loading ? (
-          <p className="text-sm text-brand-muted">Loading...</p>
-        ) : groupedByDueDate.length === 0 ? (
-          <p className="text-sm text-brand-muted">No payments due this month.</p>
-        ) : (
-          <div className="space-y-4">
-            {groupedByDueDate.map(([date, items]) => (
-              <div key={date}>
-                <div className={`text-sm font-semibold ${dueDateColor(date)}`}>{formatDateOnly(date)}</div>
-                <div className="mt-1 space-y-1">
-                  {items.map((r) => (
-                    <div
-                      key={r.request_id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-brand-border px-3 py-2 text-sm"
-                    >
-                      <div>
-                        <span className="font-mono text-xs text-brand-brown">{r.request_id}</span>
-                        <span className="ml-2 text-brand-dark">{r.requester_name}</span>
-                        <span className="ml-2 text-brand-muted">· {r.supplier_name ?? "-"}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-brand-dark">{formatCurrency(r.total)}</span>
-                        <StatusBadge status={r.status} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Calendar */}
+      <CalendarWidget />
     </div>
   );
 }
