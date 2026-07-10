@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import {
+  requireUser,
+  ForbiddenError,
+  LEGACY_ROLE_COLUMNS,
+  MID_ROLE_COLUMNS,
+  ROLE_COLUMNS,
+  UNDEFINED_COLUMN,
+} from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import { isSuperadmin } from "@/lib/permissions";
 import { isAllowedDomain } from "@/lib/domain";
 import { ROLES, type Role } from "@/lib/constants";
+
+function defaultsFor(columns: string) {
+  if (columns === ROLE_COLUMNS) return {};
+  if (columns === MID_ROLE_COLUMNS) return { chapter: null };
+  return { created_at: "", is_auto_registered: false, chapter: null };
+}
 
 // Every role row (a user may hold several — see CLAUDE.md multi-role notes).
 // Readable by any signed-in user: Settings > User Management needs the full
@@ -14,28 +27,22 @@ export async function GET() {
   try {
     await requireUser();
     const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("roles")
-      .select("id, email, role, bu_scope, dept_scope, cat_l1_scope, created_at, is_auto_registered")
-      .order("email");
-    if (error) {
-      // Same "migration 007 not applied yet" fallback as lib/auth.ts —
-      // this endpoint feeds the Slip Payment Receiver picker on
-      // /submit/etc., not just Settings > User Management, so it needs to
-      // degrade the same way rather than 500ing app-wide.
-      if (error.code === "42703") {
-        const fallback = await admin
-          .from("roles")
-          .select("id, email, role, bu_scope, dept_scope, cat_l1_scope")
-          .order("email");
-        if (fallback.error) throw fallback.error;
-        return NextResponse.json({
-          roles: (fallback.data ?? []).map((r) => ({ ...r, created_at: "", is_auto_registered: false })),
-        });
+
+    // Same three-tier fallback as lib/auth.ts#selectRolesByEmail (for
+    // whichever of migrations 007/011 haven't been applied yet) — this
+    // endpoint feeds the Slip Payment Receiver picker on /submit/etc., not
+    // just Settings > User Management, so it needs to degrade the same way
+    // rather than 500ing app-wide.
+    for (const columns of [ROLE_COLUMNS, MID_ROLE_COLUMNS, LEGACY_ROLE_COLUMNS]) {
+      const { data, error } = await admin.from("roles").select(columns).order("email");
+      if (!error) {
+        const extra = defaultsFor(columns);
+        const rows = (data ?? []) as unknown as Record<string, unknown>[];
+        return NextResponse.json({ roles: rows.map((r) => ({ ...r, ...extra })) });
       }
-      throw error;
+      if (error.code !== UNDEFINED_COLUMN) throw error;
     }
-    return NextResponse.json({ roles: data ?? [] });
+    throw new Error("Failed to load roles: legacy column set also failed");
   } catch (err) {
     return handleApiError(err);
   }
@@ -47,6 +54,7 @@ interface CreateRoleBody {
   bu_scope?: string;
   dept_scope?: string;
   cat_l1_scope?: string;
+  chapter?: string;
 }
 
 export async function POST(request: Request) {
@@ -66,18 +74,27 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("roles")
-      .insert({
-        email: body.email,
-        role: body.role,
-        bu_scope: body.bu_scope ?? "*",
-        dept_scope: body.dept_scope ?? "*",
-        cat_l1_scope: body.cat_l1_scope ?? "*",
-      })
-      .select()
-      .single();
+    const basePayload = {
+      email: body.email,
+      role: body.role,
+      bu_scope: body.bu_scope ?? "*",
+      dept_scope: body.dept_scope ?? "*",
+      cat_l1_scope: body.cat_l1_scope ?? "*",
+    };
 
+    let data, error;
+    ({ data, error } = await admin
+      .from("roles")
+      .insert({ ...basePayload, chapter: body.chapter?.trim() || null })
+      .select()
+      .single());
+    if (error?.code === UNDEFINED_COLUMN) {
+      // migrations/011_chapter.sql not applied yet — same silent retry
+      // convention as POST /api/requests, not a 500/503, since Add User is
+      // the primary way to grant a new @mimetta.co address any access at
+      // all and shouldn't be blocked by an optional field's column.
+      ({ data, error } = await admin.from("roles").insert(basePayload).select().single());
+    }
     if (error) throw error;
     return NextResponse.json({ role: data }, { status: 201 });
   } catch (err) {

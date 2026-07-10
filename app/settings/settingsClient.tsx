@@ -430,6 +430,7 @@ const emptyRoleForm = () => ({
   bu_scope: "*",
   dept_scope: "*",
   cat_l1_scope: "*",
+  chapter: "",
 });
 
 function UserTab() {
@@ -461,6 +462,7 @@ function UserTab() {
       bu_scope: r.bu_scope,
       dept_scope: r.dept_scope,
       cat_l1_scope: r.cat_l1_scope,
+      chapter: r.chapter ?? "",
     });
     setModal({ mode: "edit", id: r.id });
   };
@@ -548,6 +550,7 @@ function UserTab() {
               <tr>
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Chapter</th>
                 <th className="px-3 py-2">BU Scope</th>
                 <th className="px-3 py-2">Seg Scope</th>
                 <th className="px-3 py-2">Cat L1 Scope</th>
@@ -559,6 +562,9 @@ function UserTab() {
                 <tr key={r.id}>
                   <td className="px-3 py-2">{r.email}</td>
                   <td className="px-3 py-2">{r.role}</td>
+                  <td className="px-3 py-2">
+                    {r.chapter ? r.chapter : <span className="text-brand-subtle">—</span>}
+                  </td>
                   <td className="px-3 py-2">{r.bu_scope}</td>
                   <td className="px-3 py-2">{r.dept_scope}</td>
                   <td className="px-3 py-2">{r.cat_l1_scope}</td>
@@ -603,6 +609,15 @@ function UserTab() {
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={labelClass}>Chapter</label>
+              <input
+                className={`${inputClass} w-full`}
+                placeholder="Optional"
+                value={form.chapter}
+                onChange={(e) => setForm({ ...form, chapter: e.target.value })}
+              />
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>

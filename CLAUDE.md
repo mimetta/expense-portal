@@ -132,11 +132,32 @@ if that specifically fails with Postgrest's `42703` ("column does not exist"), r
 same insert without it — silently, not user-facing, since this is the core Submit flow every
 user hits constantly and a loud failure here would be a real regression, not a graceful one.
 
-**Not yet built**: there is no admin UI anywhere to *set* a user's chapter (Settings > User
-Management's role edit form still only has BU/Segment/Cat L1 scope fields) — this batch only
-asked for the read-only Submit-page display and the storage plumbing behind it, not a way to
-assign chapters through the UI. For now, setting `roles.chapter` requires a direct database
-edit. Flag if an admin-facing editor is wanted as a follow-up.
+**Settings > User Management** (a later, separate batch) closed the gap flagged above: the
+Chapter column now shows in the roles table (grey em dash when empty, matching every other
+empty-cell convention in this app) and both the Add User and Edit User modals — the same
+shared modal component — have a plain optional text input for it, pre-filled from `r.chapter`
+in edit mode. `GET /api/roles`, `POST /api/roles`, and `PATCH /api/roles/[id]` all needed the
+same three-tier column fallback `lib/auth.ts#getCurrentUser` already had, not just the two-tier
+one they'd had before (for migration 007 alone) — `LEGACY_ROLE_COLUMNS`/`MID_ROLE_COLUMNS`/
+`ROLE_COLUMNS`/`UNDEFINED_COLUMN` are now exported from `lib/auth.ts` and reused by both route
+files rather than maintaining a second, drifting copy of the same tier logic. `PATCH
+/api/roles/[id]`'s three tiers assume migrations are applied in roughly numeric order (007
+before 011) — full → without `chapter` (007 applied, 011 not) → without `chapter` or
+`is_auto_registered` (neither applied) — the reverse ordering (011 applied before 007) isn't
+handled and would need a second manual retry; treated as an acceptable edge case rather than
+building a full 4-way combinatorial fallback for an ordering nobody is likely to hit. `POST
+/api/roles` (Add User) got the same silent-retry-without-chapter treatment as `POST
+/api/requests`, for the same reason: granting a brand-new `@mimetta.co` address its first role
+is too important a path to block on an optional field's column not existing yet.
+
+**Migration 011 still hasn't been applied to the live database** as of this writing (re-
+confirmed via direct REST queries against both `roles.chapter` and `requests.chapter`, both
+`42703`) — this remains the single blocker for the feature actually working end-to-end
+(Settings will save and display chapters correctly once it's applied; until then, every write
+silently succeeds *without* the chapter value, and every read shows the grey em dash for
+everyone). Apply `supabase/migrations/011_chapter.sql` by hand (SQL editor or `supabase db
+push` with real credentials) — this agent environment cannot run DDL itself, same constraint
+as every other migration in this project.
 
 ### Auto-registration for new @mimetta.co users
 

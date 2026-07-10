@@ -6,9 +6,12 @@ import type { CurrentUser, RoleRow } from "@/types/database";
 
 export { isAllowedDomain };
 
-const LEGACY_ROLE_COLUMNS = "id, email, role, bu_scope, dept_scope, cat_l1_scope";
-const MID_ROLE_COLUMNS = `${LEGACY_ROLE_COLUMNS}, created_at, is_auto_registered`;
-const ROLE_COLUMNS = `${MID_ROLE_COLUMNS}, chapter`;
+// Exported so /api/roles and /api/roles/[id] (which need the exact same
+// three-tier column fallback for their own SELECT/INSERT/UPDATE calls)
+// reuse these instead of drifting out of sync with a second copy.
+export const LEGACY_ROLE_COLUMNS = "id, email, role, bu_scope, dept_scope, cat_l1_scope";
+export const MID_ROLE_COLUMNS = `${LEGACY_ROLE_COLUMNS}, created_at, is_auto_registered`;
+export const ROLE_COLUMNS = `${MID_ROLE_COLUMNS}, chapter`;
 
 // Postgrest's "column does not exist" code — thrown if
 // supabase/migrations/007_roles_update.sql (adds roles.is_auto_registered)
@@ -18,7 +21,7 @@ const ROLE_COLUMNS = `${MID_ROLE_COLUMNS}, chapter`;
 // correctly both before and after someone applies either migration by
 // hand, in whichever order — not "ship broken until the migration happens
 // to land first."
-const UNDEFINED_COLUMN = "42703";
+export const UNDEFINED_COLUMN = "42703";
 
 // Fills in the fields a narrower fallback tier below can't select yet, so
 // every return path still produces a well-typed RoleRow.
