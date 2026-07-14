@@ -200,20 +200,25 @@ export const CALENDAR_MANAGE_ROLES: Role[] = ["SUPERADMIN", "ACCOUNTING", "CEO",
 // instead, since keeping the spec's typo'd string would leave this
 // department exactly as broken as before.
 export const DEPARTMENT_WEBHOOK_ENV: Record<string, string> = {
-  COGs: "DISCORD_WEBHOOK_FACTORY",
-  "Fulfillment operation": "DISCORD_WEBHOOK_OPF",
-  "General Administrative (GA)": "DISCORD_WEBHOOK_GA",
-  "Lab Instrument Investment (RD)": "DISCORD_WEBHOOK_RD",
-  "Marketing (MKT)": "DISCORD_WEBHOOK_MARKETING",
-  "New Store Investment": "DISCORD_WEBHOOK_STOREINV",
-  "People (HR)": "DISCORD_WEBHOOK_GA",
-  "R&D": "DISCORD_WEBHOOK_RD",
-  Retail: "DISCORD_WEBHOOK_RETAIL",
-  OEM: "DISCORD_WEBHOOK_OEM",
   Factory: "DISCORD_WEBHOOK_FACTORY",
-  Merchandise: "DISCORD_WEBHOOK_MERCHANDISE",
   "Factory Investment": "DISCORD_WEBHOOK_FACINV",
+  "Factory Investment (FACINV)": "DISCORD_WEBHOOK_FACINV",
+  COGs: "DISCORD_WEBHOOK_FACTORY",
+  "R&D": "DISCORD_WEBHOOK_RD",
+  "Lab Instrument Investment (RD)": "DISCORD_WEBHOOK_LABINV",
+  "Marketing (MKT)": "DISCORD_WEBHOOK_MARKETING",
+  Merchandise: "DISCORD_WEBHOOK_MARKETING",
+  "General Administrative (GA)": "DISCORD_WEBHOOK_GA",
+  "People (HR)": "DISCORD_WEBHOOK_GA",
+  Retail: "DISCORD_WEBHOOK_RETAIL",
+  "New Store Investment": "DISCORD_WEBHOOK_STOREINV",
+  "Fulfillment operation": "DISCORD_WEBHOOK_WH",
+  OEM: "DISCORD_WEBHOOK_FACTORY",
 };
 
 export const CEO_WEBHOOK_ENV = "DISCORD_WEBHOOK_CEO";
 export const DEFAULT_WEBHOOK_ENV = "DISCORD_WEBHOOK_DEFAULT";
+// Second-tier fallback for departmentWebhookUrl(): if a department has no
+// map entry (or its mapped var isn't set) AND DISCORD_WEBHOOK_DEFAULT also
+// isn't set, fall back to the GA channel rather than sending nothing.
+export const GA_WEBHOOK_ENV = "DISCORD_WEBHOOK_GA";

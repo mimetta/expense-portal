@@ -2,6 +2,7 @@ import {
   CEO_WEBHOOK_ENV,
   DEFAULT_WEBHOOK_ENV,
   DEPARTMENT_WEBHOOK_ENV,
+  GA_WEBHOOK_ENV,
 } from "@/lib/constants";
 import type { ExpenseRequest } from "@/types/database";
 
@@ -21,19 +22,24 @@ function webhookUrlFor(envName: string | undefined): string | null {
 
 // Exported for app/api/cron/document-reminder/route.ts, which posts a
 // bespoke message shape (not one of the NotificationEvent cases below).
+//
+// Fallback order: the department's mapped webhook, then
+// DISCORD_WEBHOOK_DEFAULT if that's unset, then DISCORD_WEBHOOK_GA if even
+// the default is unset — so a request only ever sends nothing if none of
+// the three are configured.
 export function departmentWebhookUrl(department: string): string | null {
   const envName = DEPARTMENT_WEBHOOK_ENV[department];
   if (!envName) {
     console.warn(
       `[discord] No DEPARTMENT_WEBHOOK_ENV entry for department "${department}" — check exact ` +
-        `spelling/case against lib/constants.ts (this is case-sensitive). Falling back to ${DEFAULT_WEBHOOK_ENV}.`,
+        `spelling/case against lib/constants.ts (this is case-sensitive). Falling back to ${DEFAULT_WEBHOOK_ENV} / ${GA_WEBHOOK_ENV}.`,
     );
   }
-  const resolved = webhookUrlFor(envName) ?? webhookUrlFor(DEFAULT_WEBHOOK_ENV);
+  const resolved = webhookUrlFor(envName) ?? webhookUrlFor(DEFAULT_WEBHOOK_ENV) ?? webhookUrlFor(GA_WEBHOOK_ENV);
   if (!resolved) {
     console.error(
-      `[discord] No webhook URL resolved for department "${department}" — set ${envName ?? DEFAULT_WEBHOOK_ENV} ` +
-        `in the environment.`,
+      `[discord] No webhook URL resolved for department "${department}" — set ${envName ?? DEFAULT_WEBHOOK_ENV}, ` +
+        `${DEFAULT_WEBHOOK_ENV}, or ${GA_WEBHOOK_ENV} in the environment.`,
     );
   }
   return resolved;
