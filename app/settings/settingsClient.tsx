@@ -1611,6 +1611,14 @@ function DeptConfigTab() {
   const [form, setForm] = useState(emptyDeptConfigForm());
   const [busy, setBusy] = useState(false);
 
+  // Reference data for the Segment/Cat L1 dropdowns in the Add/Edit Rule
+  // modal — same /api/departments and /api/categories endpoints /submit and
+  // the User Management tab use for their own pickers, so this tab reflects
+  // whatever Settings > Category L1/L2 Management has configured instead of
+  // a hardcoded list.
+  const [segmentOptions, setSegmentOptions] = useState<string[]>([...DEPARTMENTS]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+
   const load = () => {
     setLoading(true);
     fetch("/api/dept-config")
@@ -1620,6 +1628,48 @@ function DeptConfigTab() {
   };
 
   useEffect(load, []);
+
+  useEffect(() => {
+    fetch("/api/departments")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setSegmentOptions(data.departments?.length ? data.departments : [...DEPARTMENTS]))
+      .catch(() => setSegmentOptions([...DEPARTMENTS]));
+    fetch("/api/categories")
+      .then((res) => res.json())
+      .then((data) => setCategories(data.categories ?? []));
+  }, []);
+
+  // Cat L1 options narrow to the currently selected Segment and BU (unless
+  // either is "*") — same '*'-wildcard-or-exact-match convention used
+  // throughout this schema. Recomputes automatically whenever Segment or BU
+  // changes, so switching either refreshes the Cat L1 dropdown.
+  const catL1Options = useMemo(() => {
+    return Array.from(
+      new Set(
+        categories
+          .filter(
+            (c) =>
+              (form.bu === "*" || c.bu === "*" || c.bu === form.bu) &&
+              (form.dept === "*" || c.department === "*" || c.department === form.dept) &&
+              c.cat_l1,
+          )
+          .map((c) => c.cat_l1 as string),
+      ),
+    ).sort();
+  }, [categories, form.bu, form.dept]);
+
+  // Defensive fallback so an already-stored value that no longer shows up
+  // in the live options list (e.g. the Segment/Cat L1 was renamed or
+  // removed since this rule was saved) still renders as selected rather
+  // than silently blanking out when editing.
+  const segmentSelectOptions =
+    form.dept !== "*" && form.dept && !segmentOptions.includes(form.dept)
+      ? [form.dept, ...segmentOptions]
+      : segmentOptions;
+  const catL1SelectOptions =
+    form.cat_l1 !== "*" && form.cat_l1 && !catL1Options.includes(form.cat_l1)
+      ? [form.cat_l1, ...catL1Options]
+      : catL1Options;
 
   const openAdd = () => {
     setForm(emptyDeptConfigForm());
@@ -1753,8 +1803,8 @@ function DeptConfigTab() {
                   value={form.dept}
                   onChange={(e) => setForm({ ...form, dept: e.target.value })}
                 >
-                  <option value="*">* (all segments)</option>
-                  {DEPARTMENTS.map((d) => (
+                  <option value="*">* All segments</option>
+                  {segmentSelectOptions.map((d) => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
@@ -1766,7 +1816,7 @@ function DeptConfigTab() {
                   value={form.bu}
                   onChange={(e) => setForm({ ...form, bu: e.target.value })}
                 >
-                  <option value="*">*</option>
+                  <option value="*">* (All)</option>
                   {BUSINESS_UNITS.map((u) => (
                     <option key={u} value={u}>{u}</option>
                   ))}
@@ -1774,12 +1824,17 @@ function DeptConfigTab() {
               </div>
             </div>
             <div>
-              <label className={labelClass}>Cat L1 (or * for all)</label>
-              <input
+              <label className={labelClass}>Cat L1</label>
+              <select
                 className={`${inputClass} w-full`}
                 value={form.cat_l1}
                 onChange={(e) => setForm({ ...form, cat_l1: e.target.value })}
-              />
+              >
+                <option value="*">* All</option>
+                {catL1SelectOptions.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelClass}>BO Email</label>
