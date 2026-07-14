@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RequiredMark from "@/components/shared/RequiredMark";
 import { BANK_OPTIONS, BUSINESS_UNITS, DEPARTMENTS, PAYMENT_METHODS, ROLES, type Role } from "@/lib/constants";
@@ -433,12 +433,119 @@ const emptyRoleForm = () => ({
   chapter: "",
 });
 
+// Multi-select combobox for a scope field: a "select all" checkbox that
+// stores "*" and disables the individual options, or a comma-joined string
+// of whichever specific options are checked. Shared by Segment Scope and
+// Cat L1 Scope below — same interaction pattern, different option lists.
+function ScopeMultiSelect({
+  label,
+  allLabel,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  allLabel: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const isAll = value === "*";
+  const selected = isAll ? [] : value.split(",").map((s) => s.trim()).filter(Boolean);
+  const filteredOptions = options.filter((o) => o.toLowerCase().includes(search.toLowerCase()));
+  const summary = isAll ? allLabel : selected.length > 0 ? selected.join(", ") : "None selected";
+
+  const toggleValue = (opt: string) => {
+    const next = selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt];
+    onChange(next.join(","));
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className={labelClass}>{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`${inputClass} flex w-full items-center justify-between text-left`}
+      >
+        <span className="truncate">{summary}</span>
+        <span className="ml-2 text-brand-subtle">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full rounded-md border border-brand-border bg-white shadow-lg">
+          <div className="border-b border-brand-border p-2">
+            <input
+              className={`${inputClass} w-full`}
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto p-2">
+            <label className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-[#F9F8F6]">
+              <input
+                type="checkbox"
+                checked={isAll}
+                onChange={(e) => onChange(e.target.checked ? "*" : selected.join(","))}
+              />
+              <span className="font-medium">{allLabel}</span>
+            </label>
+            <div className="my-1 border-t border-brand-border" />
+            {filteredOptions.length === 0 ? (
+              <p className="px-1 py-1 text-xs text-brand-subtle">No options</p>
+            ) : (
+              filteredOptions.map((opt) => (
+                <label
+                  key={opt}
+                  className={`flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-[#F9F8F6] ${
+                    isAll ? "opacity-50" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(opt)}
+                    disabled={isAll}
+                    onChange={() => toggleValue(opt)}
+                  />
+                  <span>{opt}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UserTab() {
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ mode: "add" | "edit"; id?: string } | null>(null);
   const [form, setForm] = useState(emptyRoleForm());
   const [busy, setBusy] = useState(false);
+
+  // Reference data for the scope/chapter pickers in the Add/Edit User
+  // modal — same /api/departments and /api/categories endpoints /submit
+  // uses for its own pickers, plus /api/roles?distinct=chapter for the
+  // Chapter combobox's known values.
+  const [segmentOptions, setSegmentOptions] = useState<string[]>([...DEPARTMENTS]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [chapterOptions, setChapterOptions] = useState<string[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -449,6 +556,34 @@ function UserTab() {
   };
 
   useEffect(load, []);
+
+  useEffect(() => {
+    fetch("/api/departments")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setSegmentOptions(data.departments?.length ? data.departments : [...DEPARTMENTS]))
+      .catch(() => setSegmentOptions([...DEPARTMENTS]));
+    fetch("/api/categories")
+      .then((res) => res.json())
+      .then((data) => setCategories(data.categories ?? []));
+    fetch("/api/roles?distinct=chapter")
+      .then((res) => res.json())
+      .then((data) => setChapterOptions(data.chapters ?? []));
+  }, []);
+
+  // Cat L1 options narrow to the currently selected BU Scope (unless it's
+  // "*"), same '*'-wildcard-or-exact-match convention used throughout this
+  // schema — recomputes automatically whenever BU Scope changes.
+  const catL1Options = useMemo(() => {
+    const scopedBus =
+      form.bu_scope === "*" ? null : form.bu_scope.split(",").map((s) => s.trim()).filter(Boolean);
+    return Array.from(
+      new Set(
+        categories
+          .filter((c) => (!scopedBus || c.bu === "*" || scopedBus.includes(c.bu)) && c.cat_l1)
+          .map((c) => c.cat_l1 as string),
+      ),
+    ).sort();
+  }, [categories, form.bu_scope]);
 
   const openAdd = () => {
     setForm(emptyRoleForm());
@@ -587,7 +722,7 @@ function UserTab() {
       )}
 
       {modal && (
-        <Modal title={modal.mode === "add" ? "Add User" : "Edit User"} onClose={() => setModal(null)}>
+        <Modal title={modal.mode === "add" ? "Add User" : "Edit User"} onClose={() => setModal(null)} wide>
           <div className="space-y-3">
             <div>
               <label className={labelClass}>Email<RequiredMark /></label>
@@ -614,43 +749,54 @@ function UserTab() {
               <label className={labelClass}>Chapter</label>
               <input
                 className={`${inputClass} w-full`}
-                placeholder="Optional"
+                list="chapter-options"
+                placeholder="Pick an existing chapter or type a new one"
                 value={form.chapter}
                 onChange={(e) => setForm({ ...form, chapter: e.target.value })}
               />
+              <datalist id="chapter-options">
+                {chapterOptions.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className={labelClass}>BU Scope</label>
-                <input
-                  className={`${inputClass} w-full`}
-                  placeholder="* or SV,ONEST"
-                  value={form.bu_scope}
-                  onChange={(e) => setForm({ ...form, bu_scope: e.target.value })}
-                />
+            <div>
+              <label className={labelClass}>BU Scope</label>
+              <div className="flex gap-2">
+                {["*", ...BUSINESS_UNITS].map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setForm({ ...form, bu_scope: opt })}
+                    className={`flex-1 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                      form.bu_scope === opt
+                        ? "border-brand-brown bg-brand-brown text-white"
+                        : "border-brand-border bg-white text-brand-dark hover:bg-[#F9F8F6]"
+                    }`}
+                  >
+                    {opt === "*" ? "All BUs" : opt}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className={labelClass}>Seg Scope</label>
-                <input
-                  className={`${inputClass} w-full`}
-                  placeholder="* or list"
-                  value={form.dept_scope}
-                  onChange={(e) => setForm({ ...form, dept_scope: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Cat L1 Scope</label>
-                <input
-                  className={`${inputClass} w-full`}
-                  placeholder="* or list"
-                  value={form.cat_l1_scope}
-                  onChange={(e) => setForm({ ...form, cat_l1_scope: e.target.value })}
-                />
-              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <ScopeMultiSelect
+                label="Segment Scope"
+                allLabel="* All segments"
+                options={segmentOptions}
+                value={form.dept_scope}
+                onChange={(v) => setForm({ ...form, dept_scope: v })}
+              />
+              <ScopeMultiSelect
+                label="Cat L1 Scope"
+                allLabel="* All categories"
+                options={catL1Options}
+                value={form.cat_l1_scope}
+                onChange={(v) => setForm({ ...form, cat_l1_scope: v })}
+              />
             </div>
             <p className="text-xs text-brand-muted">
-              Scopes only matter for the BO role — comma-separated values, or * for unrestricted.
-              Multi-role users get one row per role (see CLAUDE.md).
+              Scopes only matter for the BO role. Multi-role users get one row per role (see CLAUDE.md).
             </p>
             <p className="text-xs text-brand-subtle">
               Fields marked <span style={{ color: "#DC2626" }}>*</span> are required

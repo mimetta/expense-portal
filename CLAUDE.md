@@ -951,12 +951,17 @@ currently **not selectable on `/submit`**, even though the DB `bu` check constra
 scope them out (they're only blocked by having no categories). Add at least one category row
 per missing department in Settings if they need to remain submittable.
 
-Only `/submit`'s Department field uses this dynamic list. The My Requests edit-and-resubmit
-modal (`app/my/page.tsx`) still uses the hardcoded `DEPARTMENTS` — not converted, since it
-wasn't in scope for this change and a rejected request being edited already has a concrete,
-previously-valid department. BO Approvals (`app/bo-approvals/boapprovalsClient.tsx`) has no
-hardcoded department list to convert — it only ever displays `request.department`, the
-already-persisted value on each request, never a picker or a decoded `dept_scope`.
+**Stale-doc correction**: this section previously said the My Requests edit-and-resubmit modal
+(`app/my/page.tsx`) "still uses the hardcoded `DEPARTMENTS`" — no longer true as of the Edit
+Request approval workflow batch that rebuilt `EditRequestModal` to render the shared
+`RequestForm` component directly (see "PATCH /api/requests/[id] — unified per-request edit
+endpoint" above) instead of a hand-rolled form. It inherits the exact same dynamic
+`/api/departments` fetch `/submit` uses, with no separate department list of its own anymore.
+Verified live (2026-07-13) while checking a report that this dropdown might still be hardcoded
+somewhere — it isn't, on either page; this note was just never updated when the modal was
+rebuilt. BO Approvals (`app/bo-approvals/boapprovalsClient.tsx`) has no hardcoded department
+list either — it only ever displays `request.department`, the already-persisted value on each
+request, never a picker or a decoded `dept_scope`.
 
 ## Database Schema
 

@@ -23,10 +23,29 @@ function defaultsFor(columns: string) {
 // Readable by any signed-in user: Settings > User Management needs the full
 // list, and /submit's Slip Payment Receiver picker needs the email list.
 // Mutations are SUPERADMIN-only.
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireUser();
     const admin = createAdminClient();
+
+    // Settings > User Management's Chapter combobox needs the distinct set
+    // of chapters already in use, to populate as dropdown options (still
+    // allowing free-text entry of a new one client-side). Degrades to an
+    // empty list rather than 500ing if migrations/011_chapter.sql hasn't
+    // been applied yet, same graceful-degradation convention as the rest of
+    // this route.
+    const { searchParams } = new URL(request.url);
+    if (searchParams.get("distinct") === "chapter") {
+      const { data, error } = await admin.from("roles").select("chapter");
+      if (error) {
+        if (error.code === UNDEFINED_COLUMN) return NextResponse.json({ chapters: [] });
+        throw error;
+      }
+      const chapters = Array.from(
+        new Set((data ?? []).map((r) => (r as { chapter: string | null }).chapter).filter((c): c is string => !!c)),
+      ).sort();
+      return NextResponse.json({ chapters });
+    }
 
     // Same three-tier fallback as lib/auth.ts#selectRolesByEmail (for
     // whichever of migrations 007/011 haven't been applied yet) — this
