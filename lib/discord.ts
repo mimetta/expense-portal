@@ -23,18 +23,42 @@ function webhookUrlFor(envName: string | undefined): string | null {
 // bespoke message shape (not one of the NotificationEvent cases below).
 export function departmentWebhookUrl(department: string): string | null {
   const envName = DEPARTMENT_WEBHOOK_ENV[department];
-  return webhookUrlFor(envName) ?? webhookUrlFor(DEFAULT_WEBHOOK_ENV);
+  if (!envName) {
+    console.warn(
+      `[discord] No DEPARTMENT_WEBHOOK_ENV entry for department "${department}" — check exact ` +
+        `spelling/case against lib/constants.ts (this is case-sensitive). Falling back to ${DEFAULT_WEBHOOK_ENV}.`,
+    );
+  }
+  const resolved = webhookUrlFor(envName) ?? webhookUrlFor(DEFAULT_WEBHOOK_ENV);
+  if (!resolved) {
+    console.error(
+      `[discord] No webhook URL resolved for department "${department}" — set ${envName ?? DEFAULT_WEBHOOK_ENV} ` +
+        `in the environment.`,
+    );
+  }
+  return resolved;
 }
 
-export async function postToWebhook(url: string, content: string) {
+// Returns whether the post succeeded, so callers (e.g. /api/test-discord)
+// can report success/failure instead of assuming it worked. fetch() only
+// rejects on network failure — a bad/deleted webhook URL still resolves
+// with a non-2xx response, so that has to be checked explicitly too.
+export async function postToWebhook(url: string, content: string): Promise<boolean> {
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
     });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[discord] Webhook post returned ${res.status} ${res.statusText}: ${body}`);
+      return false;
+    }
+    return true;
   } catch (err) {
-    console.error("Discord webhook post failed:", err);
+    console.error("[discord] Webhook post failed:", err);
+    return false;
   }
 }
 
@@ -73,7 +97,14 @@ export async function notify(event: NotificationEvent, request: ExpenseRequest) 
   const message = formatMessage(event, request);
 
   const deptUrl = departmentWebhookUrl(request.department);
-  if (deptUrl) await postToWebhook(deptUrl, message);
+  if (deptUrl) {
+    await postToWebhook(deptUrl, message);
+  } else {
+    console.error(
+      `[discord] ${event} notification for ${request.request_id} was not sent — no webhook URL available ` +
+        `for department "${request.department}" (checked DEPARTMENT_WEBHOOK_ENV and ${DEFAULT_WEBHOOK_ENV}).`,
+    );
+  }
 
   const shouldPingCeo =
     event === "CEO_APPROVED" ||
