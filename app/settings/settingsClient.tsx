@@ -532,6 +532,172 @@ function ScopeMultiSelect({
   );
 }
 
+// Grouped-checkbox variant of the Cat L1 Scope picker: cat_l1 values grouped
+// by Segment (categories.department), each group collapsible with a "select
+// all in segment" checkbox and a selected-count badge, plus a top-level "*
+// All categories" that supersedes everything. Same "*"-or-comma-joined-list
+// value convention as ScopeMultiSelect, so the stored roles.cat_l1_scope
+// format doesn't change — only the picker UI does.
+function CatL1ScopeGrouped({
+  categories,
+  buScope,
+  deptScope,
+  value,
+  onChange,
+}: {
+  categories: CategoryRow[];
+  buScope: string;
+  deptScope: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const didInitExpand = useRef(false);
+
+  const isAll = value === "*";
+  const selected = useMemo(
+    () => (isAll ? [] : value.split(",").map((s) => s.trim()).filter(Boolean)),
+    [isAll, value],
+  );
+
+  // Narrow available cat_l1 values to the BU/Segment scope currently picked
+  // elsewhere in the same modal — same '*'-wildcard-or-list convention used
+  // throughout this schema. Recomputes (and the whole group list refreshes)
+  // whenever BU Scope or Segment Scope changes.
+  const scopedBus = buScope === "*" ? null : buScope.split(",").map((s) => s.trim()).filter(Boolean);
+  const scopedDepts = deptScope === "*" ? null : deptScope.split(",").map((s) => s.trim()).filter(Boolean);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const c of categories) {
+      if (!c.cat_l1) continue;
+      if (scopedBus && c.bu !== "*" && !scopedBus.includes(c.bu)) continue;
+      if (scopedDepts && c.department !== "*" && !scopedDepts.includes(c.department)) continue;
+      const key = c.department || "(No Segment)";
+      if (!map.has(key)) map.set(key, new Set());
+      map.get(key)!.add(c.cat_l1);
+    }
+    return Array.from(map.entries())
+      .map(([segment, set]) => ({ segment, catL1s: Array.from(set).sort() }))
+      .sort((a, b) => a.segment.localeCompare(b.segment));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories, buScope, deptScope]);
+
+  // On edit (existing comma-separated value), auto-expand whichever segment
+  // groups contain a checked cat_l1 — runs once, as soon as categories have
+  // loaded, so it doesn't fight the user's own expand/collapse clicks
+  // afterward.
+  useEffect(() => {
+    if (didInitExpand.current || categories.length === 0) return;
+    didInitExpand.current = true;
+    if (!isAll) {
+      const toExpand = new Set(
+        groups.filter((g) => g.catL1s.some((c) => selected.includes(c))).map((g) => g.segment),
+      );
+      setExpanded(toExpand);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories.length]);
+
+  const toggleAll = (checked: boolean) => {
+    onChange(checked ? "*" : "");
+    if (checked) setExpanded(new Set());
+  };
+
+  const toggleSegmentAll = (catL1s: string[], checked: boolean) => {
+    const withoutSegment = selected.filter((c) => !catL1s.includes(c));
+    onChange((checked ? [...withoutSegment, ...catL1s] : withoutSegment).join(","));
+  };
+
+  const toggleOne = (cat: string, checked: boolean) => {
+    onChange((checked ? [...selected, cat] : selected.filter((c) => c !== cat)).join(","));
+  };
+
+  const toggleExpand = (segment: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(segment)) next.delete(segment);
+      else next.add(segment);
+      return next;
+    });
+  };
+
+  return (
+    <div>
+      <label className={labelClass}>Cat L1 Scope</label>
+      <div className="rounded-md border border-brand-border bg-white">
+        <label className="flex items-center gap-2 border-b border-brand-border px-2 py-1.5 text-sm hover:bg-[#F9F8F6]">
+          <input type="checkbox" checked={isAll} onChange={(e) => toggleAll(e.target.checked)} />
+          <span className="font-medium">* All categories</span>
+        </label>
+        <div className="max-h-64 overflow-y-auto">
+          {groups.length === 0 ? (
+            <p className="px-2 py-2 text-xs text-brand-subtle">
+              No categories match the current BU/Segment scope.
+            </p>
+          ) : (
+            groups.map(({ segment, catL1s }) => {
+              const selectedCount = isAll ? catL1s.length : catL1s.filter((c) => selected.includes(c)).length;
+              const allSelected = selectedCount === catL1s.length;
+              const isExpanded = expanded.has(segment);
+              return (
+                <div key={segment} className="border-b border-brand-border last:border-b-0">
+                  <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(segment)}
+                      className="w-3 text-brand-subtle"
+                      aria-label={isExpanded ? "Collapse" : "Expand"}
+                    >
+                      {isExpanded ? "▼" : "▶"}
+                    </button>
+                    <input
+                      type="checkbox"
+                      checked={isAll || allSelected}
+                      disabled={isAll}
+                      onChange={(e) => toggleSegmentAll(catL1s, e.target.checked)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(segment)}
+                      className="flex-1 text-left font-medium text-brand-dark"
+                    >
+                      {segment}
+                    </button>
+                    <span className="text-xs text-brand-subtle">
+                      ({selectedCount}/{catL1s.length})
+                    </span>
+                  </div>
+                  {isExpanded && (
+                    <div className="space-y-0.5 pb-1 pl-8 pr-2">
+                      {catL1s.map((cat) => (
+                        <label
+                          key={cat}
+                          className={`flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-[#F9F8F6] ${
+                            isAll ? "opacity-50" : ""
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isAll || selected.includes(cat)}
+                            disabled={isAll}
+                            onChange={(e) => toggleOne(cat, e.target.checked)}
+                          />
+                          <span>{cat}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UserTab() {
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -569,21 +735,6 @@ function UserTab() {
       .then((res) => res.json())
       .then((data) => setChapterOptions(data.chapters ?? []));
   }, []);
-
-  // Cat L1 options narrow to the currently selected BU Scope (unless it's
-  // "*"), same '*'-wildcard-or-exact-match convention used throughout this
-  // schema — recomputes automatically whenever BU Scope changes.
-  const catL1Options = useMemo(() => {
-    const scopedBus =
-      form.bu_scope === "*" ? null : form.bu_scope.split(",").map((s) => s.trim()).filter(Boolean);
-    return Array.from(
-      new Set(
-        categories
-          .filter((c) => (!scopedBus || c.bu === "*" || scopedBus.includes(c.bu)) && c.cat_l1)
-          .map((c) => c.cat_l1 as string),
-      ),
-    ).sort();
-  }, [categories, form.bu_scope]);
 
   const openAdd = () => {
     setForm(emptyRoleForm());
@@ -779,22 +930,20 @@ function UserTab() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <ScopeMultiSelect
-                label="Segment Scope"
-                allLabel="* All segments"
-                options={segmentOptions}
-                value={form.dept_scope}
-                onChange={(v) => setForm({ ...form, dept_scope: v })}
-              />
-              <ScopeMultiSelect
-                label="Cat L1 Scope"
-                allLabel="* All categories"
-                options={catL1Options}
-                value={form.cat_l1_scope}
-                onChange={(v) => setForm({ ...form, cat_l1_scope: v })}
-              />
-            </div>
+            <ScopeMultiSelect
+              label="Segment Scope"
+              allLabel="* All segments"
+              options={segmentOptions}
+              value={form.dept_scope}
+              onChange={(v) => setForm({ ...form, dept_scope: v })}
+            />
+            <CatL1ScopeGrouped
+              categories={categories}
+              buScope={form.bu_scope}
+              deptScope={form.dept_scope}
+              value={form.cat_l1_scope}
+              onChange={(v) => setForm({ ...form, cat_l1_scope: v })}
+            />
             <p className="text-xs text-brand-muted">
               Scopes only matter for the BO role. Multi-role users get one row per role (see CLAUDE.md).
             </p>
