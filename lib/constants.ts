@@ -184,16 +184,35 @@ export const CALENDAR_MANAGE_ROLES: Role[] = ["SUPERADMIN", "ACCOUNTING", "CEO",
 // Departments without a dedicated Discord channel fall back to
 // DISCORD_WEBHOOK_DEFAULT (Factory Investment, People & HR & System,
 // Merchandise, COG have no channel listed in the business requirements).
+// Keys are the EXACT strings live in categories.department (verified via a
+// direct REST query against the production table, 2026-07-14) — these are
+// what actually lands in requests.department at submission time, since
+// /submit's department picker is sourced dynamically from /api/departments
+// (itself derived from categories.department), not from the DEPARTMENTS
+// constant above. The previous version of this map used DEPARTMENTS'
+// clean/unabbreviated strings, which no longer matched live data at all
+// except for "R&D", "Retail", and "OEM" — every other department silently
+// fell back to DISCORD_WEBHOOK_DEFAULT (or nothing, if that wasn't set).
+//
+// One correction from the literal fix spec: "Factory Investment (FACINV)"
+// was requested, but the live table actually stores the bare
+// "Factory Investment" (no "(FACINV)" suffix) — used the real value here
+// instead, since keeping the spec's typo'd string would leave this
+// department exactly as broken as before.
 export const DEPARTMENT_WEBHOOK_ENV: Record<string, string> = {
-  Factory: "DISCORD_WEBHOOK_FACTORY",
-  Marketing: "DISCORD_WEBHOOK_MARKETING",
+  COGs: "DISCORD_WEBHOOK_FACTORY",
+  "Fulfillment operation": "DISCORD_WEBHOOK_OPF",
+  "General Administrative (GA)": "DISCORD_WEBHOOK_GA",
+  "Lab Instrument Investment (RD)": "DISCORD_WEBHOOK_RD",
+  "Marketing (MKT)": "DISCORD_WEBHOOK_MARKETING",
+  "New Store Investment": "DISCORD_WEBHOOK_STOREINV",
+  "People (HR)": "DISCORD_WEBHOOK_GA",
   "R&D": "DISCORD_WEBHOOK_RD",
-  "Lab Instrument Investment": "DISCORD_WEBHOOK_RD",
-  "Store Investment": "DISCORD_WEBHOOK_STOREINV",
-  "Operations/Fulfillment": "DISCORD_WEBHOOK_OPF",
   Retail: "DISCORD_WEBHOOK_RETAIL",
-  "General Administrative": "DISCORD_WEBHOOK_GA",
   OEM: "DISCORD_WEBHOOK_OEM",
+  Factory: "DISCORD_WEBHOOK_FACTORY",
+  Merchandise: "DISCORD_WEBHOOK_MERCHANDISE",
+  "Factory Investment": "DISCORD_WEBHOOK_FACINV",
 };
 
 export const CEO_WEBHOOK_ENV = "DISCORD_WEBHOOK_CEO";
