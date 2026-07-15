@@ -39,6 +39,7 @@ export const ROLES = [
   "ACCOUNTING",
   "BO",
   "PROCUREMENT",
+  "PETTY_CASH_CUSTODIAN",
   "EMPLOYEE",
 ] as const;
 export type Role = (typeof ROLES)[number];
@@ -69,8 +70,22 @@ export interface ExpenseTypeConfig {
   hideDueDate?: boolean;
   showCreditTerm?: boolean;
   defaultRequiresPo: boolean;
+  // Petty cash hides the PO Required section entirely (not just defaulting
+  // requires_po to false) — see CLAUDE.md-style note in RequestForm.tsx.
+  hidePoSection?: boolean;
   requiredDocs?: RequiredDocs;
 }
+
+// Exported so app/api/requests/route.ts (server-side validation),
+// RequestForm.tsx, RequestDetailModal.tsx, and the print view can all
+// reference the same exact label instead of drifting copies of the string.
+export const PETTY_CASH_LABEL = "เบิกเงินสดย่อย (Petty cash)";
+export const TRAVEL_EXPENSE_LABEL = "เบิกค่าเดินทาง";
+export const ADVANCE_PAYMENT_LABEL = "เบิกเงินทดรองจ่าย (Advance Payment)";
+
+// Expense types the printable request view (app/print/[id]) supports — see
+// CLAUDE.md-style note on RequestDetailModal.tsx's Print button.
+export const PRINTABLE_EXPENSE_TYPES: string[] = [PETTY_CASH_LABEL, ADVANCE_PAYMENT_LABEL, TRAVEL_EXPENSE_LABEL];
 
 // Thai labels are exact strings from the legacy system — do not alter.
 export const EXPENSE_TYPES: ExpenseTypeConfig[] = [
@@ -102,10 +117,17 @@ export const EXPENSE_TYPES: ExpenseTypeConfig[] = [
   {
     label: "เบิกเงินทดรองจ่าย (Advance Payment)",
     defaultRequiresPo: true,
+    requiredDocs: { mode: "all", docs: ["ใบเสร็จ/สลิป", "ใบกำกับภาษี (Tax Invoice)"] },
   },
   {
-    label: "เบิกเงินสดย่อย (Petty cash)",
+    label: PETTY_CASH_LABEL,
     defaultRequiresPo: false,
+    hidePoSection: true,
+    // "ใบกำกับภาษี (if applicable)" per spec is deliberately not in the
+    // required list below — it's conditional, and this checklist is
+    // informational only (never a hard submit-blocking validation) anyway,
+    // same as every other expense type's requiredDocs.
+    requiredDocs: { mode: "all", docs: ["ใบเสร็จ/สลิป"] },
   },
   {
     label: "เบิกสำหรับส่งเสริมการขาย (e.g. KOL/Influencer, แจกสินค้า)",
@@ -121,6 +143,15 @@ export const EXPENSE_TYPES: ExpenseTypeConfig[] = [
     label: "เบิกด่วน (Urgent Payment)",
     isUrgent: true,
     defaultRequiresPo: true,
+  },
+  {
+    label: TRAVEL_EXPENSE_LABEL,
+    // Not specified explicitly — inferred false since travel reimbursements
+    // (mileage/public transport/taxi) are small ad-hoc claims, same
+    // reasoning as Petty Cash's default. Unlike Petty Cash, the PO Required
+    // section still shows (two selectable cards, submitter's final say) —
+    // only Petty Cash was asked to hide it entirely.
+    defaultRequiresPo: false,
   },
 ];
 
@@ -164,8 +195,32 @@ export const DOCUMENT_TYPES = [
   "ใบกำกับภาษี (Tax Invoice)",
   "ใบส่งของจาก Supplier",
   "ใบรับของจากระบบ AccCloud",
+  "ใบเสร็จ/สลิป",
+  "ภาพถ่ายเลขไมล์",
+  "ระยะทางใน Google Maps",
+  "ใบเสร็จรับเงิน หรือ สลิปเติมเงิน หรือ ประวัติการเดินทางจากแอป",
+  "ใบเสร็จรับเงินอิเล็กทรอนิกส์ (E-Receipt)",
   "Other",
 ] as const;
+
+// Per-item Travel by (เบิกค่าเดินทาง only) and its own required-docs
+// checklist, added alongside the base expense-type checklist above (not
+// instead of it) when at least one item in the request has a travel_by set.
+export const TRAVEL_BY_OPTIONS = [
+  "รถยนต์/จักรยานยนต์ส่วนตัว",
+  "รถสาธารณะ (BTS/MRT/Bus)",
+  "Grab/Taxi",
+] as const;
+export type TravelBy = (typeof TRAVEL_BY_OPTIONS)[number];
+
+// THB per km for the personal-vehicle auto-calculated Net Amount.
+export const TRAVEL_RATE_PER_KM = 8;
+
+export const TRAVEL_REQUIRED_DOCS: Record<TravelBy, string[]> = {
+  "รถยนต์/จักรยานยนต์ส่วนตัว": ["ภาพถ่ายเลขไมล์", "ระยะทางใน Google Maps"],
+  "รถสาธารณะ (BTS/MRT/Bus)": ["ใบเสร็จรับเงิน หรือ สลิปเติมเงิน หรือ ประวัติการเดินทางจากแอป"],
+  "Grab/Taxi": ["ใบเสร็จรับเงินอิเล็กทรอนิกส์ (E-Receipt)"],
+};
 
 // Homepage calendar (see CLAUDE.md "Homepage Calendar") — not a DB CHECK
 // constraint on calendar_events.event_type, validated against this list

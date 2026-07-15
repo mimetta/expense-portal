@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { canBoActOnRequest, hasRole, isSuperadmin } from "@/lib/permissions";
+import { canBoActOnRequest, canPettyCashActOnRequest, hasRole, isSuperadmin } from "@/lib/permissions";
 import { isAccountingActionable, isCeoActionable, isBoActionable, isTerminal, needsProcurement } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
@@ -32,6 +32,7 @@ export async function PATCH(
       isSuperadmin(user) ||
       (hasRole(user, "PROCUREMENT") && needsProcurement(existing)) ||
       (hasRole(user, "BO") && isBoActionable(existing) && canBoActOnRequest(user, existing)) ||
+      (hasRole(user, "PETTY_CASH_CUSTODIAN") && isBoActionable(existing) && canPettyCashActOnRequest(user, existing)) ||
       (hasRole(user, "CEO") && isCeoActionable(existing)) ||
       (hasRole(user, "ACCOUNTING") && isAccountingActionable(existing));
 

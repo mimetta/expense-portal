@@ -8,8 +8,10 @@ import { canAccessSettingsTab, firstAccessibleSettingsTab, SETTINGS_TABS, type S
 import type {
   AnnouncementRow,
   CategoryRow,
+  CompanyRow,
   CurrentUser,
   DeptConfigRow,
+  PettyCashCustodianRow,
   ProductRow,
   RoleRow,
   SupplierRow,
@@ -24,6 +26,8 @@ const TAB_LABELS: Record<Tab, string> = {
   categories: "Category L1/L2 Management",
   deptconfig: "CEO Signature Rules",
   announcements: "Announcements",
+  pettycash: "Petty Cash Custodians",
+  companies: "Companies",
 };
 
 // Order/membership comes from lib/permissions.ts#SETTINGS_TABS — the same
@@ -193,6 +197,8 @@ function SettingsClientInner() {
       {tab === "categories" && <CategoryTab />}
       {tab === "deptconfig" && <DeptConfigTab />}
       {tab === "announcements" && <AnnouncementTab />}
+      {tab === "pettycash" && <PettyCashCustodianTab />}
+      {tab === "companies" && <CompanyTab />}
     </div>
   );
 }
@@ -2156,6 +2162,398 @@ function AnnouncementTab() {
                 Cancel
               </button>
               <button onClick={save} disabled={busy || uploading} className={buttonPrimary}>
+                {busy ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// --- Tab 7: Petty Cash Custodians --------------------------------------------
+
+const emptyCustodianForm = () => ({
+  name: "",
+  email: "",
+  company: "",
+  segment: "",
+  amount_limit: 0,
+  is_active: true,
+});
+
+function PettyCashCustodianTab() {
+  const [custodians, setCustodians] = useState<PettyCashCustodianRow[]>([]);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [segmentOptions, setSegmentOptions] = useState<string[]>([...DEPARTMENTS]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<{ mode: "add" | "edit"; id?: number } | null>(null);
+  const [form, setForm] = useState(emptyCustodianForm());
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/petty-cash-custodians?all=1")
+      .then((res) => res.json())
+      .then((data) => setCustodians(data.custodians ?? []))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  useEffect(() => {
+    fetch("/api/companies")
+      .then((res) => res.json())
+      .then((data) => setCompanies(data.companies ?? []));
+    fetch("/api/departments")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setSegmentOptions(data.departments?.length ? data.departments : [...DEPARTMENTS]))
+      .catch(() => setSegmentOptions([...DEPARTMENTS]));
+  }, []);
+
+  const openAdd = () => {
+    setForm(emptyCustodianForm());
+    setModal({ mode: "add" });
+  };
+
+  const openEdit = (c: PettyCashCustodianRow) => {
+    setForm({
+      name: c.name,
+      email: c.email,
+      company: c.company,
+      segment: c.segment,
+      amount_limit: c.amount_limit,
+      is_active: c.is_active,
+    });
+    setModal({ mode: "edit", id: c.id });
+  };
+
+  const save = async () => {
+    if (!form.name.trim() || !form.email.trim() || !form.company.trim() || !form.segment.trim()) {
+      alert("Name, Email, Company, and Segment are required");
+      return;
+    }
+    setBusy(true);
+    try {
+      const url = modal?.mode === "edit" ? `/api/petty-cash-custodians/${modal.id}` : "/api/petty-cash-custodians";
+      const method = modal?.mode === "edit" ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Failed to save custodian");
+      }
+      setModal(null);
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save custodian");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: number) => {
+    if (!confirm("Delete this custodian?")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/petty-cash-custodians/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Failed to delete custodian");
+      }
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete custodian");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleActive = async (c: PettyCashCustodianRow) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/petty-cash-custodians/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !c.is_active }),
+      });
+      if (!res.ok) throw new Error("Failed to update custodian");
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update custodian");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-3 flex justify-end">
+        <button onClick={openAdd} className={buttonPrimary}>
+          + Add Custodian
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-brand-muted">Loading...</p>
+      ) : custodians.length === 0 ? (
+        <p className="text-sm text-brand-muted">No petty cash custodians yet.</p>
+      ) : (
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+              <tr>
+                <th className="px-3 py-2">Name</th>
+                <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2">Company</th>
+                <th className="px-3 py-2">Segment</th>
+                <th className="px-3 py-2">Limit (฿)</th>
+                <th className="px-3 py-2">Active</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {custodians.map((c) => (
+                <tr key={c.id}>
+                  <td className="px-3 py-2">{c.name}</td>
+                  <td className="px-3 py-2">{c.email}</td>
+                  <td className="px-3 py-2">{c.company}</td>
+                  <td className="px-3 py-2">{c.segment}</td>
+                  <td className="px-3 py-2">{c.amount_limit.toLocaleString()}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(c)}
+                      disabled={busy}
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        c.is_active ? "bg-[#F0F4EF] text-brand-brown" : "bg-[#F3F4F6] text-brand-muted"
+                      }`}
+                    >
+                      {c.is_active ? "Active" : "Inactive"}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => openEdit(c)} className="mr-3 text-brand-brown hover:underline">
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => remove(c.id)}
+                      className="font-medium text-[#DC2626] hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {modal && (
+        <Modal title={modal.mode === "add" ? "Add Custodian" : "Edit Custodian"} onClose={() => setModal(null)}>
+          <div className="space-y-3">
+            <div>
+              <label className={labelClass}>Name<RequiredMark /></label>
+              <input
+                className={`${inputClass} w-full`}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Email<RequiredMark /></label>
+              <input
+                className={`${inputClass} w-full`}
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Company<RequiredMark /></label>
+              <select
+                className={`${inputClass} w-full`}
+                value={form.company}
+                onChange={(e) => setForm({ ...form, company: e.target.value })}
+              >
+                <option value="">Select...</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.name_en}>{c.bu} — {c.name_en}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Segment<RequiredMark /></label>
+              <select
+                className={`${inputClass} w-full`}
+                value={form.segment}
+                onChange={(e) => setForm({ ...form, segment: e.target.value })}
+              >
+                <option value="">Select...</option>
+                {segmentOptions.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Amount limit (THB)<RequiredMark /></label>
+              <input
+                type="number"
+                className={`${inputClass} w-full`}
+                value={form.amount_limit}
+                onChange={(e) => setForm({ ...form, amount_limit: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Active</label>
+              <YesNoToggle value={form.is_active} onChange={(v) => setForm({ ...form, is_active: v })} />
+            </div>
+            <p className="text-xs text-brand-subtle">
+              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setModal(null)} className={buttonSecondary}>
+                Cancel
+              </button>
+              <button onClick={save} disabled={busy} className={buttonPrimary}>
+                {busy ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// --- Tab 8: Companies --------------------------------------------
+
+function CompanyTab() {
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<{ id: number } | null>(null);
+  const [form, setForm] = useState({ name_en: "", name_th: "", address: "" });
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/companies")
+      .then((res) => res.json())
+      .then((data) => setCompanies(data.companies ?? []))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const openEdit = (c: CompanyRow) => {
+    setForm({ name_en: c.name_en, name_th: c.name_th ?? "", address: c.address });
+    setModal({ id: c.id });
+  };
+
+  const save = async () => {
+    if (!modal) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/companies/${modal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name_en: form.name_en,
+          name_th: form.name_th || null,
+          address: form.address,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Failed to save company");
+      }
+      setModal(null);
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save company");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="mb-3 text-xs text-brand-muted">
+        Fixed SV and ONEST companies — no add/delete, only their name/address can be edited.
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-brand-muted">Loading...</p>
+      ) : (
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+              <tr>
+                <th className="px-3 py-2">BU</th>
+                <th className="px-3 py-2">Name EN</th>
+                <th className="px-3 py-2">Name TH</th>
+                <th className="px-3 py-2">Address</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {companies.map((c) => (
+                <tr key={c.id}>
+                  <td className="px-3 py-2">{c.bu}</td>
+                  <td className="px-3 py-2">{c.name_en}</td>
+                  <td className="px-3 py-2">{c.name_th ?? "-"}</td>
+                  <td className="px-3 py-2">{c.address}</td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => openEdit(c)} className="text-brand-brown hover:underline">
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {modal && (
+        <Modal title="Edit Company" onClose={() => setModal(null)}>
+          <div className="space-y-3">
+            <div>
+              <label className={labelClass}>Name EN<RequiredMark /></label>
+              <input
+                className={`${inputClass} w-full`}
+                value={form.name_en}
+                onChange={(e) => setForm({ ...form, name_en: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Name TH</label>
+              <input
+                className={`${inputClass} w-full`}
+                value={form.name_th}
+                onChange={(e) => setForm({ ...form, name_th: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Address<RequiredMark /></label>
+              <textarea
+                className={`${inputClass} w-full`}
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+              />
+            </div>
+            <p className="text-xs text-brand-subtle">
+              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setModal(null)} className={buttonSecondary}>
+                Cancel
+              </button>
+              <button onClick={save} disabled={busy} className={buttonPrimary}>
                 {busy ? "Saving..." : "Save"}
               </button>
             </div>

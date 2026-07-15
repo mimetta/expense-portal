@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import {
   canBoActOnRequest,
+  canPettyCashActOnRequest,
   computeCeoSignatureRequired,
   hasRole,
   isSuperadmin,
@@ -21,7 +22,7 @@ export async function PATCH(
 ) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user) && !hasRole(user, "BO")) {
+    if (!isSuperadmin(user) && !hasRole(user, "BO") && !hasRole(user, "PETTY_CASH_CUSTODIAN")) {
       throw new ForbiddenError();
     }
 
@@ -34,7 +35,10 @@ export async function PATCH(
         `Request ${id} is not awaiting BO approval (status: ${existing.status}, skip_bo: ${existing.skip_bo})`,
       );
     }
-    if (!isSuperadmin(user) && !canBoActOnRequest(user, existing)) {
+    // Petty cash custodians act via the same BO_APPROVE action, scoped to
+    // requests where they're the named holder rather than a bu/dept/cat_l1
+    // scope row (see CLAUDE.md-style note on canPettyCashActOnRequest).
+    if (!isSuperadmin(user) && !canBoActOnRequest(user, existing) && !canPettyCashActOnRequest(user, existing)) {
       throw new ForbiddenError("This request is outside your BO scope");
     }
 

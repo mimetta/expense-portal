@@ -56,7 +56,7 @@ export default function Nav() {
 
   return (
     <>
-      <nav className="h-14 border-b border-brand-border bg-white">
+      <nav className="h-14 border-b border-brand-border bg-white print:hidden">
         <div className="mx-auto flex h-full max-w-[1280px] flex-wrap items-center justify-between gap-2 px-8">
           <div className="flex h-full items-center gap-1">
             <Link href="/" className="mr-4 text-lg font-bold text-brand-brown">

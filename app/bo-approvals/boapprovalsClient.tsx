@@ -10,7 +10,7 @@ import { canBoActOnRequest, hasRole, isSuperadmin } from "@/lib/permissions";
 import { isEditRequestPending } from "@/lib/status";
 import type { CurrentUser, ExpenseRequest } from "@/types/database";
 
-type Tab = "pending" | "edit-requests" | "all";
+type Tab = "pending" | "edit-requests" | "all" | "pettycash";
 const RELEVANT_STATUSES = ["SUBMITTED", "PO_UPLOADED", "BO_APPROVED"] as const;
 
 export default function BoApprovalsPage() {
@@ -24,28 +24,48 @@ export default function BoApprovalsPage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [editRequestCount, setEditRequestCount] = useState(0);
 
+  const isBoRole = !!currentUser && (isSuperadmin(currentUser) || hasRole(currentUser, "BO"));
+  const isPettyCashRole = !!currentUser && (isSuperadmin(currentUser) || hasRole(currentUser, "PETTY_CASH_CUSTODIAN"));
+
   const load = () => {
     setLoading(true);
-    fetch(`/api/requests?scope=bo&tab=${tab}`)
+    const scope = tab === "pettycash" ? "pettycash" : "bo";
+    fetch(`/api/requests?scope=${scope}&tab=${tab === "pettycash" ? "pending" : tab}`)
       .then((res) => res.json())
       .then((data) => setRequests(data.requests ?? []))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [tab]);
+  // Only fetch once we know which role(s) the user actually holds — a pure
+  // PETTY_CASH_CUSTODIAN (no BO role) would 403 on scope=bo, so this waits
+  // for currentUser to resolve rather than firing on mount.
+  useEffect(() => {
+    if (currentUser) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, currentUser]);
 
   // Badge count is independent of which tab is currently selected.
   useEffect(() => {
+    if (!currentUser || !isBoRole) return;
     fetch("/api/requests?scope=bo&tab=edit-requests")
       .then((res) => res.json())
       .then((data) => setEditRequestCount((data.requests ?? []).length));
-  }, [tab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, currentUser]);
 
   useEffect(() => {
     fetch("/api/roles/me")
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) setCurrentUser(data.user as CurrentUser);
+        if (data.user) {
+          const user = data.user as CurrentUser;
+          setCurrentUser(user);
+          // A pure PETTY_CASH_CUSTODIAN (no BO role) should land on their
+          // own tab by default rather than immediately 403ing on "Pending".
+          const hasBo = isSuperadmin(user) || hasRole(user, "BO");
+          const hasPettyCash = isSuperadmin(user) || hasRole(user, "PETTY_CASH_CUSTODIAN");
+          if (!hasBo && hasPettyCash) setTab("pettycash");
+        }
       });
   }, []);
 
@@ -148,15 +168,24 @@ export default function BoApprovalsPage() {
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="mm-tabs">
-          {(["pending", "edit-requests", "all"] as Tab[]).map((t) => (
+          {isBoRole &&
+            (["pending", "edit-requests", "all"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`mm-tab ${tab === t ? "mm-tab-active" : ""}`}
+              >
+                {t === "pending" ? "Pending" : t === "edit-requests" ? `Edit Requests (${editRequestCount})` : "All"}
+              </button>
+            ))}
+          {isPettyCashRole && (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`mm-tab ${tab === t ? "mm-tab-active" : ""}`}
+              onClick={() => setTab("pettycash")}
+              className={`mm-tab ${tab === "pettycash" ? "mm-tab-active" : ""}`}
             >
-              {t === "pending" ? "Pending" : t === "edit-requests" ? `Edit Requests (${editRequestCount})` : "All"}
+              Petty Cash
             </button>
-          ))}
+          )}
         </div>
         <select
           className="h-8 rounded-md border border-brand-border px-2 text-[13px]"

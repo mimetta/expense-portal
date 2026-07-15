@@ -47,7 +47,7 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
     case "procurement":
       return hasRole(user, "PROCUREMENT");
     case "bo-approvals":
-      return hasRole(user, "BO");
+      return hasRole(user, "BO") || hasRole(user, "PETTY_CASH_CUSTODIAN");
     case "ceo-approvals":
       return hasRole(user, "CEO");
     case "accounting":
@@ -65,7 +65,15 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
 
 // --- Settings tab permissions ---------------------------------------------
 
-export type SettingsTab = "suppliers" | "users" | "products" | "categories" | "deptconfig" | "announcements";
+export type SettingsTab =
+  | "suppliers"
+  | "users"
+  | "products"
+  | "categories"
+  | "deptconfig"
+  | "announcements"
+  | "pettycash"
+  | "companies";
 
 export const SETTINGS_TABS: SettingsTab[] = [
   "suppliers",
@@ -74,6 +82,8 @@ export const SETTINGS_TABS: SettingsTab[] = [
   "categories",
   "deptconfig",
   "announcements",
+  "pettycash",
+  "companies",
 ];
 
 // SUPERADMIN is deliberately omitted from each list — canAccessSettingsTab
@@ -85,6 +95,8 @@ const SETTINGS_TAB_ROLES: Record<SettingsTab, Role[]> = {
   categories: [],
   deptconfig: ["CEO"],
   announcements: ["CEO"],
+  pettycash: ["ACCOUNTING"],
+  companies: [],
 };
 
 export function canAccessSettingsTab(user: CurrentUser, tab: SettingsTab): boolean {
@@ -127,6 +139,16 @@ export function canBoActOnRequest(user: CurrentUser, request: ExpenseRequest): b
   return rolesOf(user, "BO").some((scope) => boScopeMatchesRequest(scope, request));
 }
 
+// PETTY_CASH_CUSTODIAN has no bu/dept/cat_l1 scope concept like BO — they
+// act on exactly the requests where they are the named petty cash holder
+// (see CLAUDE.md-style note: /api/requests/[id]/bo-approve and reject reuse
+// the same BO_APPROVE/BO_REJECT actions for this role, gated by this check
+// instead of/alongside canBoActOnRequest).
+export function canPettyCashActOnRequest(user: CurrentUser, request: ExpenseRequest): boolean {
+  if (isSuperadmin(user)) return true;
+  return hasRole(user, "PETTY_CASH_CUSTODIAN") && request.petty_cash_holder_email === user.email;
+}
+
 // Shared by GET /api/requests/[id] and the homepage's payment
 // calendar/stats endpoints — "can this user see this request at all"
 // (separate from "can they act on it").
@@ -137,6 +159,7 @@ export function canViewRequest(user: CurrentUser, request: ExpenseRequest): bool
     return true;
   }
   if (hasRole(user, "BO")) return canBoActOnRequest(user, request);
+  if (hasRole(user, "PETTY_CASH_CUSTODIAN")) return canPettyCashActOnRequest(user, request);
   return false;
 }
 

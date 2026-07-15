@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import FilterBar from "@/components/FilterBar";
 import RequestDetailModal from "@/components/shared/RequestDetailModal";
 import RequestForm, { requestToFormInitial, type RequestFormPayload } from "@/components/shared/RequestForm";
+import { computeTotals } from "@/lib/totals";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
   canRequestEdit,
@@ -14,7 +16,7 @@ import {
   isOwnerEditable,
   resubmitDeadline,
 } from "@/lib/status";
-import type { ExpenseRequest } from "@/types/database";
+import type { DraftRow, ExpenseRequest, RequestItem } from "@/types/database";
 
 function Countdown({ request }: { request: ExpenseRequest }) {
   const [, setTick] = useState(0);
@@ -226,10 +228,122 @@ function RequestEditReasonModal({
   );
 }
 
+// Rough "amount if entered" for a draft row — sums whatever item amounts
+// exist in its saved form_data, without needing a full valid item set
+// (drafts are, by definition, incomplete). Returns 0 rather than throwing
+// if items are missing/empty, unlike lib/totals.ts#computeTotals which
+// requires at least one item.
+function draftAmount(items: RequestItem[] | undefined): number {
+  if (!items || items.length === 0) return 0;
+  try {
+    return computeTotals(items).total;
+  } catch {
+    return 0;
+  }
+}
+
+function DraftsTab({
+  drafts,
+  loading,
+  onContinue,
+  onDelete,
+}: {
+  drafts: DraftRow[];
+  loading: boolean;
+  onContinue: (id: number) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  return (
+    <div>
+      {loading ? (
+        <p className="text-sm text-brand-muted">Loading...</p>
+      ) : drafts.length === 0 ? (
+        <p className="text-sm text-brand-muted">No drafts yet.</p>
+      ) : (
+        <div className="mm-table-wrap">
+          <table className="mm-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Last edited</th>
+                <th>Amount</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((d) => {
+                const items = (d.form_data as { items?: RequestItem[] })?.items;
+                const amount = draftAmount(items);
+                return (
+                  <tr key={d.id}>
+                    <td>{d.title || "Untitled draft"}</td>
+                    <td>{formatDate(d.updated_at)}</td>
+                    <td>{amount > 0 ? formatCurrency(amount) : "-"}</td>
+                    <td>
+                      <button
+                        onClick={() => onContinue(d.id)}
+                        className="text-sm font-medium text-brand-brown hover:underline"
+                      >
+                        Continue
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(d.id)}
+                        className="ml-3 text-sm font-medium text-[#DC2626] hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {deletingId !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          style={{ backdropFilter: "blur(2px)" }}
+          onClick={() => setDeletingId(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 text-base font-semibold text-brand-dark">Delete draft?</h3>
+            <p className="mb-4 text-sm text-brand-muted">This cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeletingId(null)} className="mm-btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onDelete(deletingId);
+                  setDeletingId(null);
+                }}
+                className="mm-btn-danger"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MyRequestsPage() {
+  const router = useRouter();
+  const [tab, setTab] = useState<"requests" | "drafts">("requests");
   const [requests, setRequests] = useState<ExpenseRequest[]>([]);
   const [filtered, setFiltered] = useState<ExpenseRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(true);
   const [selected, setSelected] = useState<ExpenseRequest | null>(null);
   const [editing, setEditing] = useState<ExpenseRequest | null>(null);
   const [requestingEdit, setRequestingEdit] = useState<ExpenseRequest | null>(null);
@@ -244,7 +358,26 @@ export default function MyRequestsPage() {
       .finally(() => setLoading(false));
   };
 
+  const loadDrafts = () => {
+    setDraftsLoading(true);
+    fetch("/api/drafts")
+      .then((res) => res.json())
+      .then((data) => setDrafts(data.drafts ?? []))
+      .finally(() => setDraftsLoading(false));
+  };
+
   useEffect(load, []);
+  useEffect(loadDrafts, []);
+
+  const deleteDraft = async (id: number) => {
+    try {
+      const res = await fetch(`/api/drafts/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete draft");
+      loadDrafts();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete draft");
+    }
+  };
 
   const confirmDelete = async () => {
     if (!deleting) return;
@@ -268,6 +401,31 @@ export default function MyRequestsPage() {
   return (
     <div>
       <h1 className="mm-page-title mb-4">My Requests</h1>
+
+      <div className="mm-tabs mb-4">
+        <button
+          onClick={() => setTab("requests")}
+          className={`mm-tab ${tab === "requests" ? "mm-tab-active" : ""}`}
+        >
+          Requests
+        </button>
+        <button onClick={() => setTab("drafts")} className={`mm-tab ${tab === "drafts" ? "mm-tab-active" : ""}`}>
+          Drafts
+          {drafts.length > 0 && <span className="mm-tab-count ml-1.5">{drafts.length}</span>}
+        </button>
+      </div>
+
+      {tab === "drafts" && (
+        <DraftsTab
+          drafts={drafts}
+          loading={draftsLoading}
+          onContinue={(id) => router.push(`/submit?draft=${id}`)}
+          onDelete={deleteDraft}
+        />
+      )}
+
+      {tab === "requests" && (
+        <>
       <FilterBar requests={requests} onFilteredChange={setFiltered} />
       {loading ? (
         <p className="text-sm text-brand-muted">Loading...</p>
@@ -357,6 +515,8 @@ export default function MyRequestsPage() {
             </tbody>
           </table>
         </div>
+      )}
+        </>
       )}
 
       {selected && (

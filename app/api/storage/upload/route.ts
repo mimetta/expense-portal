@@ -9,9 +9,16 @@ import { hasAnyRole } from "@/lib/permissions";
 // check, matching who can reach that upload client-side — this route isn't
 // meant to become an arbitrary-storage-write endpoint for buckets nobody's
 // asked for yet.
-const BUCKET_ROLES: Record<string, ("SUPERADMIN" | "BO" | "CEO" | "ACCOUNTING" | "PROCUREMENT" | "EMPLOYEE")[]> = {
-  // components/shared/PDFSigner.tsx — signing during BO/CEO's own actionable stage.
-  "signed-documents": ["SUPERADMIN", "BO", "CEO"],
+const BUCKET_ROLES: Record<
+  string,
+  ("SUPERADMIN" | "BO" | "CEO" | "ACCOUNTING" | "PROCUREMENT" | "PETTY_CASH_CUSTODIAN" | "EMPLOYEE")[]
+> = {
+  // components/shared/PDFSigner.tsx — signing during BO/CEO's own actionable
+  // stage — plus the print view's own canvas signature pad (app/print/[id]),
+  // whose three signature boxes are Requester/BO-or-PettyCashHolder/
+  // Accounting; EMPLOYEE is included so any requester can sign their own
+  // box there.
+  "signed-documents": ["SUPERADMIN", "BO", "CEO", "ACCOUNTING", "PETTY_CASH_CUSTODIAN", "EMPLOYEE"],
   // Settings > Announcements attachment — same roles as the announcements
   // mutation endpoints (see CLAUDE.md "Settings tab permissions").
   announcements: ["SUPERADMIN", "CEO"],

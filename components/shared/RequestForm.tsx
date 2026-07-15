@@ -11,11 +11,26 @@ import {
   DOCUMENT_TYPES,
   EXPENSE_TYPES,
   PAYMENT_METHODS,
+  PETTY_CASH_LABEL,
+  TRAVEL_BY_OPTIONS,
+  TRAVEL_EXPENSE_LABEL,
+  TRAVEL_RATE_PER_KM,
+  TRAVEL_REQUIRED_DOCS,
   getExpenseTypeConfig,
 } from "@/lib/constants";
 import { computeTotals } from "@/lib/totals";
 import { formatCurrency } from "@/lib/format";
-import type { CategoryRow, ExpenseRequest, FileEntry, ProductRow, RequestItem, RoleRow, SupplierRow } from "@/types/database";
+import type {
+  CategoryRow,
+  CompanyRow,
+  ExpenseRequest,
+  FileEntry,
+  PettyCashCustodianRow,
+  ProductRow,
+  RequestItem,
+  RoleRow,
+  SupplierRow,
+} from "@/types/database";
 
 function currentBudgetPeriod() {
   const now = new Date();
@@ -30,12 +45,24 @@ const emptyItem = (): RequestItem => ({
   cat_l1: "",
   cat_l2: "",
   product_code: "",
+  segment: "",
 });
 
-// Exact label from lib/constants.ts#EXPENSE_TYPES — Thai text preserved verbatim.
-const PETTY_CASH_LABEL = "เบิกเงินสดย่อย (Petty cash)";
-
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+// Formats a companies row for the "Use for company" dropdown, e.g.
+// "ONEST — Mimetta Co., Ltd.".
+function companyOptionLabel(c: CompanyRow): string {
+  return `${c.bu} — ${c.name_en}`;
+}
+
+// Formats a petty_cash_custodians row for the "Petty cash holder" dropdown,
+// e.g. "Somchai (Mimetta Co., Ltd. · Marketing)".
+function custodianOptionLabel(c: PettyCashCustodianRow): string {
+  return `${c.name} (${c.company} · ${c.segment})`;
+}
+
+const DRAFT_AUTOSAVE_MS = 60_000;
 
 // departmentOptions is a plain string[] fetched from the DB (not the typed
 // Department union), so this looks the abbreviation up defensively.
@@ -78,6 +105,9 @@ const labelClass = "mb-1.5 block text-[13px] font-medium text-[#374151]";
 // Column widths shared between the header row and every item row so labels
 // stay aligned with their cells while the table scrolls horizontally.
 const COL = {
+  segment: { flex: "0 0 150px" },
+  travelBy: { flex: "0 0 170px" },
+  distanceKm: { flex: "0 0 110px" },
   catL1: { flex: "0 0 150px" },
   catL2: { flex: "0 0 130px" },
   itemField: { flex: "0 0 130px" },
@@ -111,6 +141,8 @@ export interface RequestFormPayload {
   slip_receiver_email?: string;
   files_folder_url?: string;
   files_json: FileEntry[];
+  use_for_company?: string;
+  petty_cash_holder_email?: string;
 }
 
 export interface RequestFormInitial {
@@ -134,6 +166,8 @@ export interface RequestFormInitial {
   slipReceiverEmail: string;
   filesFolderUrl: string;
   files: FileEntry[];
+  useForCompany: string;
+  pettyCashHolderEmail: string;
 }
 
 // Shared by My Requests' Edit & Resubmit / Edit modal (app/my/page.tsx) and
@@ -162,6 +196,8 @@ export function requestToFormInitial(r: ExpenseRequest): Partial<RequestFormInit
     slipReceiverEmail: r.slip_receiver_email ?? "",
     filesFolderUrl: r.files_folder_url ?? "",
     files: r.files_json,
+    useForCompany: r.use_for_company ?? "",
+    pettyCashHolderEmail: r.petty_cash_holder_email ?? "",
   };
 }
 
@@ -181,6 +217,18 @@ interface RequestFormProps {
     busyLabel: string;
     onClick: (payload: RequestFormPayload) => Promise<void>;
   };
+  // Draft save/autosave — only /submit sets this (not the Edit & Resubmit
+  // modal or in-place edit mode), an explicit flag rather than inferring
+  // from `initial`'s presence since edit mode also passes `initial`. See
+  // CLAUDE.md-style note on owner_edit needing its own explicit flag for
+  // the same kind of ambiguity.
+  enableDrafts?: boolean;
+  // Draft this form was loaded from ("Continue" in My Requests > Drafts),
+  // so autosave/Save draft update that same row instead of creating a new
+  // one, and so a successful submit can delete it.
+  draftId?: number | null;
+  onDraftSaved?: (draftId: number) => void;
+  onDraftDeleted?: () => void;
 }
 
 export default function RequestForm({
@@ -191,14 +239,20 @@ export default function RequestForm({
   submitLabel = "Submit Request",
   submittingLabel = "Submitting...",
   secondaryAction,
+  enableDrafts = false,
+  draftId: initialDraftId = null,
+  onDraftSaved,
+  onDraftDeleted,
 }: RequestFormProps) {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [currentUser, setCurrentUser] = useState<{ email: string; name: string; chapter?: string | null } | null>(
-    null,
-  );
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [custodians, setCustodians] = useState<PettyCashCustodianRow[]>([]);
+  const [currentUser, setCurrentUser] = useState<
+    { email: string; name: string; chapter?: string | null; allRoles?: RoleRow[] } | null
+  >(null);
   const [submitting, setSubmitting] = useState(false);
   const [secondaryBusy, setSecondaryBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -207,28 +261,51 @@ export default function RequestForm({
   const [bu, setBu] = useState<string>(initial?.bu ?? "ONEST");
   // null = still loading from /api/departments; set once loaded (or once
   // the hardcoded DEPARTMENTS fallback kicks in on fetch failure/empty
-  // result). In edit mode `department` already has a value from `initial`,
-  // so the auto-select-first-option effect below never overrides it.
+  // result). Segment no longer has a single top-level value — it's picked
+  // per item row (see items state below) — this list just feeds every
+  // row's own Segment dropdown, same source as before.
   const [departmentOptions, setDepartmentOptions] = useState<string[] | null>(null);
-  const [department, setDepartment] = useState<string>(initial?.department ?? "");
   const [expenseType, setExpenseType] = useState<string>(initial?.expenseType ?? EXPENSE_TYPES[0].label);
   const [urgentReason, setUrgentReason] = useState(initial?.urgentReason ?? "");
   const [budgetPeriod, setBudgetPeriod] = useState(initial?.budgetPeriod ?? currentBudgetPeriod());
   const [product, setProduct] = useState(initial?.product ?? "");
+  const [useForCompany, setUseForCompany] = useState(initial?.useForCompany ?? "");
+  const [pettyCashHolderEmail, setPettyCashHolderEmail] = useState(initial?.pettyCashHolderEmail ?? "");
+  const [pettyCashUsage, setPettyCashUsage] = useState<number | null>(null);
 
   const expenseConfig = getExpenseTypeConfig(expenseType);
-  // Retail + Petty cash moves Branch from a single top-level field to a
-  // required per-row column in the Expense Items table (each item can be a
-  // different branch); R&D + Petty cash does the same for Product, but
-  // optional. Every other Department + Expense Type combination keeps
-  // whatever top-level field it already had (or none). See
-  // RequestDetailModal.tsx for the read-only equivalent.
-  const perItemFieldMode: "branch" | "product" | null =
-    department === "Retail" && expenseType === PETTY_CASH_LABEL
-      ? "branch"
-      : department === "R&D" && expenseType === PETTY_CASH_LABEL
-        ? "product"
-        : null;
+  const isPettyCash = expenseType === PETTY_CASH_LABEL;
+  const isTravel = expenseType === TRAVEL_EXPENSE_LABEL;
+
+  // Business Unit lock: a user whose every roles row shares one specific
+  // bu_scope value (never "*") gets that value locked read-only; anyone
+  // with an unrestricted ("*") row, or rows disagreeing on the value, still
+  // gets the free SV/ONEST choice.
+  const resolvedBuScope = useMemo((): { locked: boolean; value: string | null } => {
+    const scopes = currentUser?.allRoles?.map((r) => r.bu_scope) ?? [];
+    if (scopes.length === 0 || scopes.some((s) => s === "*")) return { locked: false, value: null };
+    const distinct = Array.from(
+      new Set(scopes.flatMap((s) => s.split(",").map((x) => x.trim()).filter(Boolean))),
+    );
+    return distinct.length === 1 ? { locked: true, value: distinct[0] } : { locked: false, value: null };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (initial?.bu) return; // edit mode already has a concrete value
+    if (resolvedBuScope.locked && resolvedBuScope.value) setBu(resolvedBuScope.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedBuScope]);
+
+  // Per-item Segment + Petty Cash: Retail moves Branch from a single
+  // top-level field to a required per-row column; R&D does the same for
+  // Product, but optional. Generalizes the old single-department-wide
+  // perItemFieldMode to a per-row check now that Segment lives per item.
+  const perItemFieldModeFor = (segment: string | undefined): "branch" | "product" | null => {
+    if (!isPettyCash) return null;
+    if (segment === "Retail") return "branch";
+    if (segment === "R&D") return "product";
+    return null;
+  };
 
   // --- PO required ---------------------------------------------------------
   const [requiresPo, setRequiresPo] = useState(initial?.requiresPo ?? (expenseConfig?.defaultRequiresPo ?? true));
@@ -246,9 +323,23 @@ export default function RequestForm({
   }, [expenseType]);
 
   // --- Items ---------------------------------------------------------
+  // Falls back to the old flat `initial.department` for any pre-existing
+  // item that predates this feature (no items_json[].segment yet) — so
+  // opening an old request for editing doesn't silently blank out Segment.
   const [items, setItems] = useState<RequestItem[]>(
-    initial?.items && initial.items.length > 0 ? initial.items : [emptyItem()],
+    initial?.items && initial.items.length > 0
+      ? initial.items.map((it) => ({ ...it, segment: it.segment || initial.department || "" }))
+      : [emptyItem()],
   );
+
+  // requests.department (dept_config matching / BO scope filtering) is
+  // populated from the first item's segment when items span more than one
+  // — same "first item wins" convention already used for cat_l1/cat_l2 in
+  // mixed-category multi-item requests (see CLAUDE.md "Multi-Item
+  // Requests"). Also drives the top-level Product/Branch field below for
+  // non-Petty-Cash Retail/R&D requests, since that field is still a single
+  // top-level value, not per-item.
+  const primarySegment = items[0]?.segment || "";
 
   // --- Payment Details ---------------------------------------------------------
   const [supplierName, setSupplierName] = useState(initial?.supplierName ?? "");
@@ -289,6 +380,12 @@ export default function RequestForm({
     fetch("/api/roles")
       .then((res) => res.json())
       .then((data) => setRoles(data.roles ?? []));
+    fetch("/api/companies")
+      .then((res) => res.json())
+      .then((data) => setCompanies(data.companies ?? []));
+    fetch("/api/petty-cash-custodians")
+      .then((res) => res.json())
+      .then((data) => setCustodians(data.custodians ?? []));
     fetch("/api/roles/me")
       .then((res) => res.json())
       .then((data) => {
@@ -300,39 +397,45 @@ export default function RequestForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fetch current-month usage for the selected Petty cash holder's bar —
+  // refetches whenever the selection changes.
   useEffect(() => {
-    if (departmentOptions && !department) {
-      setDepartment(departmentOptions[0]);
+    if (!pettyCashHolderEmail) {
+      setPettyCashUsage(null);
+      return;
     }
-  }, [departmentOptions, department]);
+    fetch(`/api/petty-cash-usage?holder_email=${encodeURIComponent(pettyCashHolderEmail)}`)
+      .then((res) => res.json())
+      .then((data) => setPettyCashUsage(typeof data.used === "number" ? data.used : 0))
+      .catch(() => setPettyCashUsage(null));
+  }, [pettyCashHolderEmail]);
 
-  // '*' on bu/department is a wildcard meaning "applies to every BU/dept" —
+  // '*' on bu/segment is a wildcard meaning "applies to every BU/segment" —
   // same convention as dept_config and BO role scopes elsewhere in the app.
-  const catL1Options = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          categories
-            .filter(
-              (c) =>
-                (c.bu === "*" || c.bu === bu) &&
-                (c.department === "*" || c.department === department) &&
-                c.cat_l1,
-            )
-            .map((c) => c.cat_l1 as string),
-        ),
-      ),
-    [categories, bu, department],
-  );
-
-  const catL2OptionsFor = (cat_l1: string | undefined) =>
+  // Segment now lives per item row (not a single top-level value), so this
+  // takes the row's own segment instead of closing over one shared value.
+  const catL1OptionsFor = (segment: string | undefined) =>
     Array.from(
       new Set(
         categories
           .filter(
             (c) =>
               (c.bu === "*" || c.bu === bu) &&
-              (c.department === "*" || c.department === department) &&
+              (c.department === "*" || c.department === segment) &&
+              c.cat_l1,
+          )
+          .map((c) => c.cat_l1 as string),
+      ),
+    );
+
+  const catL2OptionsFor = (segment: string | undefined, cat_l1: string | undefined) =>
+    Array.from(
+      new Set(
+        categories
+          .filter(
+            (c) =>
+              (c.bu === "*" || c.bu === bu) &&
+              (c.department === "*" || c.department === segment) &&
               (!cat_l1 || c.cat_l1 === cat_l1) &&
               c.cat_l2,
           )
@@ -411,11 +514,20 @@ export default function RequestForm({
     if (expenseConfig?.isUrgent && !urgentReason.trim()) {
       return "Urgent reason is required for this expense type";
     }
-    if (items.some((it) => !it.cat_l1 || !it.description.trim())) {
-      return "Every item needs a Category L1 and a Description";
+    if (!useForCompany) {
+      return "Use for company is required";
     }
-    if (perItemFieldMode === "branch" && items.some((it) => !it.product)) {
+    if (isPettyCash && !pettyCashHolderEmail) {
+      return "Petty cash holder is required";
+    }
+    if (items.some((it) => !it.segment || !it.cat_l1 || !it.description.trim())) {
+      return "Every item needs a Segment, Category L1, and a Description";
+    }
+    if (items.some((it) => perItemFieldModeFor(it.segment) === "branch" && !it.product)) {
       return "Every item needs a Branch";
+    }
+    if (isTravel && items.some((it) => !it.travel_by)) {
+      return "Every item needs a Travel by selection";
     }
     // Due Date is marked required (see its label) only where it's actually
     // shown — Payment Details section visible and not hidden for this
@@ -430,13 +542,17 @@ export default function RequestForm({
     bu,
     expense_type: expenseType,
     urgent_reason: expenseConfig?.isUrgent ? urgentReason : undefined,
-    department,
+    // requests.department is still a single flat column (dept_config
+    // matching / BO scope filtering) — populated from the first item's
+    // Segment now that Segment is per-item, same "first item wins"
+    // convention already used for cat_l1/cat_l2 below.
+    department: items[0]?.segment || "",
     budget_period: budgetPeriod,
-    // Branch/Product lives per-item (items[].product) in perItemFieldMode —
-    // that top-level field is hidden in this mode, so any stale value in
-    // `product` state (e.g. left over from switching away from a different
-    // department) must not be sent.
-    product: perItemFieldMode ? undefined : product || undefined,
+    // Branch/Product lives per-item (items[].product) when any row is in
+    // branch/product mode — the top-level field is only meaningful for
+    // non-Petty-Cash Retail/R&D requests, keyed off the first item's
+    // segment (see primarySegment).
+    product: isPettyCash ? undefined : product || undefined,
     cat_l1: items[0]?.cat_l1 || undefined,
     cat_l2: items[0]?.cat_l2 || undefined,
     items,
@@ -451,7 +567,69 @@ export default function RequestForm({
     slip_receiver_email: slipReceiverEmail || undefined,
     files_folder_url: filesFolderUrl || undefined,
     files_json: files,
+    use_for_company: useForCompany || undefined,
+    petty_cash_holder_email: isPettyCash ? pettyCashHolderEmail || undefined : undefined,
   });
+
+  // --- Draft save/autosave (enableDrafts only — see prop doc above) --------
+  const [draftId, setDraftId] = useState<number | null>(initialDraftId);
+  const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const draftSavedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const draftTitle = () => {
+    const seg = items[0]?.segment;
+    return expenseType && seg ? `${expenseType} — ${seg}` : expenseType || "Untitled draft";
+  };
+
+  const hasAnyDraftData = () =>
+    items.some((it) => it.description.trim() || it.cat_l1 || it.amount_net > 0) ||
+    !!useForCompany ||
+    !!pettyCashHolderEmail ||
+    !!supplierName ||
+    !!urgentReason.trim();
+
+  const saveDraft = async () => {
+    if (!enableDrafts) return;
+    setDraftStatus("saving");
+    try {
+      const res = await fetch("/api/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: draftId ?? undefined,
+          title: draftTitle(),
+          form_data: buildPayload(),
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save draft");
+      const body = await res.json();
+      const savedId = body.draft?.id as number | undefined;
+      if (savedId) {
+        setDraftId(savedId);
+        onDraftSaved?.(savedId);
+      }
+      setDraftStatus("saved");
+      if (draftSavedTimeoutRef.current) clearTimeout(draftSavedTimeoutRef.current);
+      draftSavedTimeoutRef.current = setTimeout(() => setDraftStatus("idle"), 2000);
+    } catch {
+      setDraftStatus("idle");
+    }
+  };
+
+  // Always-fresh ref so the fixed 60s interval below reads current state at
+  // fire time rather than whatever was in scope when the interval was
+  // created (a plain dependency-array effect would otherwise have to
+  // recreate the interval — and reset its 60s countdown — on every
+  // keystroke).
+  const autosaveTickRef = useRef<() => void>(() => {});
+  autosaveTickRef.current = () => {
+    if (hasAnyDraftData()) saveDraft();
+  };
+  useEffect(() => {
+    if (!enableDrafts) return;
+    const interval = setInterval(() => autosaveTickRef.current(), DRAFT_AUTOSAVE_MS);
+    return () => clearInterval(interval);
+  }, [enableDrafts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -464,6 +642,12 @@ export default function RequestForm({
     setSubmitting(true);
     try {
       await onSubmit(buildPayload());
+      // A submitted request is no longer a draft — clean up the row it was
+      // loaded from, if any.
+      if (draftId) {
+        await fetch(`/api/drafts/${draftId}`, { method: "DELETE" }).catch(() => {});
+        onDraftDeleted?.();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -494,7 +678,22 @@ export default function RequestForm({
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-3">
-      <h1 className="mm-page-title mb-2">{title}</h1>
+      <div className="mb-2 flex items-center justify-between">
+        <h1 className="mm-page-title">{title}</h1>
+        {enableDrafts && (
+          <div className="flex items-center gap-2">
+            {draftStatus === "saved" && <span className="text-xs text-brand-muted">Saved</span>}
+            <button
+              type="button"
+              onClick={saveDraft}
+              disabled={draftStatus === "saving"}
+              className="mm-btn-secondary mm-btn-sm"
+            >
+              {draftStatus === "saving" ? "Saving..." : "Save draft"}
+            </button>
+          </div>
+        )}
+      </div>
 
       {banner}
 
@@ -504,11 +703,15 @@ export default function RequestForm({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Business Unit<RequiredMark /></label>
-            <select className={inputClass} value={bu} onChange={(e) => setBu(e.target.value)}>
-              {BUSINESS_UNITS.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
+            {resolvedBuScope.locked ? (
+              <input className={`${inputClass} bg-[#F9F8F6]`} value={bu} disabled readOnly />
+            ) : (
+              <select className={inputClass} value={bu} onChange={(e) => setBu(e.target.value)}>
+                {BUSINESS_UNITS.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className={labelClass}>Requester Name</label>
@@ -556,39 +759,72 @@ export default function RequestForm({
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Segment<RequiredMark /></label>
-            <select
-              className={inputClass}
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              disabled={departmentOptions === null}
-            >
-              {departmentOptions === null ? (
-                <option value="">Loading...</option>
-              ) : (
-                departmentOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {d}{departmentAbbrev(d) ? ` (${departmentAbbrev(d)})` : ""}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Budget Period<RequiredMark /></label>
-            <input
-              type="month"
-              className={inputClass}
-              value={budgetPeriod}
-              onChange={(e) => setBudgetPeriod(e.target.value)}
-              required
-            />
-          </div>
+        <div className="mt-4">
+          <label className={labelClass}>Use for company<RequiredMark /></label>
+          <select
+            className={inputClass}
+            value={useForCompany}
+            onChange={(e) => setUseForCompany(e.target.value)}
+            required
+          >
+            <option value="">Select...</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.bu}>{companyOptionLabel(c)}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-brand-subtle">Which company is this expense for</p>
         </div>
 
-        {department === "R&D" && perItemFieldMode !== "product" && (
+        {isPettyCash && (
+          <div
+            className="mt-4 rounded-md border p-3"
+            style={{ background: "#EFF6FF", borderColor: "#BFDBFE" }}
+          >
+            <label className={labelClass}>Petty cash holder<RequiredMark /></label>
+            <select
+              className={inputClass}
+              value={pettyCashHolderEmail}
+              onChange={(e) => setPettyCashHolderEmail(e.target.value)}
+              required
+            >
+              <option value="">Select...</option>
+              {custodians.map((c) => (
+                <option key={c.id} value={c.email}>{custodianOptionLabel(c)}</option>
+              ))}
+            </select>
+
+            {pettyCashHolderEmail && pettyCashUsage !== null && (() => {
+              const custodian = custodians.find((c) => c.email === pettyCashHolderEmail);
+              const limit = custodian?.amount_limit ?? 0;
+              const remaining = limit - pettyCashUsage;
+              const pct = limit > 0 ? Math.min(100, (pettyCashUsage / limit) * 100) : 0;
+              return (
+                <div className="mt-3">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-white">
+                    <div className="h-full" style={{ width: `${pct}%`, background: "#BD5A2E" }} />
+                  </div>
+                  <p className="mt-1 text-xs text-brand-dark">
+                    ฿{formatCurrency(pettyCashUsage)} / ฿{formatCurrency(limit)} used · Remaining: ฿
+                    {formatCurrency(remaining)}
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        <div className="mt-4">
+          <label className={labelClass}>Budget Period<RequiredMark /></label>
+          <input
+            type="month"
+            className={inputClass}
+            value={budgetPeriod}
+            onChange={(e) => setBudgetPeriod(e.target.value)}
+            required
+          />
+        </div>
+
+        {!isPettyCash && primarySegment === "R&D" && (
           <div className="mt-4">
             <label className={labelClass}>Product (optional)</label>
             <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
@@ -604,7 +840,7 @@ export default function RequestForm({
             )}
           </div>
         )}
-        {department === "Retail" && perItemFieldMode !== "branch" && (
+        {!isPettyCash && primarySegment === "Retail" && (
           <div className="mt-4">
             <label className={labelClass}>Branch (optional)</label>
             <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
@@ -623,29 +859,31 @@ export default function RequestForm({
       </div>
 
       {/* ===================== PO Required ===================== */}
-      <div className="mm-card flex items-center gap-4 !py-3">
-        <span className="text-sm font-medium text-brand-dark">Purchase Order Required?</span>
-        <label className="flex cursor-pointer items-center gap-1.5 text-sm text-brand-dark">
-          <input
-            type="radio"
-            name="requires_po"
-            checked={requiresPo}
-            onChange={() => setRequiresPo(true)}
-            className="h-3.5 w-3.5 accent-brand-brown"
-          />
-          Yes
-        </label>
-        <label className="flex cursor-pointer items-center gap-1.5 text-sm text-brand-dark">
-          <input
-            type="radio"
-            name="requires_po"
-            checked={!requiresPo}
-            onChange={() => setRequiresPo(false)}
-            className="h-3.5 w-3.5 accent-brand-brown"
-          />
-          No
-        </label>
-      </div>
+      {!expenseConfig?.hidePoSection && (
+        <div className="mm-card flex items-center gap-4 !py-3">
+          <span className="text-sm font-medium text-brand-dark">Purchase Order Required?</span>
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-brand-dark">
+            <input
+              type="radio"
+              name="requires_po"
+              checked={requiresPo}
+              onChange={() => setRequiresPo(true)}
+              className="h-3.5 w-3.5 accent-brand-brown"
+            />
+            Yes
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-brand-dark">
+            <input
+              type="radio"
+              name="requires_po"
+              checked={!requiresPo}
+              onChange={() => setRequiresPo(false)}
+              className="h-3.5 w-3.5 accent-brand-brown"
+            />
+            No
+          </label>
+        </div>
+      )}
 
       {/* ===================== Expense Items ===================== */}
       <div className="mm-card">
@@ -664,13 +902,6 @@ export default function RequestForm({
         <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] px-3 py-2 text-xs text-brand-dark">
           Amount is optional — Procurement จะกรอกเพิ่มตอนอัปโหลด PO | Category L1 และ Description จำเป็นต้องกรอก
         </div>
-
-        {perItemFieldMode && productOptionsFor(department).length === 0 && (
-          <p className="mb-3 text-xs text-brand-subtle">
-            No {perItemFieldMode === "branch" ? "branches" : "products"} yet for {department} — add them in
-            Settings &gt; Product/SKU Management.
-          </p>
-        )}
 
         <div className="relative" style={{ overflow: "visible" }}>
           <button
@@ -694,10 +925,12 @@ export default function RequestForm({
 
           <div ref={itemsScrollRef} className="no-scrollbar overflow-x-auto">
             <div className="flex min-w-full gap-2 rounded-t-md border-b border-brand-border bg-[#F9F8F6] px-2 py-2 text-xs font-semibold text-brand-dark">
+              <div style={COL.segment}>Segment<RequiredMark /></div>
+              {isTravel && <div style={COL.travelBy}>Travel by<RequiredMark /></div>}
+              {isTravel && <div style={COL.distanceKm}>Distance (km)</div>}
               <div style={COL.catL1}>Category L1<RequiredMark /></div>
               <div style={COL.catL2}>Category L2</div>
-              {perItemFieldMode === "branch" && <div style={COL.itemField}>Branch<RequiredMark /></div>}
-              {perItemFieldMode === "product" && <div style={COL.itemField}>Product</div>}
+              {isPettyCash && <div style={COL.itemField}>Branch/Product</div>}
               <div style={COL.productCode}>Product Code</div>
               <div style={COL.description}>Description<RequiredMark /></div>
               <div style={COL.netAmount}>Net Amount (THB)</div>
@@ -713,9 +946,73 @@ export default function RequestForm({
                   item.amount_net + (item.amount_net * item.vat_rate) / 100 -
                   (item.amount_net * item.wht_rate) / 100;
                 const noCodeYet = item.product_code === null;
+                const rowFieldMode = perItemFieldModeFor(item.segment);
+                const isPersonalVehicle = item.travel_by === TRAVEL_BY_OPTIONS[0];
 
                 return (
                   <div key={idx} className="flex items-start gap-2">
+                    <div style={COL.segment}>
+                      <select
+                        className={`${cellClass} w-full`}
+                        value={item.segment ?? ""}
+                        onChange={(e) =>
+                          updateItem(idx, { segment: e.target.value, cat_l1: "", cat_l2: "" })
+                        }
+                        disabled={departmentOptions === null}
+                        required
+                      >
+                        <option value="">Select...</option>
+                        {(departmentOptions ?? []).map((d) => (
+                          <option key={d} value={d}>
+                            {d}{departmentAbbrev(d) ? ` (${departmentAbbrev(d)})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {isTravel && (
+                      <div style={COL.travelBy}>
+                        <select
+                          className={`${cellClass} w-full`}
+                          value={item.travel_by ?? ""}
+                          onChange={(e) => {
+                            const travelBy = e.target.value;
+                            updateItem(idx, {
+                              travel_by: travelBy,
+                              amount_net:
+                                travelBy === TRAVEL_BY_OPTIONS[0]
+                                  ? (item.distance_km ?? 0) * TRAVEL_RATE_PER_KM
+                                  : item.amount_net,
+                            });
+                          }}
+                          required
+                        >
+                          <option value="">Select...</option>
+                          {TRAVEL_BY_OPTIONS.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {isTravel && isPersonalVehicle && (
+                      <div style={COL.distanceKm}>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          className={`${cellClass} w-full`}
+                          placeholder="0"
+                          value={item.distance_km ?? ""}
+                          onChange={(e) => {
+                            const distanceKm = Number(e.target.value);
+                            updateItem(idx, {
+                              distance_km: distanceKm,
+                              amount_net: distanceKm * TRAVEL_RATE_PER_KM,
+                            });
+                          }}
+                        />
+                      </div>
+                    )}
+                    {isTravel && !isPersonalVehicle && <div style={COL.distanceKm} />}
                     <div style={COL.catL1}>
                       <select
                         className={`${cellClass} w-full`}
@@ -724,7 +1021,7 @@ export default function RequestForm({
                         required
                       >
                         <option value="">Select...</option>
-                        {catL1Options.map((c) => (
+                        {catL1OptionsFor(item.segment).map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
@@ -736,24 +1033,28 @@ export default function RequestForm({
                         onChange={(e) => updateItem(idx, { cat_l2: e.target.value })}
                       >
                         <option value="">Select...</option>
-                        {catL2OptionsFor(item.cat_l1).map((c) => (
+                        {catL2OptionsFor(item.segment, item.cat_l1).map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
                     </div>
-                    {perItemFieldMode && (
+                    {isPettyCash && (
                       <div style={COL.itemField}>
-                        <select
-                          className={`${cellClass} w-full`}
-                          value={item.product ?? ""}
-                          onChange={(e) => updateItem(idx, { product: e.target.value })}
-                          required={perItemFieldMode === "branch"}
-                        >
-                          <option value="">Select...</option>
-                          {productOptionsFor(department).map((name) => (
-                            <option key={name} value={name}>{name}</option>
-                          ))}
-                        </select>
+                        {rowFieldMode ? (
+                          <select
+                            className={`${cellClass} w-full`}
+                            value={item.product ?? ""}
+                            onChange={(e) => updateItem(idx, { product: e.target.value })}
+                            required={rowFieldMode === "branch"}
+                          >
+                            <option value="">Select...</option>
+                            {productOptionsFor(item.segment ?? "").map((name) => (
+                              <option key={name} value={name}>{name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className={`${cellClass} flex w-full items-center text-brand-subtle`}>—</div>
+                        )}
                       </div>
                     )}
                     <div style={COL.productCode}>
@@ -786,15 +1087,21 @@ export default function RequestForm({
                       />
                     </div>
                     <div style={COL.netAmount}>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        className={`${cellClass} w-full`}
-                        placeholder="0.00"
-                        value={item.amount_net || ""}
-                        onChange={(e) => updateItem(idx, { amount_net: Number(e.target.value) })}
-                      />
+                      {isTravel && isPersonalVehicle ? (
+                        <div className={`${cellClass} flex w-full items-center font-medium text-brand-dark`}>
+                          {formatCurrency(item.amount_net)} (auto)
+                        </div>
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className={`${cellClass} w-full`}
+                          placeholder="0.00"
+                          value={item.amount_net || ""}
+                          onChange={(e) => updateItem(idx, { amount_net: Number(e.target.value) })}
+                        />
+                      )}
                     </div>
                     <div style={COL.vat} className="flex items-center gap-1">
                       <input
@@ -1011,6 +1318,30 @@ export default function RequestForm({
             </ul>
           </div>
         )}
+
+        {isTravel && (() => {
+          const travelByValues = Array.from(
+            new Set(items.map((it) => it.travel_by).filter((t): t is string => !!t)),
+          );
+          if (travelByValues.length === 0) return null;
+          return (
+            <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
+              <p className="mb-1 font-medium text-brand-dark">Travel documents (per item, by Travel by)</p>
+              <ul className="space-y-0.5">
+                {travelByValues.flatMap((travelBy) =>
+                  (TRAVEL_REQUIRED_DOCS[travelBy as keyof typeof TRAVEL_REQUIRED_DOCS] ?? []).map((docLabel) => {
+                    const satisfied = files.some((f) => f.doc_type === docLabel);
+                    return (
+                      <li key={`${travelBy}-${docLabel}`} className={satisfied ? "text-green-700" : "text-brand-muted"}>
+                        {satisfied ? "✓" : "○"} {docLabel} <span className="text-brand-subtle">({travelBy})</span>
+                      </li>
+                    );
+                  }),
+                )}
+              </ul>
+            </div>
+          );
+        })()}
 
         {expenseConfig?.showCreditTerm && (
           <div

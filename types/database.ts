@@ -14,6 +14,21 @@ export interface RequestItem {
   wht_rate: number;
   cat_l1?: string;
   cat_l2?: string;
+  // Per-item Segment — replaces the old single top-level Basic Info
+  // Segment field (removed; see CLAUDE.md "Multi-Item Requests"). Each row
+  // picks its own Segment independently, same source (/api/departments) as
+  // the old top-level field used. requests.department (used by dept_config
+  // matching / BO scope filtering) is still populated from the first item's
+  // segment, same "first item wins on a mismatch" convention already
+  // documented for cat_l1/cat_l2.
+  segment?: string;
+  // Per-item Travel by (เบิกค่าเดินทาง only) — see lib/constants.ts
+  // TRAVEL_BY_OPTIONS. distance_km only applies to the personal-vehicle
+  // option; Net Amount is auto-calculated from it (distance_km * 8) rather
+  // than stored as a separate value, so there's no redundant "auto" flag to
+  // keep in sync — RequestForm.tsx recomputes amount_net directly.
+  travel_by?: string;
+  distance_km?: number;
   // Per-item Branch (Retail) or Product (R&D), only shown/used for
   // Department = Retail or R&D + Expense Type = เบิกเงินสดย่อย (Petty
   // cash) — see RequestForm.tsx#perItemFieldMode. Every other
@@ -103,6 +118,17 @@ export interface ExpenseRequest {
   // "Chapter field" in CLAUDE.md) — not joined live, same convention as
   // requester_name/requester_email.
   chapter: string | null;
+  // Which companies.bu this expense is billed to — independent of `bu`
+  // above (the submitter's own BU scope). Set from the Basic Info "Use for
+  // company" dropdown, always visible regardless of expense type.
+  use_for_company: string | null;
+  // Snapshot of the selected petty_cash_custodians.email at submission
+  // time (same copy-not-join convention as chapter/requester_name) — only
+  // set for PETTY_CASH_LABEL requests.
+  petty_cash_holder_email: string | null;
+  // Flat convenience copy of items_json entries that have a travel_by set;
+  // items_json itself remains the source of truth (see RequestItem).
+  travel_items: { travel_by: string; distance_km: number | null }[];
   created_at: string;
   updated_at: string;
 }
@@ -179,6 +205,35 @@ export interface AnnouncementRow {
   created_at: string;
   attachment_url: string | null;
   attachment_type: string | null;
+}
+
+export interface CompanyRow {
+  id: number;
+  bu: string;
+  name_en: string;
+  name_th: string | null;
+  address: string;
+  created_at: string;
+}
+
+export interface PettyCashCustodianRow {
+  id: number;
+  name: string;
+  email: string;
+  company: string;
+  segment: string;
+  amount_limit: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DraftRow {
+  id: number;
+  owner_email: string;
+  title: string | null;
+  form_data: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export type CalendarEventType = "payment" | "deadline" | "reminder" | "important" | "general";

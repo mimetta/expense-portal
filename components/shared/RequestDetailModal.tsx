@@ -7,9 +7,17 @@ import PDFSigner from "@/components/shared/PDFSigner";
 import RequestForm, { requestToFormInitial, type RequestFormPayload } from "@/components/shared/RequestForm";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { computeTotals } from "@/lib/totals";
-import { BANK_OPTIONS, CARD_TYPES, DOCUMENT_TYPES, PAYMENT_METHODS, getExpenseTypeConfig } from "@/lib/constants";
+import {
+  BANK_OPTIONS,
+  CARD_TYPES,
+  DOCUMENT_TYPES,
+  PAYMENT_METHODS,
+  PETTY_CASH_LABEL,
+  PRINTABLE_EXPENSE_TYPES,
+  getExpenseTypeConfig,
+} from "@/lib/constants";
 import { isBoActionable, isCeoActionable, isAccountingActionable, isOwnerEditable, needsProcurement } from "@/lib/status";
-import type { ExpenseRequest, FileEntry, RequestItem, RoleRow, SupplierRow } from "@/types/database";
+import type { CompanyRow, ExpenseRequest, FileEntry, RequestItem, RoleRow, SupplierRow } from "@/types/database";
 
 const inputClass =
   "w-full rounded-md border border-brand-border bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-brown";
@@ -197,6 +205,7 @@ export default function RequestDetailModal({
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [roles, setRoles] = useState<RoleRow[]>([]);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
 
   const [currentUser, setCurrentUser] = useState<{ email: string; allRoles: RoleRow[] } | null>(null);
   // Which file in `files` (by index) currently has its PDFSigner panel open
@@ -214,6 +223,11 @@ export default function RequestDetailModal({
     fetch("/api/suppliers").then((r) => r.json()).then((d) => setSuppliers(d.suppliers ?? []));
     fetch("/api/roles").then((r) => r.json()).then((d) => setRoles(d.roles ?? []));
   }, [editable]);
+
+  useEffect(() => {
+    if (!request.use_for_company) return;
+    fetch("/api/companies").then((r) => r.json()).then((d) => setCompanies(d.companies ?? []));
+  }, [request.use_for_company]);
 
   // Needed to know whether the viewer is BO/CEO for the "Sign this PDF"
   // button — unrelated to `editable` (that flag is Procurement-specific),
@@ -237,6 +251,13 @@ export default function RequestDetailModal({
 
   const isOwnerOfRequest = currentUser?.email === request.requester_email;
   const canOwnerEditNow = (isOwnerOfRequest || isSuperadminUser) && isOwnerEditable(request);
+
+  // Print view — Accounting stage and above (CEO_APPROVED/PAID), or any
+  // time for SUPERADMIN/ACCOUNTING.
+  const hasAccountingRole = currentUser?.allRoles.some((r) => r.role === "ACCOUNTING") ?? false;
+  const canPrint =
+    PRINTABLE_EXPENSE_TYPES.includes(request.expense_type) &&
+    (isSuperadminUser || hasAccountingRole || request.status === "CEO_APPROVED" || request.status === "PAID");
 
   const filteredSuppliers = useMemo(() => {
     const q = payment.supplier_name.trim().toLowerCase();
@@ -271,6 +292,11 @@ export default function RequestDetailModal({
   const hasItemProductColumn = items.some((it) => it.product);
   const branchLabel =
     request.department === "R&D" ? "Product" : request.department === "Retail" ? "Branch" : "Product/Branch";
+  // Segment lives per item now (see CLAUDE.md "Multi-Item Requests" /
+  // RequestForm.tsx) — always shown as its own column. Travel by/Distance
+  // only show when at least one item actually has a travel_by (i.e. this
+  // is a เบิกค่าเดินทาง request).
+  const hasItemTravelColumns = items.some((it) => it.travel_by);
   // Signed files (whether a re-uploaded PO/Invoice or a PDFSigner-produced
   // *_SIGNED.pdf — see components/shared/PDFSigner.tsx — use unrelated
   // naming) can't be reliably matched back to one specific original
@@ -389,6 +415,15 @@ export default function RequestDetailModal({
             <p className="mt-1 text-xs text-brand-subtle">Submitted {formatDate(request.timestamp)}</p>
           </div>
           <div className="flex items-center gap-3">
+            {canPrint && (
+              <button
+                type="button"
+                onClick={() => window.open(`/print/${request.request_id}`, "_blank")}
+                className="mm-btn-secondary mm-btn-sm"
+              >
+                🖨️ Print
+              </button>
+            )}
             {canOwnerEditNow && !fullEditMode && (
               <button onClick={() => setFullEditMode(true)} className="mm-btn-secondary mm-btn-sm">
                 ✏️ Edit
@@ -449,6 +484,17 @@ export default function RequestDetailModal({
               <Field label="Expense Type">{request.expense_type}</Field>
               <Field label="Segment">{request.department}</Field>
               <Field label="Budget Period">{request.budget_period}</Field>
+              {request.use_for_company && (
+                <Field label="Use for company">
+                  {(() => {
+                    const c = companies.find((c) => c.bu === request.use_for_company);
+                    return c ? `${c.bu} — ${c.name_en}` : request.use_for_company;
+                  })()}
+                </Field>
+              )}
+              {request.expense_type === PETTY_CASH_LABEL && request.petty_cash_holder_email && (
+                <Field label="Petty cash holder">{request.petty_cash_holder_email}</Field>
+              )}
               {expenseConfig?.isUrgent && request.urgent_reason && (
                 <div className="col-span-2">
                   <Field label="Urgent Reason">{request.urgent_reason}</Field>
@@ -465,6 +511,9 @@ export default function RequestDetailModal({
               <table className="w-full text-xs">
                 <thead className="bg-[#F9F8F6] text-left text-brand-dark">
                   <tr>
+                    <th className="px-2 py-1.5">Segment</th>
+                    {hasItemTravelColumns && <th className="px-2 py-1.5">Travel by</th>}
+                    {hasItemTravelColumns && <th className="px-2 py-1.5">Distance (km)</th>}
                     <th className="px-2 py-1.5">Cat L1</th>
                     <th className="px-2 py-1.5">Cat L2</th>
                     {hasItemProductColumn && <th className="px-2 py-1.5">{branchLabel}</th>}
@@ -482,6 +531,11 @@ export default function RequestDetailModal({
                       item.amount_net + (item.amount_net * item.vat_rate) / 100 - (item.amount_net * item.wht_rate) / 100;
                     return (
                       <tr key={idx} className="border-t border-brand-border">
+                        <td className="px-2 py-1.5">{item.segment || "-"}</td>
+                        {hasItemTravelColumns && <td className="px-2 py-1.5">{item.travel_by || "—"}</td>}
+                        {hasItemTravelColumns && (
+                          <td className="px-2 py-1.5">{item.distance_km ?? "—"}</td>
+                        )}
                         <td className="px-2 py-1.5">{item.cat_l1 || "-"}</td>
                         <td className="px-2 py-1.5">{item.cat_l2 || "-"}</td>
                         {hasItemProductColumn && <td className="px-2 py-1.5">{item.product || "—"}</td>}
@@ -530,7 +584,18 @@ export default function RequestDetailModal({
                 </tbody>
                 <tfoot className="border-t border-brand-border bg-[#F9F8F6] font-semibold">
                   <tr>
-                    <td colSpan={hasItemProductColumn ? 5 : 4} className="px-2 py-1.5 text-right">Totals</td>
+                    <td
+                      colSpan={
+                        1 +
+                        (hasItemTravelColumns ? 2 : 0) +
+                        2 +
+                        (hasItemProductColumn ? 1 : 0) +
+                        2
+                      }
+                      className="px-2 py-1.5 text-right"
+                    >
+                      Totals
+                    </td>
                     <td className="px-2 py-1.5">{formatCurrency(totals.amount_net)}</td>
                     <td className="px-2 py-1.5" colSpan={2}>
                       VAT {formatCurrency(totals.vat_amount)} · WHT {formatCurrency(totals.wht_amount)}
