@@ -760,19 +760,39 @@ export default function RequestForm({
         )}
 
         <div className="mt-4">
-          <label className={labelClass}>Use for company<RequiredMark /></label>
-          <select
-            className={inputClass}
-            value={useForCompany}
-            onChange={(e) => setUseForCompany(e.target.value)}
-            required
-          >
-            <option value="">Select...</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.bu}>{companyOptionLabel(c)}</option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-brand-subtle">Which company is this expense for</p>
+          <label className={labelClass}>
+            Use for company<RequiredMark />
+            {isPettyCash && pettyCashHolderEmail && <span className="ml-1">🔒</span>}
+          </label>
+          {isPettyCash && pettyCashHolderEmail ? (
+            <input
+              className={`${inputClass} bg-[#F9F8F6]`}
+              value={
+                companies.find((c) => c.bu === useForCompany)
+                  ? companyOptionLabel(companies.find((c) => c.bu === useForCompany)!)
+                  : useForCompany
+              }
+              disabled
+              readOnly
+            />
+          ) : (
+            <select
+              className={inputClass}
+              value={useForCompany}
+              onChange={(e) => setUseForCompany(e.target.value)}
+              required
+            >
+              <option value="">Select...</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.bu}>{companyOptionLabel(c)}</option>
+              ))}
+            </select>
+          )}
+          <p className="mt-1 text-xs text-brand-subtle">
+            {isPettyCash && pettyCashHolderEmail
+              ? "Auto-filled from the selected Petty cash holder's company"
+              : "Which company is this expense for"}
+          </p>
         </div>
 
         {isPettyCash && (
@@ -784,7 +804,20 @@ export default function RequestForm({
             <select
               className={inputClass}
               value={pettyCashHolderEmail}
-              onChange={(e) => setPettyCashHolderEmail(e.target.value)}
+              onChange={(e) => {
+                const email = e.target.value;
+                setPettyCashHolderEmail(email);
+                // Auto-fill Use for company from the selected custodian's
+                // company (petty_cash_custodians.company is a company NAME,
+                // e.g. "Mimetta Co., Ltd.", not the bu-code value this
+                // field actually stores — so this maps name -> companies
+                // row -> bu rather than writing the name straight through).
+                const custodian = custodians.find((c) => c.email === email);
+                if (custodian) {
+                  const matchedCompany = companies.find((c) => c.name_en === custodian.company);
+                  if (matchedCompany) setUseForCompany(matchedCompany.bu);
+                }
+              }}
               required
             >
               <option value="">Select...</option>
