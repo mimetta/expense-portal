@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import RequiredMark from "@/components/shared/RequiredMark";
 import {
   BANK_OPTIONS,
-  BUSINESS_UNITS,
   CARD_TYPES,
   DEPARTMENT_ABBREV,
   DEPARTMENTS,
@@ -280,24 +279,26 @@ export default function RequestForm({
   const isPettyCash = expenseType === PETTY_CASH_LABEL;
   const isTravel = expenseType === TRAVEL_EXPENSE_LABEL;
 
-  // Business Unit lock: a user whose every roles row shares one specific
-  // bu_scope value (never "*") gets that value locked read-only; anyone
-  // with an unrestricted ("*") row, or rows disagreeing on the value, still
-  // gets the free SV/ONEST choice.
-  const resolvedBuScope = useMemo((): { locked: boolean; value: string | null } => {
+  // Business Unit is always auto-filled and read-only — never a free
+  // choice. Resolution: the first non-"*" bu_scope value across the user's
+  // roles (covers both "one specific value everywhere" and "several roles,
+  // some scoped to a specific BU" — same rule either way), or "ONEST" as
+  // the default if every role is genuinely unrestricted ("*").
+  const resolvedBu = useMemo((): string => {
     const scopes = currentUser?.allRoles?.map((r) => r.bu_scope) ?? [];
-    if (scopes.length === 0 || scopes.some((s) => s === "*")) return { locked: false, value: null };
-    const distinct = Array.from(
-      new Set(scopes.flatMap((s) => s.split(",").map((x) => x.trim()).filter(Boolean))),
-    );
-    return distinct.length === 1 ? { locked: true, value: distinct[0] } : { locked: false, value: null };
+    for (const scope of scopes) {
+      if (scope === "*") continue;
+      const first = scope.split(",").map((s) => s.trim()).filter(Boolean)[0];
+      if (first) return first;
+    }
+    return "ONEST";
   }, [currentUser]);
 
   useEffect(() => {
     if (initial?.bu) return; // edit mode already has a concrete value
-    if (resolvedBuScope.locked && resolvedBuScope.value) setBu(resolvedBuScope.value);
+    setBu(resolvedBu);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedBuScope]);
+  }, [resolvedBu]);
 
   // Per-item Segment + Petty Cash: Retail moves Branch from a single
   // top-level field to a required per-row column; R&D does the same for
@@ -715,16 +716,10 @@ export default function RequestForm({
         <h2 className="mm-section-label">Basic Info</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Business Unit<RequiredMark /></label>
-            {resolvedBuScope.locked ? (
-              <input className={`${inputClass} bg-[#F9F8F6]`} value={bu} disabled readOnly />
-            ) : (
-              <select className={inputClass} value={bu} onChange={(e) => setBu(e.target.value)}>
-                {BUSINESS_UNITS.map((u) => (
-                  <option key={u} value={u}>{u}</option>
-                ))}
-              </select>
-            )}
+            <label className={labelClass}>
+              Business unit<RequiredMark /> <span aria-hidden>🔒</span>
+            </label>
+            <input className={`${inputClass} bg-[#F9F8F6]`} value={bu} disabled readOnly />
           </div>
           <div>
             <label className={labelClass}>Requester Name</label>
