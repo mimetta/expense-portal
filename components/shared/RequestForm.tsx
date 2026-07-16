@@ -536,17 +536,29 @@ export default function RequestForm({
     if (isTravel && items.some((it) => !it.travel_by)) {
       return "Every item needs a Travel by selection";
     }
-    // Due Date is marked required (see its label) only where it's actually
-    // shown — Payment Details section visible and not hidden for this
-    // expense type — and only when Procurement isn't taking over payment
-    // details entirely.
-    if (
-      !expenseConfig?.hidePaymentSection &&
-      !expenseConfig?.hideDueDate &&
-      !procurementFillsPayment &&
-      !dueDate
-    ) {
-      return "Due Date is required";
+    // Payment Details fields are all required unless Procurement is taking
+    // over entirely (procurement_fills_payment) — each check still only
+    // applies where that field is actually shown for this expense type
+    // (hidePaymentSection/hideBankFields/hideDueDate), same as the
+    // visibility rules the JSX below already uses.
+    if (!expenseConfig?.hidePaymentSection && !procurementFillsPayment) {
+      if (!supplierName.trim()) {
+        return "Supplier/Payee is required";
+      }
+      if (!payMethod) {
+        return "Payment Method is required";
+      }
+      if (!expenseConfig?.hideBankFields) {
+        if (showBankName && !bankName) {
+          return "Bank Name is required";
+        }
+        if (!accountNo.trim()) {
+          return "Account No / Card No is required";
+        }
+      }
+      if (!expenseConfig?.hideDueDate && !dueDate) {
+        return "Due Date is required";
+      }
     }
     return null;
   };
@@ -1215,7 +1227,11 @@ export default function RequestForm({
       {!expenseConfig?.hidePaymentSection && (
         <div className="mm-card">
           <h2 className="mm-section-label !mb-1 !border-b-0 !pb-0">Payment Details</h2>
-          <p className="mb-3 text-xs text-brand-subtle">optional — Procurement can fill later</p>
+          <p className="mb-3 text-xs text-brand-subtle">
+            {procurementFillsPayment
+              ? "Procurement will fill these in later"
+              : "Required unless Procurement is filling these in"}
+          </p>
 
           <label className="mb-3 flex cursor-pointer items-start gap-2 rounded-md border border-brand-border bg-[#F9F8F6] p-3">
             <input
@@ -1245,7 +1261,9 @@ export default function RequestForm({
 
           <div className={`grid grid-cols-2 gap-4 ${procurementFillsPayment ? "opacity-60" : ""}`}>
             <div className="relative">
-              <label className={labelClass}>Supplier/Payee</label>
+              <label className={labelClass}>
+                Supplier/Payee{!procurementFillsPayment && <RequiredMark />}
+              </label>
               <input
                 className={inputClass}
                 placeholder={
@@ -1281,7 +1299,9 @@ export default function RequestForm({
               )}
             </div>
             <div>
-              <label className={labelClass}>Payment Method</label>
+              <label className={labelClass}>
+                Payment Method{!procurementFillsPayment && <RequiredMark />}
+              </label>
               <select className={inputClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
                 <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
                 {PAYMENT_METHODS.map((m) => (
@@ -1292,7 +1312,9 @@ export default function RequestForm({
 
             {!expenseConfig?.hideBankFields && showBankName && (
               <div>
-                <label className={labelClass}>Bank Name</label>
+                <label className={labelClass}>
+                  Bank Name{!procurementFillsPayment && <RequiredMark />}
+                </label>
                 <select className={inputClass} value={bankName} onChange={(e) => setBankName(e.target.value)}>
                   <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
                   {BANK_OPTIONS.map((b) => (
@@ -1315,7 +1337,9 @@ export default function RequestForm({
 
             {!expenseConfig?.hideBankFields && (
               <div>
-                <label className={labelClass}>Account No / Card No</label>
+                <label className={labelClass}>
+                  Account No / Card No{!procurementFillsPayment && <RequiredMark />}
+                </label>
                 <input
                   className={inputClass}
                   placeholder={procurementFillsPayment ? "Procurement will fill" : undefined}
