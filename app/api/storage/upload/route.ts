@@ -14,14 +14,21 @@ const BUCKET_ROLES: Record<
   ("SUPERADMIN" | "BO" | "CEO" | "ACCOUNTING" | "PROCUREMENT" | "PETTY_CASH_CUSTODIAN" | "EMPLOYEE")[]
 > = {
   // components/shared/PDFSigner.tsx — signing during BO/CEO's own actionable
-  // stage — plus the print view's own canvas signature pad (app/print/[id]),
-  // whose three signature boxes are Requester/BO-or-PettyCashHolder/
-  // Accounting; EMPLOYEE is included so any requester can sign their own
-  // box there.
-  "signed-documents": ["SUPERADMIN", "BO", "CEO", "ACCOUNTING", "PETTY_CASH_CUSTODIAN", "EMPLOYEE"],
+  // stage. application/pdf-only bucket (see CLAUDE.md "PDF document
+  // signing") — do not point PNG/other uploads at this one.
+  "signed-documents": ["SUPERADMIN", "BO", "CEO"],
   // Settings > Announcements attachment — same roles as the announcements
   // mutation endpoints (see CLAUDE.md "Settings tab permissions").
   announcements: ["SUPERADMIN", "CEO"],
+  // components/shared/PrintSignaturePad.tsx — the print view's canvas
+  // signature pad (app/print/[id]), image/png-only bucket. A separate
+  // bucket from signed-documents (which is PDF-only) — the two upload
+  // different mime types for different features, so widening
+  // signed-documents' allowlist instead of adding this one would have
+  // meant loosening a bucket that's deliberately PDF-only. Three signature
+  // boxes are Requester/BO-or-PettyCashHolder/Accounting; EMPLOYEE is
+  // included so any requester can sign their own box there.
+  signatures: ["SUPERADMIN", "BO", "CEO", "ACCOUNTING", "PETTY_CASH_CUSTODIAN", "EMPLOYEE"],
 };
 
 export async function POST(request: Request) {

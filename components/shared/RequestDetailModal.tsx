@@ -610,8 +610,16 @@ export default function RequestDetailModal({
           {/* Payment Details */}
           {!expenseConfig?.hidePaymentSection && (
             <section>
-              <h3 className="mm-section-label">
-                {editable ? "📋 Procurement Details" : "Payment Details"}
+              <h3 className="mm-section-label flex items-center gap-2">
+                <span>{editable ? "📋 Procurement Details" : "Payment Details"}</span>
+                {editable && request.procurement_fills_payment && (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal"
+                    style={{ background: "#FEF3C7", color: "#92400E" }}
+                  >
+                    Needs your input
+                  </span>
+                )}
               </h3>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <Field label="Supplier">

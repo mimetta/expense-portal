@@ -81,10 +81,17 @@ export default function PrintSignaturePad({
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Failed to export signature"))), "image/png"),
       );
       const filename = `signature_${boxKey}_${Date.now()}.png`;
+      const file = new File([blob], filename, { type: "image/png" });
       const formData = new FormData();
-      formData.append("file", blob, filename);
+      // Dedicated "signatures" bucket (image/png-only) — the existing
+      // "signed-documents" bucket is scoped to application/pdf only (see
+      // CLAUDE.md "PDF document signing"), which is exactly why this was
+      // failing with "mime type image/png is not supported": Supabase
+      // Storage itself was rejecting the upload, not a Blob-vs-base64
+      // issue on the client (this already sent a real Blob/File before).
+      formData.append("file", file, filename);
       formData.append("filename", filename);
-      formData.append("bucket", "signed-documents");
+      formData.append("bucket", "signatures");
       const res = await fetch("/api/storage/upload", { method: "POST", body: formData });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

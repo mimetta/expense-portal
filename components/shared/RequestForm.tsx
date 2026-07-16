@@ -143,6 +143,7 @@ export interface RequestFormPayload {
   files_json: FileEntry[];
   use_for_company?: string;
   petty_cash_holder_email?: string;
+  procurement_fills_payment?: boolean;
 }
 
 export interface RequestFormInitial {
@@ -168,6 +169,7 @@ export interface RequestFormInitial {
   files: FileEntry[];
   useForCompany: string;
   pettyCashHolderEmail: string;
+  procurementFillsPayment: boolean;
 }
 
 // Shared by My Requests' Edit & Resubmit / Edit modal (app/my/page.tsx) and
@@ -198,6 +200,7 @@ export function requestToFormInitial(r: ExpenseRequest): Partial<RequestFormInit
     files: r.files_json,
     useForCompany: r.use_for_company ?? "",
     pettyCashHolderEmail: r.petty_cash_holder_email ?? "",
+    procurementFillsPayment: r.procurement_fills_payment ?? false,
   };
 }
 
@@ -351,6 +354,9 @@ export default function RequestForm({
   const [creditTermDays, setCreditTermDays] = useState<number | "">(initial?.creditTermDays ?? "");
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
   const [slipReceiverEmail, setSlipReceiverEmail] = useState(initial?.slipReceiverEmail ?? "");
+  const [procurementFillsPayment, setProcurementFillsPayment] = useState(
+    initial?.procurementFillsPayment ?? false,
+  );
 
   // --- Attachments ---------------------------------------------------------
   const [filesFolderUrl, setFilesFolderUrl] = useState(initial?.filesFolderUrl ?? "");
@@ -531,8 +537,14 @@ export default function RequestForm({
     }
     // Due Date is marked required (see its label) only where it's actually
     // shown — Payment Details section visible and not hidden for this
-    // expense type.
-    if (!expenseConfig?.hidePaymentSection && !expenseConfig?.hideDueDate && !dueDate) {
+    // expense type — and only when Procurement isn't taking over payment
+    // details entirely.
+    if (
+      !expenseConfig?.hidePaymentSection &&
+      !expenseConfig?.hideDueDate &&
+      !procurementFillsPayment &&
+      !dueDate
+    ) {
       return "Due Date is required";
     }
     return null;
@@ -569,6 +581,7 @@ export default function RequestForm({
     files_json: files,
     use_for_company: useForCompany || undefined,
     petty_cash_holder_email: isPettyCash ? pettyCashHolderEmail || undefined : undefined,
+    procurement_fills_payment: procurementFillsPayment,
   });
 
   // --- Draft save/autosave (enableDrafts only — see prop doc above) --------
@@ -1208,12 +1221,41 @@ export default function RequestForm({
         <div className="mm-card">
           <h2 className="mm-section-label !mb-1 !border-b-0 !pb-0">Payment Details</h2>
           <p className="mb-3 text-xs text-brand-subtle">optional — Procurement can fill later</p>
-          <div className="grid grid-cols-2 gap-4">
+
+          <label className="mb-3 flex cursor-pointer items-start gap-2 rounded-md border border-brand-border bg-[#F9F8F6] p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-3.5 w-3.5 accent-brand-brown"
+              checked={procurementFillsPayment}
+              onChange={(e) => setProcurementFillsPayment(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-brand-dark">
+                Let Procurement fill payment details
+              </span>
+              <span className="block text-xs text-brand-subtle">
+                Tick this if you don&apos;t have payment info yet — Procurement will complete it
+              </span>
+            </span>
+          </label>
+
+          {procurementFillsPayment && (
+            <div
+              className="mb-3 rounded-md p-2.5 text-sm font-medium"
+              style={{ background: "#DBEAFE", border: "1px solid #93C5FD", color: "#1E3A8A" }}
+            >
+              ℹ️ Procurement จะกรอกข้อมูลการชำระเงินให้ภายหลัง
+            </div>
+          )}
+
+          <div className={`grid grid-cols-2 gap-4 ${procurementFillsPayment ? "opacity-60" : ""}`}>
             <div className="relative">
               <label className={labelClass}>Supplier/Payee</label>
               <input
                 className={inputClass}
-                placeholder="Type to search or enter a new supplier"
+                placeholder={
+                  procurementFillsPayment ? "Procurement will fill" : "Type to search or enter a new supplier"
+                }
                 autoComplete="off"
                 value={supplierName}
                 onChange={(e) => {
@@ -1246,7 +1288,7 @@ export default function RequestForm({
             <div>
               <label className={labelClass}>Payment Method</label>
               <select className={inputClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                <option value="">-</option>
+                <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
                 {PAYMENT_METHODS.map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
@@ -1257,7 +1299,7 @@ export default function RequestForm({
               <div>
                 <label className={labelClass}>Bank Name</label>
                 <select className={inputClass} value={bankName} onChange={(e) => setBankName(e.target.value)}>
-                  <option value="">-</option>
+                  <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
                   {BANK_OPTIONS.map((b) => (
                     <option key={b} value={b}>{b}</option>
                   ))}
@@ -1279,7 +1321,12 @@ export default function RequestForm({
             {!expenseConfig?.hideBankFields && (
               <div>
                 <label className={labelClass}>Account No / Card No</label>
-                <input className={inputClass} value={accountNo} onChange={(e) => setAccountNo(e.target.value)} />
+                <input
+                  className={inputClass}
+                  placeholder={procurementFillsPayment ? "Procurement will fill" : undefined}
+                  value={accountNo}
+                  onChange={(e) => setAccountNo(e.target.value)}
+                />
               </div>
             )}
             {expenseConfig?.showCreditTerm && (
@@ -1297,13 +1344,15 @@ export default function RequestForm({
             )}
             {!expenseConfig?.hideDueDate && (
               <div>
-                <label className={labelClass}>Due Date<RequiredMark /></label>
+                <label className={labelClass}>
+                  Due Date{!procurementFillsPayment && <RequiredMark />}
+                </label>
                 <input
                   type="date"
                   className={inputClass}
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  required
+                  required={!procurementFillsPayment}
                 />
               </div>
             )}

@@ -150,6 +150,7 @@ interface CreateRequestBody {
   files_json?: { name: string; url: string }[];
   use_for_company?: string;
   petty_cash_holder_email?: string;
+  procurement_fills_payment?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -251,17 +252,19 @@ export async function POST(request: Request) {
       ceo_signature_required: ceoSignatureRequired,
     };
 
-    // supabase/migrations/011_chapter.sql (chapter) and
-    // 012_new_features.sql (use_for_company/petty_cash_holder_email/
-    // travel_items) may not be applied yet — same silent-retry-without-the-
-    // new-columns pattern already used for chapter alone, extended to cover
-    // both migrations. Tries: [chapter + 012 fields] -> [chapter only] ->
-    // [neither]. This assumes 011 lands before/independently of 012 in the
-    // usual case; the reverse ordering (012 applied, 011 not) isn't handled
-    // and would fall through to the narrowest tier, same acceptable-edge-
-    // case tradeoff already made for PATCH /api/roles/[id]'s 007/011
-    // ordering — this is the core Submit flow every user hits constantly,
-    // so a loud failure here would be a real regression, not a graceful one.
+    // supabase/migrations/011_chapter.sql (chapter), 012_new_features.sql
+    // (use_for_company/petty_cash_holder_email/travel_items), and
+    // 013_procurement_fills_payment.sql (procurement_fills_payment) may not
+    // all be applied yet — same silent-retry-without-the-new-columns
+    // pattern already used for chapter alone, extended to cover all three.
+    // Tries progressively narrower column sets: [chapter+012+013] ->
+    // [chapter+012] -> [chapter only] -> [neither]. This assumes migrations
+    // land in roughly numeric order; an out-of-order combination (e.g. 013
+    // applied but 012 not) isn't handled and would fall through to the
+    // narrowest tier, same acceptable-edge-case tradeoff already made for
+    // PATCH /api/roles/[id]'s 007/011 ordering — this is the core Submit
+    // flow every user hits constantly, so a loud failure here would be a
+    // real regression, not a graceful one.
     const migration012Fields = {
       use_for_company: body.use_for_company ?? null,
       petty_cash_holder_email: body.petty_cash_holder_email ?? null,
@@ -269,14 +272,24 @@ export async function POST(request: Request) {
         .filter((i) => i.travel_by)
         .map((i) => ({ travel_by: i.travel_by, distance_km: i.distance_km ?? null })),
     };
+    const migration013Fields = {
+      procurement_fills_payment: body.procurement_fills_payment ?? false,
+    };
 
     let inserted;
     let insertError;
     ({ data: inserted, error: insertError } = await admin
       .from("requests")
-      .insert({ ...basePayload, chapter: user.chapter, ...migration012Fields })
+      .insert({ ...basePayload, chapter: user.chapter, ...migration012Fields, ...migration013Fields })
       .select()
       .single());
+    if (insertError?.code === UNDEFINED_COLUMN) {
+      ({ data: inserted, error: insertError } = await admin
+        .from("requests")
+        .insert({ ...basePayload, chapter: user.chapter, ...migration012Fields })
+        .select()
+        .single());
+    }
     if (insertError?.code === UNDEFINED_COLUMN) {
       ({ data: inserted, error: insertError } = await admin
         .from("requests")

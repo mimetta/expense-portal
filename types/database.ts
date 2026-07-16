@@ -129,6 +129,11 @@ export interface ExpenseRequest {
   // Flat convenience copy of items_json entries that have a travel_by set;
   // items_json itself remains the source of truth (see RequestItem).
   travel_items: { travel_by: string; distance_km: number | null }[];
+  // "Let Procurement fill payment details" toggle on /submit — when true,
+  // Supplier/Payment Method/Bank/Account No/Due Date were all left blank
+  // intentionally (not required), and Procurement's inline edit panel
+  // should flag them for input rather than treating blanks as an oversight.
+  procurement_fills_payment: boolean;
   created_at: string;
   updated_at: string;
 }
