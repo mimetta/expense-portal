@@ -47,7 +47,13 @@ const emptyItem = (): RequestItem => ({
   segment: "",
 });
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
+// Matches the server-side cap in app/api/upload-to-drive/route.ts — files
+// go to real Google Drive storage now, not inline base64, so this is a
+// sanity limit for a single-shot multipart upload, not a "keep the DB row
+// small" limit (see CLAUDE.md "File Storage": "drop the size cap" once
+// real upload is wired up — raised, not literally dropped, since an
+// unbounded single multipart POST is still worth capping).
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 // Formats a companies row for the "Use for company" dropdown, e.g.
 // "ONEST — Mimetta Co., Ltd.".
@@ -86,14 +92,34 @@ function creditDeadlineMessage(): string {
   return "⚠️ เลยกำหนดส่งเอกสารวันที่ 15 แล้ว กรุณาติดต่อฝ่ายบัญชี";
 }
 
-function fileToEntry(file: File): Promise<FileEntry> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () =>
-      resolve({ name: file.name, url: reader.result as string, size: file.size, doc_type: "" });
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-    reader.readAsDataURL(file);
-  });
+// Uploads one picked File to the signed-in user's Google Drive (see
+// app/api/upload-to-drive/route.ts) and returns the resulting FileEntry —
+// replaces the old fileToEntry() base64 conversion for every new pick.
+// Historical requests may still carry base64 `data:` URLs in their
+// existing files_json (from before this feature); those are left as-is,
+// not migrated.
+async function uploadFileEntry(
+  file: File,
+  requestId: string,
+  budgetPeriod: string,
+): Promise<FileEntry> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("fileName", file.name);
+  formData.append("requestId", requestId);
+  formData.append("budgetPeriod", budgetPeriod);
+
+  const res = await fetch("/api/upload-to-drive", { method: "POST", body: formData });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.success) {
+    if (body.error === "reauth_required") {
+      throw new Error(
+        "Google Drive session expired. Please sign out and sign in again to re-authorize Drive access.",
+      );
+    }
+    throw new Error(body.error || `Failed to upload ${file.name}`);
+  }
+  return { name: body.fileName ?? file.name, url: body.url, size: file.size, doc_type: "" };
 }
 
 const inputClass = "mm-input";
@@ -211,7 +237,12 @@ interface RequestFormProps {
   initial?: Partial<RequestFormInitial>;
   title?: string;
   banner?: React.ReactNode;
-  onSubmit: (payload: RequestFormPayload) => Promise<void>;
+  // Return value is only meaningful for create mode (see driveContext
+  // below): returning { requestId } tells the form the request now exists
+  // for real, so any files picked before submission (necessarily with no
+  // request to upload into yet) can now be uploaded to Drive and attached.
+  // Edit-mode callers can keep resolving to void, same as before.
+  onSubmit: (payload: RequestFormPayload) => Promise<{ requestId?: string } | void>;
   submitLabel?: string;
   submittingLabel?: string;
   secondaryAction?: {
@@ -231,6 +262,19 @@ interface RequestFormProps {
   draftId?: number | null;
   onDraftSaved?: (draftId: number) => void;
   onDraftDeleted?: () => void;
+  // Set by every edit-mode caller (the request already has a real id) —
+  // enables upload-to-Drive-immediately-on-pick. Omitted for create mode
+  // (/submit): a Drive folder is named after the real request_id (see
+  // CLAUDE.md-style note in app/api/upload-to-drive/route.ts), which
+  // doesn't exist until POST /api/requests succeeds, so picked files are
+  // held as plain File objects and only uploaded (then attached via a
+  // follow-up PATCH) once onSubmit resolves with a real id.
+  driveContext?: { requestId: string };
+  // Called once the whole submit — including, in create mode, uploading
+  // any picked files and attaching them — has fully succeeded. Only
+  // /submit uses this (to navigate away); edit-mode callers already close
+  // their own modal/panel from inside onSubmit itself.
+  onComplete?: () => void;
 }
 
 export default function RequestForm({
@@ -245,6 +289,8 @@ export default function RequestForm({
   draftId: initialDraftId = null,
   onDraftSaved,
   onDraftDeleted,
+  driveContext,
+  onComplete,
 }: RequestFormProps) {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
@@ -361,7 +407,15 @@ export default function RequestForm({
 
   // --- Attachments ---------------------------------------------------------
   const [filesFolderUrl, setFilesFolderUrl] = useState(initial?.filesFolderUrl ?? "");
+  // Already-uploaded files — real Drive-hosted entries (driveContext mode),
+  // or pre-existing base64 entries carried over from an existing request.
   const [files, setFiles] = useState<FileEntry[]>(initial?.files ?? []);
+  // Create-mode only (no driveContext yet): files picked before the
+  // request exists, held as plain File objects until onSubmit resolves
+  // with a real request_id — see handleSubmit below.
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; docType: string }[]>([]);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -498,24 +552,48 @@ export default function RequestForm({
   };
 
   const handleFiles = async (fileList: FileList) => {
-    const entries: FileEntry[] = [];
-    for (const file of Array.from(fileList)) {
+    setAttachmentError(null);
+    const picked = Array.from(fileList).filter((file) => {
       if (file.size > MAX_FILE_BYTES) {
-        alert(`${file.name} is larger than 5MB and can't be attached (no Google Drive integration is configured in this environment, so files fall back to inline storage with a 5MB cap).`);
-        continue;
+        alert(`${file.name} is larger than ${MAX_FILE_BYTES / 1024 / 1024}MB and can't be attached.`);
+        return false;
       }
-      try {
-        entries.push(await fileToEntry(file));
-      } catch {
-        alert(`Failed to read ${file.name}`);
+      return true;
+    });
+    if (picked.length === 0) return;
+
+    if (driveContext) {
+      // Edit mode — the request already has a real id, so upload straight
+      // to Drive now instead of waiting for submit.
+      setUploadStatus(`Uploading files to Drive... (0/${picked.length})`);
+      for (let i = 0; i < picked.length; i++) {
+        try {
+          const entry = await uploadFileEntry(picked[i], driveContext.requestId, budgetPeriod);
+          setFiles((prev) => [...prev, entry]);
+        } catch (err) {
+          setAttachmentError(err instanceof Error ? err.message : `Failed to upload ${picked[i].name}`);
+          break;
+        }
+        setUploadStatus(`Uploading files to Drive... (${i + 1}/${picked.length})`);
       }
+      setUploadStatus(null);
+    } else {
+      // Create mode — no request to upload into yet; stage for upload at
+      // submit time (see handleSubmit).
+      setPendingFiles((prev) => [...prev, ...picked.map((file) => ({ file, docType: "" }))]);
     }
-    setFiles((prev) => [...prev, ...entries]);
   };
 
   const updateFile = (idx: number, patch: Partial<FileEntry>) =>
     setFiles((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
   const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
+  const updatePendingFile = (idx: number, docType: string) =>
+    setPendingFiles((prev) => prev.map((p, i) => (i === idx ? { ...p, docType } : p)));
+  const removePendingFile = (idx: number) => setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+  // Required-doc checklists (below) should reflect files picked but not
+  // yet uploaded too, not just already-uploaded ones.
+  const isDocTypeAttached = (docLabel: string) =>
+    files.some((f) => f.doc_type === docLabel) || pendingFiles.some((p) => p.docType === docLabel);
 
   const validate = (): string | null => {
     if (expenseConfig?.isUrgent && !urgentReason.trim()) {
@@ -660,6 +738,7 @@ export default function RequestForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAttachmentError(null);
     const validationError = validate();
     if (validationError) {
       setError(validationError);
@@ -667,13 +746,60 @@ export default function RequestForm({
     }
     setSubmitting(true);
     try {
-      await onSubmit(buildPayload());
+      const result = await onSubmit(buildPayload());
       // A submitted request is no longer a draft — clean up the row it was
       // loaded from, if any.
       if (draftId) {
         await fetch(`/api/drafts/${draftId}`, { method: "DELETE" }).catch(() => {});
         onDraftDeleted?.();
       }
+
+      // Create mode only: the request now has a real id, so any files
+      // picked before submission (see handleFiles above) can finally be
+      // uploaded to Drive and attached. Deviates from "upload before
+      // creating the request" — a Drive folder needs the real
+      // EXP-YYYY-MM-NNNNNN id, which Postgres only assigns as part of a
+      // successful insert, so that literal ordering isn't achievable; this
+      // is the closest equivalent (upload immediately once the id exists,
+      // as the last step of the same submit action).
+      const requestId = result?.requestId;
+      if (requestId && pendingFiles.length > 0) {
+        setUploadStatus(`Uploading files to Drive... (0/${pendingFiles.length})`);
+        const uploaded: FileEntry[] = [...files];
+        try {
+          for (let i = 0; i < pendingFiles.length; i++) {
+            const { file, docType } = pendingFiles[i];
+            const entry = await uploadFileEntry(file, requestId, budgetPeriod);
+            uploaded.push({ ...entry, doc_type: docType });
+            setUploadStatus(`Uploading files to Drive... (${i + 1}/${pendingFiles.length})`);
+          }
+          const patchRes = await fetch(`/api/requests/${requestId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ owner_edit: true, files_json: uploaded }),
+          });
+          if (!patchRes.ok) {
+            const patchBody = await patchRes.json().catch(() => ({}));
+            throw new Error(patchBody.error ?? "Failed to attach uploaded files to the request");
+          }
+          setFiles(uploaded);
+          setPendingFiles([]);
+        } catch (uploadErr) {
+          // The request itself was already created successfully above —
+          // only the attachment step failed, so say so explicitly rather
+          // than implying the whole submission was rolled back.
+          setAttachmentError(
+            `Request ${requestId} was created, but attaching files failed: ${
+              uploadErr instanceof Error ? uploadErr.message : "unknown error"
+            }. Open it from My Requests to retry.`,
+          );
+          setUploadStatus(null);
+          return;
+        }
+        setUploadStatus(null);
+      }
+
+      onComplete?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -1409,7 +1535,7 @@ export default function RequestForm({
             </p>
             <ul className="space-y-0.5">
               {expenseConfig.requiredDocs.docs.map((docLabel) => {
-                const satisfied = files.some((f) => f.doc_type === docLabel);
+                const satisfied = isDocTypeAttached(docLabel);
                 return (
                   <li key={docLabel} className={satisfied ? "text-green-700" : "text-brand-muted"}>
                     {satisfied ? "✓" : "○"} {docLabel}
@@ -1431,7 +1557,7 @@ export default function RequestForm({
               <ul className="space-y-0.5">
                 {travelByValues.flatMap((travelBy) =>
                   (TRAVEL_REQUIRED_DOCS[travelBy as keyof typeof TRAVEL_REQUIRED_DOCS] ?? []).map((docLabel) => {
-                    const satisfied = files.some((f) => f.doc_type === docLabel);
+                    const satisfied = isDocTypeAttached(docLabel);
                     return (
                       <li key={`${travelBy}-${docLabel}`} className={satisfied ? "text-green-700" : "text-brand-muted"}>
                         {satisfied ? "✓" : "○"} {docLabel} <span className="text-brand-subtle">({travelBy})</span>
@@ -1486,6 +1612,13 @@ export default function RequestForm({
           />
         </div>
 
+        {uploadStatus && (
+          <p className="mt-3 text-sm text-brand-muted">⏳ {uploadStatus}</p>
+        )}
+        {attachmentError && (
+          <p className="mt-3 text-sm text-red-600">{attachmentError}</p>
+        )}
+
         <div className="mt-3 space-y-2">
           {files.map((file, idx) => (
             <div key={idx} className="flex items-center gap-2 rounded-md border border-brand-border px-3 py-2 text-sm">
@@ -1499,7 +1632,15 @@ export default function RequestForm({
                   <option key={dt} value={dt}>{dt}</option>
                 ))}
               </select>
-              <span className="flex-1 truncate text-brand-dark">{file.name}</span>
+              {file.url.includes("drive.google.com") && <span title="Stored in Google Drive">📁</span>}
+              <a
+                href={file.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 truncate text-brand-brown hover:underline"
+              >
+                {file.name}
+              </a>
               <span className="text-xs text-brand-muted">{formatBytes(file.size)}</span>
               <button
                 type="button"
@@ -1510,7 +1651,45 @@ export default function RequestForm({
               </button>
             </div>
           ))}
+          {pendingFiles.map((pending, idx) => (
+            <div
+              key={`pending-${idx}`}
+              className="flex items-center gap-2 rounded-md border border-dashed border-brand-border px-3 py-2 text-sm"
+            >
+              <select
+                className={`${cellClass} w-56`}
+                value={pending.docType}
+                onChange={(e) => updatePendingFile(idx, e.target.value)}
+              >
+                <option value="">Document type...</option>
+                {DOCUMENT_TYPES.map((dt) => (
+                  <option key={dt} value={dt}>{dt}</option>
+                ))}
+              </select>
+              <span className="flex-1 truncate text-brand-dark">{pending.file.name}</span>
+              <span className="text-xs text-brand-subtle">{formatBytes(pending.file.size)} · will upload on submit</span>
+              <button
+                type="button"
+                onClick={() => removePendingFile(idx)}
+                className="font-medium text-[#DC2626] hover:underline"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
         </div>
+        {pendingFiles.length > 0 && enableDrafts && (
+          // Drafts persist buildPayload()'s JSON only — a raw File object
+          // can't round-trip through that, so files picked but not yet
+          // submitted are lost if this form is left as a draft rather than
+          // submitted (a real gap vs. the old base64-everywhere behavior,
+          // where a picked file became part of files_json, and therefore
+          // the draft, immediately on pick).
+          <p className="mt-2 text-xs text-brand-subtle">
+            Note: files above haven&apos;t been uploaded yet — saving this as a draft won&apos;t keep them; submit the
+            request to upload them.
+          </p>
+        )}
       </div>
 
       <p className="text-xs text-brand-subtle">

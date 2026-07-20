@@ -1189,30 +1189,100 @@ user session.
 
 ## File Storage
 
-There is still no real Google Drive API integration in this app (no service account, no
-`googleapis` dependency, no credentials in `.env.local`) — building one was out of scope
-without provisioned credentials. `/submit`'s Attachments section now has a real OS file
-picker/drag-and-drop zone (`app/submit/page.tsx`), but per its own spec falls back to storing
-each file as a base64 data URL directly in `files_json` (`FileEntry.url`) when Drive isn't
-configured, which is always, in this build. `files_folder_url` (a manually-entered Drive
-folder link) is still collected alongside it as before. **Files over 5MB are rejected
-client-side** (`MAX_FILE_BYTES` in `app/submit/page.tsx`) since there's no real object storage
-backing this — base64 blobs live inline in the `requests.files_json` JSONB column. Each
-`FileEntry` also now carries `size` and `doc_type` (one of `DOCUMENT_TYPES` in
-`lib/constants.ts`), and required-doc-type checklists are computed by matching `doc_type`
-against `EXPENSE_TYPES[].requiredDocs`. If real Drive upload is ever wired up, replace
-`fileToEntry()` in `app/submit/page.tsx` with an actual upload call and drop the size cap.
+**`/submit` and every edit form now upload attachments to real Google Drive**, not base64 —
+this section previously said there was no real Drive integration in this app; that's no longer
+true as of this build. The Attachments section (moved into `components/shared/RequestForm.tsx`
+some time after the base64-fallback text above was originally written — it's no longer in
+`app/submit/page.tsx` itself, which is now a thin wrapper) uploads each picked file through
+`POST /api/upload-to-drive` (`app/api/upload-to-drive/route.ts` + `lib/google-drive.ts`) using
+the **signed-in user's own Google OAuth access token** — `session.provider_token`, obtained via
+Supabase Auth's Google sign-in — not a Google Cloud service account. This was a deliberate
+choice specified by the request that drove this build (zero additional credential to
+provision), as opposed to an earlier, different Drive-integration attempt referenced in this
+agent's own memory of a prior session (`lib/googleDrive.ts`, a service-account JWT approach) —
+that code was never actually present in this repository (confirmed via `git log`/`git diff`
+against `origin/main` before starting this build), so it's treated as a stale memory, not a
+prior implementation to reconcile with.
+
+Files land at `Root ("Expense Portal", `NEXT_PUBLIC_GOOGLE_DRIVE_FOLDER_ID`) /
+<budget_period> / <request_id> /`, each folder created on demand
+(`lib/google-drive.ts#createRequestFolder`/`getOrCreateFolder`, find-then-create, idempotent).
+Every newly-uploaded file is set to "anyone with the link can view"
+(`uploadFileToDrive`'s `permissions` POST) and stored as
+`https://drive.google.com/file/d/<id>/view` in `files_json`, same `FileEntry` shape as before
+(`name`/`url`/`size`/`doc_type`) — no new fields were added, so every existing consumer
+(required-doc checklists, the CEO-signature `_SIGNED`-suffix logic, `RequestDetailModal`'s
+badges) works unchanged. `RequestDetailModal.tsx` and `RequestForm.tsx`'s own attachment list
+both show a small 📁 badge next to any file whose `url` contains `drive.google.com`, to
+visually distinguish it from a historical base64 `data:` entry.
+
+**Two upload timings, depending on whether the request already has a real id**
+(`RequestForm`'s new `driveContext` prop, set by every edit-mode caller —
+`app/my/page.tsx`'s `EditRequestModal`, `RequestDetailModal.tsx`'s `fullEditMode` — and
+omitted for create mode, `/submit`):
+- **Edit mode** (`driveContext` present): uploads immediately on pick, straight into the
+  existing request's folder.
+- **Create mode** (`/submit`, no `driveContext`): a Drive folder is named after the real
+  `EXP-YYYY-MM-NNNNNN` request id, which Postgres only assigns as part of a successful insert
+  — so a file picked before the request exists literally cannot be uploaded into its final
+  folder yet. Picked files are held client-side as plain `File` objects (`pendingFiles` state)
+  and uploaded only once `onSubmit` (the `POST /api/requests` call) resolves with the new
+  request's real id — immediately followed by `PATCH /api/requests/[id]` with
+  `{ owner_edit: true, files_json: [...] }` to attach them (reusing the existing owner-edit
+  path rather than inventing a new one; safe here since a freshly-created request is always
+  still `SUBMITTED` with no PO activity, i.e. `isOwnerEditable`). **This deviates from a
+  "upload before creating the request" framing given for this feature** — that ordering can't
+  produce a correctly-named folder, for the reason above, so this build uploads immediately
+  after creation instead (still within the same user-perceived "Submit" action, just after the
+  id exists rather than before). One consequence: the `SUBMITTED` Discord notification fires
+  from `POST /api/requests` itself, before the follow-up attach step — a request's Discord
+  message can land slightly before its files finish uploading, not after. If the attach step
+  fails (e.g. token expiry mid-upload), the request itself is **not** rolled back — it already
+  exists — the UI says so explicitly rather than implying the whole submission failed, and
+  points the user at My Requests to retry attaching.
+
+  A related, real gap: `enableDrafts` autosave persists `buildPayload()`'s JSON only, and a
+  raw `File` object can't round-trip through that — files picked but not yet submitted are
+  **not** saved into a draft (RequestForm shows an inline note when this applies). Before this
+  build, a picked file became a base64 string immediately and therefore *was* part of the
+  draft; this is a real, user-visible behavior change for the draft feature specifically, not
+  just an implementation detail.
+
+**Known limitations, left for the user to resolve/provision (this agent environment cannot)**
+— see the full explanation in `app/api/upload-to-drive/route.ts`'s header comment:
+1. **OAuth scope**: `app/login/page.tsx` now requests
+   `scopes: "https://www.googleapis.com/auth/drive.file"` on sign-in, but anyone with an
+   existing session from before this change keeps a Drive-less `provider_token` until they
+   sign out and back in once.
+2. **Token lifetime**: Google access tokens expire in roughly an hour, and Supabase does not
+   refresh `provider_token` the way it refreshes its own session — a tab left open across that
+   window can start failing uploads with `reauth_required` mid-session. There is no
+   `provider_refresh_token`-based silent-refresh flow built here.
+3. **`drive.file` scope vs. a pre-existing shared root folder**: `drive.file` only grants
+   access to files/folders the app itself created, or that the user explicitly opened via a
+   Google Picker — it does not automatically grant write access to
+   `NEXT_PUBLIC_GOOGLE_DRIVE_FOLDER_ID` just because that folder is Drive-shared with the user
+   in the ordinary sense. Whether every `@mimetta.co` user's account can actually write into
+   that root folder under `drive.file` needs to be verified live (this agent has no real
+   Google OAuth session to test with — see the "no real `@mimetta.co` Google OAuth
+   credentials" access constraint elsewhere in this project) — if not, the fix is either
+   provisioning per-user access some other way, or switching to the broader (sensitive,
+   Google-verification-gated) `drive` scope, which this build deliberately did not do
+   unilaterally.
 
 On CEO approval with `ceo_signature_required = true`, the newest `files_json` entry's `name`
 gets an `_SIGNED` suffix appended (`app/api/requests/[id]/ceo-approve/route.ts#
-markNewestFileSigned`) — this remains metadata-only and unrelated to the base64 fallback
-above.
+markNewestFileSigned`) — unaffected by the change above, still metadata-only.
 
-**One exception to the base64-everywhere rule:** PDFs produced by the "Sign this PDF" flow
-(`components/shared/PDFSigner.tsx`) upload to a real Supabase Storage bucket
-(`signed-documents`) via `POST /api/storage/upload` instead of being inlined as base64 — see
-"PDF document signing" above for why this one path uses real Storage while every other
-attachment in the app still doesn't.
+**Two remaining base64 paths, deliberately left alone:**
+- **PDFs produced by the "Sign this PDF" flow** (`components/shared/PDFSigner.tsx`) still
+  upload to the separate Supabase Storage bucket (`signed-documents`) via
+  `POST /api/storage/upload` — see "PDF document signing" above.
+- **`RequestDetailModal.tsx`'s own narrow `editable` mode** (Procurement's inline
+  edit-in-place — see "Request Detail Modal" above) still has its own private `fileToEntry()`
+  base64 conversion for files picked there, untouched by this batch — the spec driving this
+  Drive-upload feature was scoped to `/submit` and the RequestForm-based edit paths only, not
+  Procurement's separate inline attachment upload.
 
 ---
 

@@ -74,6 +74,12 @@ function SubmitPageInner() {
       .finally(() => setLoadingDraft(false));
   }, [draftIdParam]);
 
+  // No driveContext is passed here (see RequestForm.tsx's prop doc) — this
+  // is create mode, so any files picked before the request exists get
+  // uploaded to Drive and attached by RequestForm itself once this
+  // resolves with the newly-created request's real id. Navigation happens
+  // from onComplete instead of here, so it only fires once that follow-up
+  // attach step (if any) has actually finished.
   const handleSubmit = async (payload: RequestFormPayload) => {
     const res = await fetch("/api/requests", {
       method: "POST",
@@ -86,7 +92,8 @@ function SubmitPageInner() {
       throw new Error(body.error ?? "Failed to submit request");
     }
 
-    router.push("/my");
+    const body = await res.json();
+    return { requestId: body.request?.request_id as string | undefined };
   };
 
   if (loadingDraft) {
@@ -98,6 +105,7 @@ function SubmitPageInner() {
       key={draftId ?? "new"}
       initial={draftInitial}
       onSubmit={handleSubmit}
+      onComplete={() => router.push("/my")}
       submitLabel="Submit Request"
       submittingLabel="Submitting..."
       enableDrafts
