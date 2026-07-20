@@ -14,13 +14,6 @@ export default function LoginPage() {
         // is a UX hint only — the callback route re-verifies the domain
         // server-side before creating a session.
         queryParams: { hd: NEW_EMAIL_DOMAIN },
-        // Grants this app's own OAuth access token (session.provider_token)
-        // permission to create/write files in Drive — required for the
-        // /submit attachments-to-Drive upload (see lib/google-drive.ts,
-        // app/api/upload-to-drive/route.ts). Anyone who signed in before
-        // this scope was added keeps their existing, Drive-less token until
-        // they sign out and back in once — see that route's header comment.
-        scopes: "https://www.googleapis.com/auth/drive.file",
       },
     });
   };

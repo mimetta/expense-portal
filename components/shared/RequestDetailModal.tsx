@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import StatusBadge from "@/components/StatusBadge";
 import RequiredMark from "@/components/shared/RequiredMark";
 import PDFSigner from "@/components/shared/PDFSigner";
-import RequestForm, { requestToFormInitial, type RequestFormPayload } from "@/components/shared/RequestForm";
+import RequestForm, { requestToFormInitial, openStoredFile, type RequestFormPayload } from "@/components/shared/RequestForm";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { computeTotals } from "@/lib/totals";
 import {
@@ -442,7 +442,7 @@ export default function RequestDetailModal({
           {fullEditMode ? (
             <RequestForm
               initial={requestToFormInitial(request)}
-              driveContext={{ requestId: request.request_id }}
+              uploadContext={{ requestId: request.request_id }}
               title="Edit Request"
               banner={
                 <div className="flex items-center justify-between gap-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
@@ -903,8 +903,18 @@ export default function RequestDetailModal({
                           </span>
                         )
                       )}
-                      {f.url.includes("drive.google.com") && <span title="Stored in Google Drive">📁</span>}
-                      <a href={f.url} target="_blank" rel="noreferrer" className="flex-1 truncate text-brand-brown hover:underline">
+                      <a
+                        href={f.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => {
+                          if (f.path) {
+                            e.preventDefault();
+                            openStoredFile(f);
+                          }
+                        }}
+                        className="flex-1 truncate text-brand-brown hover:underline"
+                      >
                         {f.name}
                       </a>
                       {f.name.includes("SIGNED") && (

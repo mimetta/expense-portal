@@ -97,7 +97,7 @@ function EditRequestModal({
         </div>
         <RequestForm
           initial={requestToFormInitial(request)}
-          driveContext={{ requestId: request.request_id }}
+          uploadContext={{ requestId: request.request_id }}
           title={
             isRejected
               ? `Edit & Resubmit — ${request.request_id}`

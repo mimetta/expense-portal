@@ -43,6 +43,11 @@ export interface FileEntry {
   url: string;
   size?: number;
   doc_type?: string;
+  // Storage object path within the "attachments" bucket (never set for
+  // signature-pad/legacy-base64 entries) — the bucket is private, so `url`
+  // is a signed URL that expires; `path` is what GET /api/upload/signed-url
+  // needs to mint a fresh one on demand. See CLAUDE.md "File Storage".
+  path?: string;
 }
 
 export interface ExpenseRequest {

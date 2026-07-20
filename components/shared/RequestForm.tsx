@@ -47,13 +47,12 @@ const emptyItem = (): RequestItem => ({
   segment: "",
 });
 
-// Matches the server-side cap in app/api/upload-to-drive/route.ts — files
-// go to real Google Drive storage now, not inline base64, so this is a
-// sanity limit for a single-shot multipart upload, not a "keep the DB row
-// small" limit (see CLAUDE.md "File Storage": "drop the size cap" once
-// real upload is wired up — raised, not literally dropped, since an
-// unbounded single multipart POST is still worth capping).
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
+// Matches the "attachments" Supabase Storage bucket's own file_size_limit
+// (see app/api/upload/route.ts) — files go to real Storage now, not inline
+// base64 (see CLAUDE.md "File Storage": "drop the size cap" once real
+// upload is wired up — raised, not literally dropped, since an unbounded
+// single upload is still worth capping client-side before it's attempted).
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 // Formats a companies row for the "Use for company" dropdown, e.g.
 // "ONEST — Mimetta Co., Ltd.".
@@ -92,41 +91,64 @@ function creditDeadlineMessage(): string {
   return "⚠️ เลยกำหนดส่งเอกสารวันที่ 15 แล้ว กรุณาติดต่อฝ่ายบัญชี";
 }
 
-// Uploads one picked File to the signed-in user's Google Drive (see
-// app/api/upload-to-drive/route.ts) and returns the resulting FileEntry —
-// replaces the old fileToEntry() base64 conversion for every new pick.
-// Historical requests may still carry base64 `data:` URLs in their
-// existing files_json (from before this feature); those are left as-is,
-// not migrated.
+// Uploads one picked File to the private "attachments" Supabase Storage
+// bucket (see app/api/upload/route.ts) and returns the resulting
+// FileEntry — replaces the old fileToEntry() base64 conversion for every
+// new pick, and the Google Drive upload that briefly replaced that.
+// Historical requests may still carry base64 `data:` URLs (from before
+// either upload feature) or drive.google.com URLs (from the Drive-based
+// build); both are left as-is, not migrated.
 async function uploadFileEntry(
   file: File,
   requestId: string,
   budgetPeriod: string,
+  documentType: string,
 ): Promise<FileEntry> {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("fileName", file.name);
   formData.append("requestId", requestId);
   formData.append("budgetPeriod", budgetPeriod);
+  formData.append("documentType", documentType);
 
-  const res = await fetch("/api/upload-to-drive", { method: "POST", body: formData });
+  const res = await fetch("/api/upload", { method: "POST", body: formData });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body.success) {
-    // Log the raw response too — the thrown Error's message is what the
-    // user sees (surfaced via attachmentError below), but the full body
-    // (code/details/hint on a 500, or Google's own message on a 401/403
-    // via `detail`) is worth having in the browser console while debugging.
-    console.error("[upload-to-drive] failed:", res.status, body);
-    if (body.error === "reauth_required") {
-      const detail = body.detail ? ` Google said: "${body.detail}"` : "";
-      throw new Error(
-        `Google Drive access was rejected — sign out and sign in again to re-authorize Drive access.${detail}`,
-      );
-    }
+    console.error("[upload] failed:", res.status, body);
     const detail = [body.error, body.hint].filter(Boolean).join(" — ");
     throw new Error(detail || `Failed to upload ${file.name} (HTTP ${res.status})`);
   }
-  return { name: body.fileName ?? file.name, url: body.url, size: file.size, doc_type: "" };
+  return {
+    name: body.fileName ?? file.name,
+    url: body.url,
+    path: body.path,
+    size: file.size,
+    doc_type: documentType,
+  };
+}
+
+// Re-signs a "attachments"-bucket FileEntry if it has a `path` — the url
+// stored at upload time is only valid for 7 days (see
+// app/api/upload/route.ts), so anything used well after that (opening the
+// file, or PDFSigner.tsx fetching it to sign) needs a fresh one rather
+// than trusting the stored `url`. Files with no `path` (legacy base64
+// `data:` URLs, or public-bucket URLs like signed-documents/signatures)
+// resolve to their existing `url` unchanged.
+export async function resolveFileUrl(f: FileEntry): Promise<string> {
+  if (f.path) {
+    try {
+      const res = await fetch(`/api/upload/signed-url?path=${encodeURIComponent(f.path)}`);
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.url) return body.url;
+    } catch {
+      // fall through to the possibly-stale stored url below
+    }
+  }
+  return f.url;
+}
+
+export async function openStoredFile(f: FileEntry) {
+  const url = await resolveFileUrl(f);
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 const inputClass = "mm-input";
@@ -244,10 +266,10 @@ interface RequestFormProps {
   initial?: Partial<RequestFormInitial>;
   title?: string;
   banner?: React.ReactNode;
-  // Return value is only meaningful for create mode (see driveContext
+  // Return value is only meaningful for create mode (see uploadContext
   // below): returning { requestId } tells the form the request now exists
   // for real, so any files picked before submission (necessarily with no
-  // request to upload into yet) can now be uploaded to Drive and attached.
+  // request to upload into yet) can now be uploaded and attached.
   // Edit-mode callers can keep resolving to void, same as before.
   onSubmit: (payload: RequestFormPayload) => Promise<{ requestId?: string } | void>;
   submitLabel?: string;
@@ -270,13 +292,13 @@ interface RequestFormProps {
   onDraftSaved?: (draftId: number) => void;
   onDraftDeleted?: () => void;
   // Set by every edit-mode caller (the request already has a real id) —
-  // enables upload-to-Drive-immediately-on-pick. Omitted for create mode
-  // (/submit): a Drive folder is named after the real request_id (see
-  // CLAUDE.md-style note in app/api/upload-to-drive/route.ts), which
-  // doesn't exist until POST /api/requests succeeds, so picked files are
-  // held as plain File objects and only uploaded (then attached via a
-  // follow-up PATCH) once onSubmit resolves with a real id.
-  driveContext?: { requestId: string };
+  // enables upload-immediately-on-pick. Omitted for create mode (/submit):
+  // an attachment's storage path is namespaced by the real request_id (see
+  // app/api/upload/route.ts), which doesn't exist until POST /api/requests
+  // succeeds, so picked files are held as plain File objects and only
+  // uploaded (then attached via a follow-up PATCH) once onSubmit resolves
+  // with a real id.
+  uploadContext?: { requestId: string };
   // Called once the whole submit — including, in create mode, uploading
   // any picked files and attaching them — has fully succeeded. Only
   // /submit uses this (to navigate away); edit-mode callers already close
@@ -296,7 +318,7 @@ export default function RequestForm({
   draftId: initialDraftId = null,
   onDraftSaved,
   onDraftDeleted,
-  driveContext,
+  uploadContext,
   onComplete,
 }: RequestFormProps) {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
@@ -414,10 +436,11 @@ export default function RequestForm({
 
   // --- Attachments ---------------------------------------------------------
   const [filesFolderUrl, setFilesFolderUrl] = useState(initial?.filesFolderUrl ?? "");
-  // Already-uploaded files — real Drive-hosted entries (driveContext mode),
-  // or pre-existing base64 entries carried over from an existing request.
+  // Already-uploaded files — real Storage-hosted entries (uploadContext
+  // mode), or pre-existing base64/Drive entries carried over from an
+  // existing request.
   const [files, setFiles] = useState<FileEntry[]>(initial?.files ?? []);
-  // Create-mode only (no driveContext yet): files picked before the
+  // Create-mode only (no uploadContext yet): files picked before the
   // request exists, held as plain File objects until onSubmit resolves
   // with a real request_id — see handleSubmit below.
   const [pendingFiles, setPendingFiles] = useState<{ file: File; docType: string }[]>([]);
@@ -569,19 +592,19 @@ export default function RequestForm({
     });
     if (picked.length === 0) return;
 
-    if (driveContext) {
+    if (uploadContext) {
       // Edit mode — the request already has a real id, so upload straight
-      // to Drive now instead of waiting for submit.
-      setUploadStatus(`Uploading files to Drive... (0/${picked.length})`);
+      // to Storage now instead of waiting for submit.
+      setUploadStatus(`Uploading files... (0/${picked.length})`);
       for (let i = 0; i < picked.length; i++) {
         try {
-          const entry = await uploadFileEntry(picked[i], driveContext.requestId, budgetPeriod);
+          const entry = await uploadFileEntry(picked[i], uploadContext.requestId, budgetPeriod, "");
           setFiles((prev) => [...prev, entry]);
         } catch (err) {
           setAttachmentError(err instanceof Error ? err.message : `Failed to upload ${picked[i].name}`);
           break;
         }
-        setUploadStatus(`Uploading files to Drive... (${i + 1}/${picked.length})`);
+        setUploadStatus(`Uploading files... (${i + 1}/${picked.length})`);
       }
       setUploadStatus(null);
     } else {
@@ -763,22 +786,22 @@ export default function RequestForm({
 
       // Create mode only: the request now has a real id, so any files
       // picked before submission (see handleFiles above) can finally be
-      // uploaded to Drive and attached. Deviates from "upload before
-      // creating the request" — a Drive folder needs the real
+      // uploaded and attached. Deviates from "upload before creating the
+      // request" — the storage path is namespaced by the real
       // EXP-YYYY-MM-NNNNNN id, which Postgres only assigns as part of a
       // successful insert, so that literal ordering isn't achievable; this
       // is the closest equivalent (upload immediately once the id exists,
       // as the last step of the same submit action).
       const requestId = result?.requestId;
       if (requestId && pendingFiles.length > 0) {
-        setUploadStatus(`Uploading files to Drive... (0/${pendingFiles.length})`);
+        setUploadStatus(`Uploading files... (0/${pendingFiles.length})`);
         const uploaded: FileEntry[] = [...files];
         try {
           for (let i = 0; i < pendingFiles.length; i++) {
             const { file, docType } = pendingFiles[i];
-            const entry = await uploadFileEntry(file, requestId, budgetPeriod);
-            uploaded.push({ ...entry, doc_type: docType });
-            setUploadStatus(`Uploading files to Drive... (${i + 1}/${pendingFiles.length})`);
+            const entry = await uploadFileEntry(file, requestId, budgetPeriod, docType);
+            uploaded.push(entry);
+            setUploadStatus(`Uploading files... (${i + 1}/${pendingFiles.length})`);
           }
           const patchRes = await fetch(`/api/requests/${requestId}`, {
             method: "PATCH",
@@ -1639,11 +1662,16 @@ export default function RequestForm({
                   <option key={dt} value={dt}>{dt}</option>
                 ))}
               </select>
-              {file.url.includes("drive.google.com") && <span title="Stored in Google Drive">📁</span>}
               <a
                 href={file.url}
                 target="_blank"
                 rel="noreferrer"
+                onClick={(e) => {
+                  if (file.path) {
+                    e.preventDefault();
+                    openStoredFile(file);
+                  }
+                }}
                 className="flex-1 truncate text-brand-brown hover:underline"
               >
                 {file.name}

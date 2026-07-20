@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { resolveFileUrl } from "@/components/shared/RequestForm";
 import type { FileEntry } from "@/types/database";
 
 type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -88,6 +89,10 @@ function decodeImage(dataUrl: string): Promise<HTMLImageElement> {
 export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Falls back to file.url until resolved — only used for the "download
+  // separately" link shown alongside loadError, so a brief stale value
+  // before resolution finishes is harmless.
+  const [resolvedUrl, setResolvedUrl] = useState(file.url);
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
   const [numPages, setNumPages] = useState(1);
@@ -119,9 +124,12 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
 
   // Load the PDF. Fetched as a blob first rather than handed straight to
   // pdf.js — pdf.js's own range-request fetching can fail on files served
-  // with restrictive CORS headers (e.g. a Google Drive link, if this app's
-  // no-real-Drive-integration state ever changes), so this reads the whole
-  // file up front instead.
+  // with restrictive CORS headers, so this reads the whole file up front
+  // instead. `resolveFileUrl` re-signs the file's URL first when it has a
+  // `path` (private "attachments" bucket) — the stored `url` is only valid
+  // for 7 days from upload (see app/api/upload/route.ts), and signing can
+  // happen well after that (e.g. a request sitting at BO_APPROVED for a
+  // while before the CEO signs it).
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -129,7 +137,9 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
     (async () => {
       try {
         const pdfjsLib = await loadPdfjs();
-        const res = await fetch(file.url);
+        const url = await resolveFileUrl(file);
+        if (!cancelled) setResolvedUrl(url);
+        const res = await fetch(url);
         if (!res.ok) throw new Error("fetch failed");
         const buf = await res.arrayBuffer();
         const doc = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -412,7 +422,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         <p className="text-sm text-red-600">{loadError}</p>
         <div className="mt-2 flex gap-2">
           <a
-            href={file.url}
+            href={resolvedUrl}
             download={file.name}
             className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
           >
