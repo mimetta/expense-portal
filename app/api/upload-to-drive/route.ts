@@ -44,6 +44,36 @@ import { createRequestFolder, uploadFileToDrive, DriveAuthError } from "@/lib/go
 //    -gated) `drive` scope is used instead. This is a real product
 //    decision this repo can't make unilaterally — flagged for the user
 //    rather than silently swapping to the broader scope.
+// Best-effort diagnostic only — calls Google's own tokeninfo endpoint to
+// see what scopes are actually attached to this access token, since
+// Supabase's Session type has no `scope` field of its own for the
+// provider token (only `provider_token`/`provider_refresh_token`). Never
+// throws; a failure here just means one fewer log line, not a failed
+// upload.
+async function logTokenScopes(accessToken: string): Promise<void> {
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+    );
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.log("[upload-to-drive] tokeninfo check failed:", res.status, body);
+      return;
+    }
+    const scopes = typeof body.scope === "string" ? body.scope.split(" ") : [];
+    console.log(
+      "[upload-to-drive] token scopes:",
+      scopes,
+      "has drive.file:",
+      scopes.includes("https://www.googleapis.com/auth/drive.file"),
+      "expires_in:",
+      body.expires_in,
+    );
+  } catch (err) {
+    console.log("[upload-to-drive] tokeninfo check threw:", err);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     await requireUser();
@@ -53,9 +83,18 @@ export async function POST(request: Request) {
       data: { session },
     } = await supabase.auth.getSession();
     const accessToken = session?.provider_token;
+    console.log("[upload-to-drive] provider_token present:", !!accessToken);
     if (!accessToken) {
-      return NextResponse.json({ success: false, error: "reauth_required" }, { status: 401 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "reauth_required",
+          detail: "No provider_token on the current session — sign out and back in to grant Drive access.",
+        },
+        { status: 401 },
+      );
     }
+    await logTokenScopes(accessToken);
 
     const formData = await request.formData();
     const file = formData.get("file");
@@ -94,8 +133,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, url, fileId, fileName });
   } catch (err) {
     if (err instanceof DriveAuthError) {
-      return NextResponse.json({ success: false, error: "reauth_required" }, { status: 401 });
+      // `error: "reauth_required"` stays a stable sentinel the client
+      // already branches on (see RequestForm.tsx#uploadFileEntry) — but a
+      // 403 for "insufficient scope" and a 401 for "token expired" need
+      // very different fixes, so `detail` carries Google's actual message
+      // instead of collapsing both into the same generic client copy.
+      console.error("[upload-to-drive] DriveAuthError:", err.googleMessage);
+      return NextResponse.json(
+        { success: false, error: "reauth_required", detail: err.googleMessage },
+        { status: 401 },
+      );
     }
+    // handleApiError already logs the full error and returns err.message as
+    // `error` in the response — lib/google-drive.ts's throw sites now embed
+    // Google's actual response body in that message (see the console.error
+    // calls next to each throw there for the full, unclipped body too).
+    console.error("[upload-to-drive] upload failed:", err);
     return handleApiError(err);
   }
 }

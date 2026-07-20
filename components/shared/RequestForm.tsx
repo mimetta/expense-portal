@@ -112,12 +112,19 @@ async function uploadFileEntry(
   const res = await fetch("/api/upload-to-drive", { method: "POST", body: formData });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body.success) {
+    // Log the raw response too — the thrown Error's message is what the
+    // user sees (surfaced via attachmentError below), but the full body
+    // (code/details/hint on a 500, or Google's own message on a 401/403
+    // via `detail`) is worth having in the browser console while debugging.
+    console.error("[upload-to-drive] failed:", res.status, body);
     if (body.error === "reauth_required") {
+      const detail = body.detail ? ` Google said: "${body.detail}"` : "";
       throw new Error(
-        "Google Drive session expired. Please sign out and sign in again to re-authorize Drive access.",
+        `Google Drive access was rejected — sign out and sign in again to re-authorize Drive access.${detail}`,
       );
     }
-    throw new Error(body.error || `Failed to upload ${file.name}`);
+    const detail = [body.error, body.hint].filter(Boolean).join(" — ");
+    throw new Error(detail || `Failed to upload ${file.name} (HTTP ${res.status})`);
   }
   return { name: body.fileName ?? file.name, url: body.url, size: file.size, doc_type: "" };
 }
