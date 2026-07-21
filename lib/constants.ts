@@ -41,6 +41,7 @@ export const ROLES = [
   "PROCUREMENT",
   "PETTY_CASH_CUSTODIAN",
   "EMPLOYEE",
+  "DEPT_HEAD",
 ] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -52,6 +53,12 @@ export const STATUSES = [
   "PAID",
   "REJECTED",
   "EDIT_REQUESTED",
+  // Re-added for scripts/import-expensedb-requests.ts — 36 legacy rows'
+  // true historical status is EXPIRED (see migrations/014_reallow_expired_
+  // status.sql). Purely a terminal, inert historical status now: nothing in
+  // current app logic produces it (the old auto-expiry cron is gone), it
+  // only exists so those imported rows have a real status to display.
+  "EXPIRED",
 ] as const;
 export type Status = (typeof STATUSES)[number];
 

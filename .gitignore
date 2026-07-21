@@ -41,3 +41,7 @@ supabase/.branches
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# legacy data exports — never commit raw financial/PII data
+# (scripts/import-expensedb-requests.ts reads this locally)
+*.csv

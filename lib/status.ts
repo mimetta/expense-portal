@@ -31,7 +31,7 @@ export function isAccountingActionable(r: ExpenseRequest): boolean {
 }
 
 export function isTerminal(r: ExpenseRequest): boolean {
-  return r.status === "PAID" || r.status === "REJECTED";
+  return r.status === "PAID" || r.status === "REJECTED" || r.status === "EXPIRED";
 }
 
 export const STATUS_LABELS: Record<ExpenseRequest["status"], string> = {
@@ -42,6 +42,8 @@ export const STATUS_LABELS: Record<ExpenseRequest["status"], string> = {
   PAID: "Paid",
   REJECTED: "Rejected",
   EDIT_REQUESTED: "Edit Requested",
+  // Historical only — see lib/constants.ts#STATUSES.
+  EXPIRED: "Expired",
 };
 
 // Rejected requests can only be resubmitted within this window of
