@@ -17,6 +17,7 @@ import {
   getExpenseTypeConfig,
 } from "@/lib/constants";
 import { isBoActionable, isCeoActionable, isAccountingActionable, isOwnerEditable, needsProcurement } from "@/lib/status";
+import { canPettyCashActOnRequest } from "@/lib/permissions";
 import type { CompanyRow, ExpenseRequest, FileEntry, RequestItem, RoleRow, SupplierRow } from "@/types/database";
 
 const inputClass =
@@ -252,12 +253,26 @@ export default function RequestDetailModal({
   const isOwnerOfRequest = currentUser?.email === request.requester_email;
   const canOwnerEditNow = (isOwnerOfRequest || isSuperadminUser) && isOwnerEditable(request);
 
-  // Print view — Accounting stage and above (CEO_APPROVED/PAID), or any
-  // time for SUPERADMIN/ACCOUNTING.
+  // Print view — Accounting stage and above (CEO_APPROVED/PAID), any time
+  // for SUPERADMIN/ACCOUNTING, or the request's own owner/petty cash
+  // holder at any status (previously the owner had no way to print their
+  // own request until it reached CEO_APPROVED, even though it's theirs).
+  // canPettyCashActOnRequest expects a full CurrentUser (email/name/
+  // allRoles/chapter) and doesn't null-guard internally — this component's
+  // local `currentUser` state only carries email/allRoles (see GET
+  // /api/roles/me's field whitelist), so it's null-checked here first and
+  // padded with placeholder name/chapter values the function never reads.
   const hasAccountingRole = currentUser?.allRoles.some((r) => r.role === "ACCOUNTING") ?? false;
+  const isPettyCashHolderForRequest =
+    !!currentUser && canPettyCashActOnRequest({ ...currentUser, name: "", chapter: null }, request);
   const canPrint =
     PRINTABLE_EXPENSE_TYPES.includes(request.expense_type) &&
-    (isSuperadminUser || hasAccountingRole || request.status === "CEO_APPROVED" || request.status === "PAID");
+    (isSuperadminUser ||
+      hasAccountingRole ||
+      isOwnerOfRequest ||
+      isPettyCashHolderForRequest ||
+      request.status === "CEO_APPROVED" ||
+      request.status === "PAID");
 
   const filteredSuppliers = useMemo(() => {
     const q = payment.supplier_name.trim().toLowerCase();
@@ -476,6 +491,28 @@ export default function RequestDetailModal({
               _SIGNED
             </div>
           )}
+
+          {/* Purely informational — lets the requester know up front (from
+              the moment of submission) that a CEO signature will eventually
+              be required, without implying it's actionable yet. Deliberately
+              excludes BO_APPROVED/PO_UPLOADED, where the actionable blue
+              banner above already covers this — the two never show together. */}
+          {request.ceo_signature_required &&
+            request.status !== "BO_APPROVED" &&
+            request.status !== "PO_UPLOADED" && (
+              <div
+                className="text-xs text-brand-muted"
+                style={{
+                  background: "#F9F8F6",
+                  borderLeft: "3px solid #93C5FD",
+                  padding: "8px 12px",
+                  marginBottom: 16,
+                }}
+              >
+                ℹ️ คำขอนี้ต้องมีลายเซ็น CEO ก่อนการจ่ายเงิน (This request will require a CEO
+                signature before payment)
+              </div>
+            )}
 
           {/* Request Info */}
           <section>
