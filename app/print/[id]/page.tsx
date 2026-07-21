@@ -24,7 +24,7 @@ function SignatureBoxView({
   name: string | null;
   files: FileEntry[];
   boxKey: SignatureBox;
-  onSigned: (entry: FileEntry) => Promise<void>;
+  onSigned: (entry: FileEntry, box: SignatureBox) => Promise<void>;
 }) {
   const [signing, setSigning] = useState(false);
   const signature = findSignature(files, boxKey);
@@ -54,7 +54,7 @@ function SignatureBoxView({
         <PrintSignaturePad
           boxKey={boxKey}
           onSaved={async (entry) => {
-            await onSigned(entry);
+            await onSigned(entry, boxKey);
             setSigning(false);
           }}
         />
@@ -96,13 +96,13 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
       });
   }, [request?.use_for_company]);
 
-  const attachSignature = async (entry: FileEntry) => {
+  const attachSignature = async (entry: FileEntry, box: SignatureBox) => {
     if (!request) return;
     const nextFiles = [...request.files_json, entry];
     const res = await fetch(`/api/requests/${request.request_id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attach_signature: true, files_json: nextFiles }),
+      body: JSON.stringify({ attach_print_signature: true, box, files_json: nextFiles }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
