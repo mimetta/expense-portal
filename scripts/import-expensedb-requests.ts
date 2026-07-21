@@ -749,7 +749,12 @@ async function main(): Promise<void> {
   }
 
   // Advance request_id_seq past every imported month's max sequence.
-  for (const [ym, maxSeq] of maxSeqByMonth) {
+  // Array.from(...) avoids requiring --downlevelIteration for a Map
+  // iterator under this repo's tsconfig target — a plain `for...of` over
+  // the Map directly fails `next build`'s type-check (this file is inside
+  // tsconfig's broad **/*.ts include, so it gates the whole app's build
+  // even though it's a standalone script never imported by the app).
+  for (const [ym, maxSeq] of Array.from(maxSeqByMonth)) {
     const { data: existing, error: selError } = await admin
       .from("request_id_seq")
       .select("last_seq")
