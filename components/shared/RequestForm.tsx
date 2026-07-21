@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import RequiredMark from "@/components/shared/RequiredMark";
+import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
   BANK_OPTIONS,
   CARD_TYPES,
@@ -91,36 +92,64 @@ function creditDeadlineMessage(): string {
   return "⚠️ เลยกำหนดส่งเอกสารวันที่ 15 แล้ว กรุณาติดต่อฝ่ายบัญชี";
 }
 
-// Uploads one picked File to the private "attachments" Supabase Storage
-// bucket (see app/api/upload/route.ts) and returns the resulting
-// FileEntry — replaces the old fileToEntry() base64 conversion for every
-// new pick, and the Google Drive upload that briefly replaced that.
-// Historical requests may still carry base64 `data:` URLs (from before
-// either upload feature) or drive.google.com URLs (from the Drive-based
-// build); both are left as-is, not migrated.
+// Uploads one picked File directly from the browser to the private
+// "attachments" Supabase Storage bucket, via a signed upload URL/token
+// minted by POST /api/upload/signed-upload-url — the file bytes never pass
+// through a Vercel serverless function, only the small JSON token
+// request/response does. Replaces the old fileToEntry() base64 conversion,
+// the Google Drive upload that briefly replaced that, and then the
+// FormData-through-POST-/api/upload proxy that replaced Drive — that
+// proxy route is still in place (see app/api/upload/route.ts) but no
+// longer called from here, because it relayed the whole file through the
+// function and silently 413'd on anything over Vercel's ~4.5MB request
+// body limit. Historical requests may still carry base64 `data:` URLs
+// (from before any Storage-based upload existed) or drive.google.com URLs
+// (from the Drive-based build); both are left as-is, not migrated.
 async function uploadFileEntry(
   file: File,
   requestId: string,
   budgetPeriod: string,
   documentType: string,
 ): Promise<FileEntry> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("requestId", requestId);
-  formData.append("budgetPeriod", budgetPeriod);
-  formData.append("documentType", documentType);
-
-  const res = await fetch("/api/upload", { method: "POST", body: formData });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body.success) {
-    console.error("[upload] failed:", res.status, body);
-    const detail = [body.error, body.hint].filter(Boolean).join(" — ");
-    throw new Error(detail || `Failed to upload ${file.name} (HTTP ${res.status})`);
+  const tokenRes = await fetch("/api/upload/signed-upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      requestId,
+      budgetPeriod,
+      documentType,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+    }),
+  });
+  const tokenBody = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenBody.success) {
+    console.error("[upload] failed to get signed upload URL:", tokenRes.status, tokenBody);
+    const detail = [tokenBody.error, tokenBody.hint].filter(Boolean).join(" — ");
+    throw new Error(detail || `Failed to prepare upload for ${file.name} (HTTP ${tokenRes.status})`);
   }
+  const { path, token } = tokenBody as { path: string; token: string };
+
+  const supabase = createBrowserSupabaseClient();
+  const { error: uploadError } = await supabase.storage
+    .from("attachments")
+    .uploadToSignedUrl(path, token, file, { contentType: file.type || "application/octet-stream" });
+  if (uploadError) {
+    console.error("[upload] direct-to-storage upload failed:", uploadError);
+    throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+  }
+
+  // uploadToSignedUrl only returns { path, fullPath } — no readable URL —
+  // so mint the initial one through the same route every later re-open
+  // already uses (GET /api/upload/signed-url), rather than adding a
+  // second URL-minting path just for this first read.
+  const url = await resolveFileUrl({ name: file.name, url: "", path, size: file.size, doc_type: documentType });
+
   return {
-    name: body.fileName ?? file.name,
-    url: body.url,
-    path: body.path,
+    name: file.name,
+    url,
+    path,
     size: file.size,
     doc_type: documentType,
   };
