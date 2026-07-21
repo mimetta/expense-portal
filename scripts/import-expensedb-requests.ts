@@ -557,7 +557,11 @@ function mapRow(
     pay_method: s(row.pay_method),
     bank_name: s(row.bank_name),
     card_type: s(row.card_type),
-    pay_ref: s(row.pay_ref),
+    // The legacy GAS system's pay_ref column actually holds the bank
+    // account number (confirmed by Darling), not this schema's separate
+    // pay_ref concept — account_no is the correct target. pay_ref stays
+    // null/unset for every imported row rather than getting this value.
+    account_no: s(row.pay_ref),
     credit_term_days: intOrNull(row.credit_term_days),
     due_date: parseUsDate(row.due_date),
     status,
