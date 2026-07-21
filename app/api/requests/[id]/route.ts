@@ -2,13 +2,21 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { canViewRequest, hasRole, isSuperadmin, visibleRejectionHistory } from "@/lib/permissions";
+import {
+  canBoActOnRequest,
+  canPettyCashActOnRequest,
+  canViewRequest,
+  hasRole,
+  isSuperadmin,
+  visibleRejectionHistory,
+} from "@/lib/permissions";
 import { isBoActionable, isCeoActionable, isEditApproved, isOwnerEditable } from "@/lib/status";
 import { getRequestOrThrow, updateRequest } from "@/lib/request-repo";
 import { computeTotals } from "@/lib/totals";
 import { logAudit } from "@/lib/audit";
 import { notify, type NotificationEvent } from "@/lib/discord";
 import { buildEditableFields, resubmitRequest, type EditableRequestBody } from "@/lib/resubmit";
+import { PETTY_CASH_LABEL } from "@/lib/constants";
 import type { ExpenseRequest, FileEntry, RequestItem } from "@/types/database";
 
 // status_before_edit is always one of these three — canRequestEdit
@@ -120,7 +128,7 @@ function buildProcurementPatch(body: ProcurementEditBody, existing: ExpenseReque
   };
 }
 
-// Six things happen through this single endpoint, mutually exclusive by
+// Seven things happen through this single endpoint, mutually exclusive by
 // status/body shape:
 //   1. { resubmit: true, ...editable fields }  — REJECTED only, steps the
 //      status back one stage (see lib/resubmit.ts). Requester or SUPERADMIN.
@@ -128,6 +136,16 @@ function buildProcurementPatch(body: ProcurementEditBody, existing: ExpenseReque
 //      signed PDF (already rendered/stamped/uploaded to Storage client-side
 //      — see components/shared/PDFSigner.tsx) during their own actionable
 //      stage. Only files_json changes.
+//   2b. { attach_print_signature: true, box, files_json } — a distinct,
+//      narrower sibling of #2 for app/print/[id]/page.tsx's three canvas
+//      signature boxes (Requester/Approver/Accounting, a different feature
+//      from #2's BO/CEO PDF signing — see components/shared/
+//      PrintSignaturePad.tsx). Authorized per box: requester (owner or
+//      SUPERADMIN), approver (petty cash holder on a Petty Cash request via
+//      canPettyCashActOnRequest, else any in-scope BO via
+//      canBoActOnRequest), accounting (ACCOUNTING role or SUPERADMIN). Only
+//      files_json changes. Logged as PRINT_SIGNATURE_ATTACHED, kept
+//      distinct from #2's SIGNATURE_ATTACHED.
 //   3. { owner_edit: true, ...editable fields } — requester freely editing
 //      their own request's full content while it's still untouched by
 //      Procurement (see lib/status.ts#isOwnerEditable: SUBMITTED and no
@@ -170,6 +188,8 @@ export async function PATCH(
       ProcurementEditBody & {
         resubmit?: boolean;
         attach_signature?: boolean;
+        attach_print_signature?: boolean;
+        box?: "requester" | "approver" | "accounting";
         owner_edit?: boolean;
         edit_resubmit?: boolean;
         files_json?: FileEntry[];
@@ -194,6 +214,49 @@ export async function PATCH(
       }
       const updated = await updateRequest(admin, id, { files_json: body.files_json });
       await logAudit(user.email, id, "SIGNATURE_ATTACHED", {});
+      return NextResponse.json({ request: updated });
+    }
+
+    // Separate branch for app/print/[id]/page.tsx's three canvas signature
+    // boxes (Requester / Approver / Accounting via
+    // components/shared/PrintSignaturePad.tsx) — a different feature from
+    // the attach_signature branch above (BO/CEO PDF-signing), which this
+    // was previously (incorrectly) wired to reuse, rejecting the very
+    // people each box represents (e.g. the requester signing their own
+    // Requester box). Kept as its own flag/branch rather than folding into
+    // attach_signature's canSign so that branch's BO/CEO gating stays
+    // untouched. Same files_json-only update pattern; only who's allowed
+    // to write differs, per box:
+    //   - requester: the request's own owner, or SUPERADMIN.
+    //   - approver: on a Petty Cash request, the assigned petty cash
+    //     holder (canPettyCashActOnRequest — already handles SUPERADMIN);
+    //     otherwise (this is the BO approver box — see approverLabel/
+    //     approverName in app/print/[id]/page.tsx) any BO whose scope
+    //     covers the request (canBoActOnRequest — also already handles
+    //     SUPERADMIN).
+    //   - accounting: ACCOUNTING role, or SUPERADMIN.
+    if (body.attach_print_signature === true) {
+      if (body.box !== "requester" && body.box !== "approver" && body.box !== "accounting") {
+        return NextResponse.json(
+          { error: 'box must be one of "requester", "approver", or "accounting"' },
+          { status: 400 },
+        );
+      }
+      const isPettyCashRequest = existing.expense_type === PETTY_CASH_LABEL;
+      const canSignBox =
+        body.box === "requester"
+          ? existing.requester_email === user.email || isSuperadmin(user)
+          : body.box === "approver"
+            ? isPettyCashRequest
+              ? canPettyCashActOnRequest(user, existing)
+              : canBoActOnRequest(user, existing)
+            : hasRole(user, "ACCOUNTING") || isSuperadmin(user);
+      if (!canSignBox) throw new ForbiddenError();
+      if (!Array.isArray(body.files_json)) {
+        return NextResponse.json({ error: "files_json array is required" }, { status: 400 });
+      }
+      const updated = await updateRequest(admin, id, { files_json: body.files_json });
+      await logAudit(user.email, id, "PRINT_SIGNATURE_ATTACHED", { box: body.box });
       return NextResponse.json({ request: updated });
     }
 
