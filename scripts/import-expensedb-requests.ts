@@ -319,10 +319,22 @@ function s(v: string | undefined): string | null {
   return t === "" ? null : t;
 }
 
+// The legacy sheet formats larger numbers with comma thousands-separators
+// (e.g. "4,500.00", "32,000.00"). Number()/parseInt() don't understand
+// those: Number("4,500.00") is NaN (silently falling back to 0 below —
+// this is exactly the bug that zeroed out amount_net/total/vat_amount/
+// wht_amount on ~410 of 825 rows in the first import run), and
+// parseInt("4,500", 10) stops at the first comma and returns 4. Every
+// numeric field needs commas stripped before parsing, not just the ones
+// that happened to be large enough to need this in practice so far.
+function stripThousandsSeparators(v: string): string {
+  return v.replace(/,/g, "");
+}
+
 function num(v: string | undefined, fallback = 0): number {
   const t = (v ?? "").trim();
   if (t === "") return fallback;
-  const n = Number(t);
+  const n = Number(stripThousandsSeparators(t));
   return Number.isFinite(n) ? n : fallback;
 }
 
@@ -333,10 +345,15 @@ function bool(v: string | undefined): boolean | null {
   return null;
 }
 
+// credit_term_days/resubmit_count realistically never reach four digits,
+// so this was never observed to misfire in practice — fixed anyway for
+// consistency with num() above, on the same underlying data (a legacy
+// export that formats every number this way, not just the ones that
+// happened to be large enough to trigger a visible bug).
 function intOrNull(v: string | undefined): number | null {
   const t = (v ?? "").trim();
   if (t === "") return null;
-  const n = parseInt(t, 10);
+  const n = parseInt(stripThousandsSeparators(t), 10);
   return Number.isFinite(n) ? n : null;
 }
 
