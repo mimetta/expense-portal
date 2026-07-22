@@ -441,12 +441,16 @@ export default function RequestForm({
   );
 
   // requests.department (dept_config matching / BO scope filtering) is
-  // populated from the first item's segment when items span more than one
-  // — same "first item wins" convention already used for cat_l1/cat_l2 in
-  // mixed-category multi-item requests (see CLAUDE.md "Multi-Item
-  // Requests"). Also drives the top-level Product/Branch field below for
-  // non-Petty-Cash Retail/R&D requests, since that field is still a single
-  // top-level value, not per-item.
+  // populated from the first item's segment — same "first item wins"
+  // convention already used for cat_l1/cat_l2 in mixed-category multi-item
+  // requests (see CLAUDE.md "Multi-Item Requests"). For non-Petty-Cash
+  // expense types every item is now locked to share item 1's Segment (see
+  // the Segment <select> in the Expense Items table below), so this is
+  // simply "the request's one Segment" in that case — Petty Cash is the
+  // only expense type where items can still genuinely differ. Also drives
+  // the top-level Product/Branch field (rendered inside the Expense Items
+  // box, above the item rows) for non-Petty-Cash Retail/R&D requests, since
+  // that field is still a single top-level value, not per-item.
   const primarySegment = items[0]?.segment || "";
 
   // --- Payment Details ---------------------------------------------------------
@@ -1069,39 +1073,6 @@ export default function RequestForm({
             required
           />
         </div>
-
-        {!isPettyCash && primarySegment === "R&D" && (
-          <div className="mt-4">
-            <label className={labelClass}>Product (optional)</label>
-            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
-              <option value="">-</option>
-              {productOptionsFor("R&D").map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            {productOptionsFor("R&D").length === 0 && (
-              <p className="mt-1 text-xs text-brand-subtle">
-                No R&amp;D products yet — add them in Settings &gt; Product/SKU Management.
-              </p>
-            )}
-          </div>
-        )}
-        {!isPettyCash && primarySegment === "Retail" && (
-          <div className="mt-4">
-            <label className={labelClass}>Branch (optional)</label>
-            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
-              <option value="">-</option>
-              {productOptionsFor("Retail").map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            {productOptionsFor("Retail").length === 0 && (
-              <p className="mt-1 text-xs text-brand-subtle">
-                No branches yet — add them in Settings &gt; Product/SKU Management (Segment = Retail).
-              </p>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ===================== PO Required ===================== */}
@@ -1137,13 +1108,61 @@ export default function RequestForm({
           <span>Expense Items</span>
           <button
             type="button"
-            onClick={() => setItems((prev) => [...prev, emptyItem()])}
+            onClick={() =>
+              setItems((prev) => [
+                ...prev,
+                // Non-Petty-Cash: every item must share item 1's Segment
+                // (see the Segment <select> below), so a newly added row
+                // starts pre-filled with it instead of blank. Petty Cash
+                // keeps its existing free-mixing — new rows start blank.
+                isPettyCash ? emptyItem() : { ...emptyItem(), segment: prev[0]?.segment || "" },
+              ])
+            }
             className="mm-btn-secondary mm-btn-sm normal-case tracking-normal text-brand-brown"
           >
             + Add Expense Item
           </button>
         </div>
         <div className="mb-4 mt-3 border-b border-[#F0EAE0]" />
+
+        {!isPettyCash && primarySegment === "R&D" && (
+          <div className="mb-3 max-w-xs">
+            <label className={labelClass}>Product (optional)</label>
+            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
+              <option value="">-</option>
+              {productOptionsFor("R&D").map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            {productOptionsFor("R&D").length === 0 && (
+              <p className="mt-1 text-xs text-brand-subtle">
+                No R&amp;D products yet — add them in Settings &gt; Product/SKU Management.
+              </p>
+            )}
+          </div>
+        )}
+        {!isPettyCash && primarySegment === "Retail" && (
+          <div className="mb-3 max-w-xs">
+            <label className={labelClass}>Branch (optional)</label>
+            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
+              <option value="">-</option>
+              {productOptionsFor("Retail").map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            {productOptionsFor("Retail").length === 0 && (
+              <p className="mt-1 text-xs text-brand-subtle">
+                No branches yet — add them in Settings &gt; Product/SKU Management (Segment = Retail).
+              </p>
+            )}
+          </div>
+        )}
+
+        {!isPettyCash && (
+          <p className="mb-3 text-xs text-brand-subtle">
+            All items in a request must use the same Segment — submit a separate request for a different Segment.
+          </p>
+        )}
 
         <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] px-3 py-2 text-xs text-brand-dark">
           Amount is optional — Procurement จะกรอกเพิ่มตอนอัปโหลด PO | Category L1 และ Description จำเป็นต้องกรอก
@@ -1201,10 +1220,23 @@ export default function RequestForm({
                       <select
                         className={`${cellClass} w-full`}
                         value={item.segment ?? ""}
-                        onChange={(e) =>
-                          updateItem(idx, { segment: e.target.value, cat_l1: "", cat_l2: "" })
-                        }
-                        disabled={departmentOptions === null}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (isPettyCash) {
+                            updateItem(idx, { segment: value, cat_l1: "", cat_l2: "" });
+                          } else {
+                            // Non-Petty-Cash: only item 1's select reaches
+                            // here (rows after it are disabled below) — it's
+                            // the single source of truth for every item's
+                            // Segment, so broadcast the change and reset
+                            // every item's now-possibly-invalid category
+                            // selections (categories are segment-scoped).
+                            setItems((prev) =>
+                              prev.map((it) => ({ ...it, segment: value, cat_l1: "", cat_l2: "" })),
+                            );
+                          }
+                        }}
+                        disabled={departmentOptions === null || (!isPettyCash && idx > 0)}
                         required
                       >
                         <option value="">Select...</option>
