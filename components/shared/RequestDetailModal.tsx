@@ -542,13 +542,23 @@ export default function RequestDetailModal({
                   <Field label="Urgent Reason">{request.urgent_reason}</Field>
                 </div>
               )}
-              {request.product && <Field label={branchLabel}>{request.product}</Field>}
             </div>
           </section>
 
           {/* Expense Items */}
           <section>
             <h3 className="mm-section-label">Expense Items</h3>
+            {/* Top-level Product/Branch (non-Petty-Cash Retail/R&D requests
+                only — matches RequestForm.tsx's relocation of the same
+                field into this box). request.product is only ever set for
+                this single-value case; Petty Cash's per-item equivalent
+                lives in the table below instead (hasItemProductColumn). */}
+            {request.product && (
+              <p className="mb-2 text-xs text-brand-dark">
+                <span className="text-brand-subtle">{branchLabel}: </span>
+                {request.product}
+              </p>
+            )}
             <div className="overflow-x-auto rounded-md border border-brand-border">
               <table className="w-full text-xs">
                 <thead className="bg-[#F9F8F6] text-left text-brand-dark">
