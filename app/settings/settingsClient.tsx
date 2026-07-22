@@ -1093,7 +1093,7 @@ function ProductTab() {
                 <th className="px-3 py-2">SKU Code</th>
                 <th className="px-3 py-2">Product Name</th>
                 <th className="px-3 py-2">Segment</th>
-                <th className="px-3 py-2">BU</th>
+                <th className="px-3 py-2">Company</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
@@ -1155,7 +1155,7 @@ function ProductTab() {
               </select>
             </div>
             <div>
-              <label className={labelClass}>Business Unit</label>
+              <label className={labelClass}>Company</label>
               <select
                 className={`${inputClass} w-full`}
                 value={form.bu}
@@ -1481,7 +1481,7 @@ function CategoryTab() {
           <table className="mm-table">
             <thead className="bg-[#F9F8F6] text-left text-brand-dark">
               <tr>
-                <th className="px-3 py-2">BU</th>
+                <th className="px-3 py-2">Company</th>
                 <th className="px-3 py-2">Segment</th>
                 <th className="px-3 py-2">Cat L1</th>
                 <th className="px-3 py-2">Cat L2</th>
@@ -1520,7 +1520,7 @@ function CategoryTab() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>BU<RequiredMark /></label>
+                <label className={labelClass}>Company<RequiredMark /></label>
                 <select
                   className={`${inputClass} w-full`}
                   value={form.bu}
