@@ -535,13 +535,19 @@ export default function RequestForm({
   // same convention as dept_config and BO role scopes elsewhere in the app.
   // Segment now lives per item row (not a single top-level value), so this
   // takes the row's own segment instead of closing over one shared value.
+  // Filtered against useForCompany (which company entity this expense is
+  // actually for), not bu (the requester's own BU scope, purely
+  // informational about who's submitting) — categories/products belong to
+  // a company entity, not to whichever BU the requester happens to be
+  // scoped to. companies.bu and categories.bu/products.bu share the same
+  // value domain (see companies.find((c) => c.bu === useForCompany) above).
   const catL1OptionsFor = (segment: string | undefined) =>
     Array.from(
       new Set(
         categories
           .filter(
             (c) =>
-              (c.bu === "*" || c.bu === bu) &&
+              (c.bu === "*" || c.bu === useForCompany) &&
               (c.department === "*" || c.department === segment) &&
               c.cat_l1,
           )
@@ -555,7 +561,7 @@ export default function RequestForm({
         categories
           .filter(
             (c) =>
-              (c.bu === "*" || c.bu === bu) &&
+              (c.bu === "*" || c.bu === useForCompany) &&
               (c.department === "*" || c.department === segment) &&
               (!cat_l1 || c.cat_l1 === cat_l1) &&
               c.cat_l2,
@@ -568,7 +574,7 @@ export default function RequestForm({
     Array.from(
       new Set(
         products
-          .filter((p) => p.department === dept && (!p.bu || p.bu === bu))
+          .filter((p) => p.department === dept && (!p.bu || p.bu === useForCompany))
           .map((p) => p.product_name),
       ),
     );
