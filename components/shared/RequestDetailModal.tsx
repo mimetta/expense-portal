@@ -296,6 +296,7 @@ export default function RequestDetailModal({
       pay_method: match?.payment_method || p.pay_method,
       bank_name: match?.bank_name || p.bank_name,
       account_no: match?.account_no || p.account_no,
+      slip_receiver_email: match?.email || p.slip_receiver_email,
     }));
   };
 

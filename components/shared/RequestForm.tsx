@@ -608,6 +608,7 @@ export default function RequestForm({
       if (match.payment_method) setPayMethod(match.payment_method);
       if (match.bank_name) setBankName(match.bank_name);
       if (match.account_no) setAccountNo(match.account_no);
+      if (match.email) setSlipReceiverEmail(match.email);
     }
   };
 

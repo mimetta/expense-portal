@@ -1,0 +1,16 @@
+-- Adds an optional email column to suppliers, used to autofill Slip
+-- Payment Receiver when a supplier is selected on /submit and in
+-- RequestDetailModal's Procurement-editable view. Self-contained/
+-- idempotent, same pattern as every other additive migration in this
+-- project (e.g. 007_roles_update.sql, 011_chapter.sql).
+--
+-- Numbered 015, not 016 — the next migration after 014 on main is 015;
+-- there is no 015 already on this branch (a "budget_cashflow" migration
+-- with that number exists only in an uncommitted, unmerged local
+-- worktree, never landed on main).
+--
+-- Not on a required-on-every-load auth path (unlike roles/chapter), so no
+-- heavier fallback pattern is needed here — GET /api/suppliers and the
+-- POST/PATCH bodies just catch Postgrest's 42703 ("column does not
+-- exist") and degrade gracefully until this is applied.
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS email TEXT;
