@@ -217,6 +217,7 @@ export const TRAVEL_BY_OPTIONS = [
   "รถยนต์/จักรยานยนต์ส่วนตัว",
   "รถสาธารณะ (BTS/MRT/Bus)",
   "Grab/Taxi",
+  "ค่าทางด่วน/ค่าที่จอด",
 ] as const;
 export type TravelBy = (typeof TRAVEL_BY_OPTIONS)[number];
 
@@ -227,6 +228,7 @@ export const TRAVEL_REQUIRED_DOCS: Record<TravelBy, string[]> = {
   "รถยนต์/จักรยานยนต์ส่วนตัว": ["ภาพถ่ายเลขไมล์", "ระยะทางใน Google Maps"],
   "รถสาธารณะ (BTS/MRT/Bus)": ["ใบเสร็จรับเงิน หรือ สลิปเติมเงิน หรือ ประวัติการเดินทางจากแอป"],
   "Grab/Taxi": ["ใบเสร็จรับเงินอิเล็กทรอนิกส์ (E-Receipt)"],
+  "ค่าทางด่วน/ค่าที่จอด": ["ใบเสร็จรับเงิน"],
 };
 
 // Homepage calendar (see CLAUDE.md "Homepage Calendar") — not a DB CHECK
