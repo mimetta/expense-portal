@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   requireUser,
-  ForbiddenError,
   LEGACY_ROLE_COLUMNS,
   MID_ROLE_COLUMNS,
   ROLE_COLUMNS,
@@ -9,7 +8,7 @@ import {
 } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 import { isAllowedDomain } from "@/lib/domain";
 import { ROLES, type Role } from "@/lib/constants";
 
@@ -79,7 +78,7 @@ interface CreateRoleBody {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "users");
 
     const body = (await request.json()) as CreateRoleBody;
     if (!body.email || !isAllowedDomain(body.email)) {

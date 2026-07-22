@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { hasAnyRole } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
 const TABLE_NOT_FOUND = "PGRST205";
 
@@ -18,7 +18,12 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const all = searchParams.get("all") === "1";
-    if (all && !hasAnyRole(user, ["SUPERADMIN", "ACCOUNTING"])) throw new ForbiddenError();
+    // Settings > Petty Cash Custodians' management table always requests
+    // ?all=1 (see settingsClient.tsx) — routed through requireSettingsTabRole
+    // for the same reason as announcements' wantsAll: a role newly granted
+    // the "pettycash" tab via Settings > Permissions needs this GET to
+    // actually work, not just the mutations below.
+    if (all) await requireSettingsTabRole(user, "pettycash");
 
     const admin = createAdminClient();
     let query = admin.from("petty_cash_custodians").select("*").order("name", { ascending: true });
@@ -49,7 +54,7 @@ interface CreateCustodianBody {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!hasAnyRole(user, ["SUPERADMIN", "ACCOUNTING"])) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "pettycash");
 
     const body = (await request.json()) as CreateCustodianBody;
     if (!body.name?.trim() || !body.email?.trim() || !body.company?.trim() || !body.segment?.trim()) {

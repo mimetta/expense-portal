@@ -73,7 +73,17 @@ export type SettingsTab =
   | "deptconfig"
   | "announcements"
   | "pettycash"
-  | "companies";
+  | "companies"
+  | "permissions";
+
+// The 8 tabs whose access is governed by the DB-backed
+// settings_tab_permissions table (edited via the "permissions" tab itself).
+// "permissions" is deliberately excluded from this type — SUPERADMIN-only,
+// hardcoded below, not configurable through itself (a deliberate, permanent
+// exception to avoid a self-referential lockout or privilege-escalation
+// risk) — so it has no entry in DEFAULT_SETTINGS_TAB_ROLES/the DB table and
+// can never be passed to requireSettingsTabRole (lib/settings-permissions.ts).
+export type ManagedSettingsTab = Exclude<SettingsTab, "permissions">;
 
 export const SETTINGS_TABS: SettingsTab[] = [
   "suppliers",
@@ -84,11 +94,22 @@ export const SETTINGS_TABS: SettingsTab[] = [
   "announcements",
   "pettycash",
   "companies",
+  "permissions",
 ];
 
-// SUPERADMIN is deliberately omitted from each list — canAccessSettingsTab
-// grants it unconditionally below, same convention as canAccessPage.
-const SETTINGS_TAB_ROLES: Record<SettingsTab, Role[]> = {
+export const MANAGED_SETTINGS_TABS: ManagedSettingsTab[] = SETTINGS_TABS.filter(
+  (t): t is ManagedSettingsTab => t !== "permissions",
+);
+
+// Fallback default when the settings_tab_permissions table doesn't exist
+// yet (migration 016 not applied) or hasn't been fetched — see
+// lib/settings-permissions.ts#getSettingsTabPermissions. Kept byte-for-byte
+// identical to the original hardcoded SETTINGS_TAB_ROLES values so today's
+// behavior is exactly what callers fall back to, not a separate "safe
+// default." SUPERADMIN is deliberately omitted from each list —
+// canAccessSettingsTab grants it unconditionally below, same convention as
+// canAccessPage.
+export const DEFAULT_SETTINGS_TAB_ROLES: Record<ManagedSettingsTab, Role[]> = {
   suppliers: ["ACCOUNTING", "PROCUREMENT"],
   users: [],
   products: ["PROCUREMENT"],
@@ -99,10 +120,20 @@ const SETTINGS_TAB_ROLES: Record<SettingsTab, Role[]> = {
   companies: [],
 };
 
-export function canAccessSettingsTab(user: CurrentUser, tab: SettingsTab): boolean {
+// `config` is the live settings_tab_permissions data (fetched server-side
+// via lib/settings-permissions.ts, or client-side via
+// GET /api/settings-permissions) — defaults to the hardcoded fallback above
+// so every existing call site keeps working unchanged if a caller doesn't
+// have it fetched yet (e.g. still loading client-side).
+export function canAccessSettingsTab(
+  user: CurrentUser,
+  tab: SettingsTab,
+  config: Record<ManagedSettingsTab, Role[]> = DEFAULT_SETTINGS_TAB_ROLES,
+): boolean {
   if (isSuperadmin(user)) return true;
-  if (tab === "products") return canManageProducts(user);
-  return hasAnyRole(user, SETTINGS_TAB_ROLES[tab]);
+  if (tab === "permissions") return false;
+  if (tab === "products") return canManageProducts(user, config);
+  return hasAnyRole(user, config[tab]);
 }
 
 // A DEPT_HEAD scoped to R&D also gets Product/SKU Management access —
@@ -112,14 +143,23 @@ export function canAccessSettingsTab(user: CurrentUser, tab: SettingsTab): boole
 // dept_scope/cat_l1_scope, see below), so this reuses that existing scope
 // mechanism rather than adding a new role or a bespoke scope concept just
 // for this one tab. Single source of truth shared by canAccessSettingsTab
-// (tab visibility) and the products API routes (POST/PATCH/DELETE), so the
-// two can't drift apart.
-export function canManageProducts(user: CurrentUser): boolean {
+// (tab visibility) and the products API routes (POST/PATCH/DELETE, via
+// lib/settings-permissions.ts#requireSettingsTabRole), so the two can't
+// drift apart. This scope-based carve-out is deliberately NOT toggleable
+// through the new Permissions tab — it predates and sits alongside the
+// DB-backed role list (config.products), not inside it; granting DEPT_HEAD
+// broadly via the Permissions tab would widen this to every DEPT_HEAD
+// regardless of dept_scope, a different, coarser grant than this specific
+// R&D carve-out.
+export function canManageProducts(
+  user: CurrentUser,
+  config: Record<ManagedSettingsTab, Role[]> = DEFAULT_SETTINGS_TAB_ROLES,
+): boolean {
   if (isSuperadmin(user)) return true;
   if (rolesOf(user, "DEPT_HEAD").some((scope) => scopeMatches(scope.dept_scope, "R&D"))) {
     return true;
   }
-  return hasRole(user, "PROCUREMENT");
+  return hasAnyRole(user, config.products);
 }
 
 // First tab (in SETTINGS_TABS order) this user can actually see — used to
@@ -127,8 +167,11 @@ export function canManageProducts(user: CurrentUser): boolean {
 // can access /settings at all (canAccessPage) but hold no role that grants
 // any individual tab (e.g. a BO-only user — BO isn't listed for any tab
 // above; the page shows an empty state rather than looping on a redirect).
-export function firstAccessibleSettingsTab(user: CurrentUser): SettingsTab | null {
-  return SETTINGS_TABS.find((tab) => canAccessSettingsTab(user, tab)) ?? null;
+export function firstAccessibleSettingsTab(
+  user: CurrentUser,
+  config: Record<ManagedSettingsTab, Role[]> = DEFAULT_SETTINGS_TAB_ROLES,
+): SettingsTab | null {
+  return SETTINGS_TABS.find((tab) => canAccessSettingsTab(user, tab, config)) ?? null;
 }
 
 // --- BO scope matching ---------------------------------------------------

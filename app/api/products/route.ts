@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { canManageProducts } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
 // Reference data for the /submit form's Product Code picker. Any signed-in
 // @mimetta.co user can read it — GET stays open even though the mutation
@@ -31,7 +31,7 @@ interface CreateProductBody {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!canManageProducts(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "products");
 
     const body = (await request.json()) as CreateProductBody;
     if (!body.product_name?.trim()) {
