@@ -35,12 +35,15 @@ const TAB_LABELS: Record<Tab, string> = {
 // second, independently-maintained array here.
 const TABS: { key: Tab; label: string }[] = SETTINGS_TABS.map((key) => ({ key, label: TAB_LABELS[key] }));
 
-// "Pending" per spec: role = EMPLOYEE, created within the last 7 days, and
-// this is the user's *only* roles row (i.e. nobody has added a second role
-// for them, which would mean someone already looked at their access).
-// Shared by the tab badge count (a lightweight roles fetch in
-// SettingsClient below) and the Pending Users section inside UserTab
-// (which already loads the full roles list for its own table).
+// "Pending" per spec: is_auto_registered (an admin hasn't touched this row
+// yet — PATCH /api/roles/[id] unconditionally clears this on any save, so
+// it's the actual "needs admin attention" signal, not r.role), created
+// within the last 7 days, and this is the user's *only* roles row (i.e.
+// nobody has added a second role for them, which would mean someone
+// already looked at their access). Shared by the tab badge count (a
+// lightweight roles fetch in SettingsClient below) and the Pending Users
+// section inside UserTab (which already loads the full roles list for its
+// own table).
 const PENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 function getPendingUsers(roles: RoleRow[]): RoleRow[] {
@@ -50,7 +53,7 @@ function getPendingUsers(roles: RoleRow[]): RoleRow[] {
   }
   return roles.filter(
     (r) =>
-      r.role === "EMPLOYEE" &&
+      r.is_auto_registered === true &&
       rowCountByEmail.get(r.email) === 1 &&
       !!r.created_at &&
       Date.now() - new Date(r.created_at).getTime() < PENDING_WINDOW_MS,
