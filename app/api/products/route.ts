@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { hasAnyRole } from "@/lib/permissions";
+import { canManageProducts } from "@/lib/permissions";
 
 // Reference data for the /submit form's Product Code picker. Any signed-in
 // @mimetta.co user can read it — GET stays open even though the mutation
@@ -31,7 +31,7 @@ interface CreateProductBody {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!hasAnyRole(user, ["SUPERADMIN", "PROCUREMENT"])) throw new ForbiddenError();
+    if (!canManageProducts(user)) throw new ForbiddenError();
 
     const body = (await request.json()) as CreateProductBody;
     if (!body.product_name?.trim()) {

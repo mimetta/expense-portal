@@ -101,7 +101,25 @@ const SETTINGS_TAB_ROLES: Record<SettingsTab, Role[]> = {
 
 export function canAccessSettingsTab(user: CurrentUser, tab: SettingsTab): boolean {
   if (isSuperadmin(user)) return true;
+  if (tab === "products") return canManageProducts(user);
   return hasAnyRole(user, SETTINGS_TAB_ROLES[tab]);
+}
+
+// A DEPT_HEAD scoped to R&D also gets Product/SKU Management access —
+// requested so R&D can manage its own SKU list without going through
+// Procurement. DEPT_HEAD's dept_scope already models "which department is
+// this user responsible for" (same column/convention as BO's bu_scope/
+// dept_scope/cat_l1_scope, see below), so this reuses that existing scope
+// mechanism rather than adding a new role or a bespoke scope concept just
+// for this one tab. Single source of truth shared by canAccessSettingsTab
+// (tab visibility) and the products API routes (POST/PATCH/DELETE), so the
+// two can't drift apart.
+export function canManageProducts(user: CurrentUser): boolean {
+  if (isSuperadmin(user)) return true;
+  if (rolesOf(user, "DEPT_HEAD").some((scope) => scopeMatches(scope.dept_scope, "R&D"))) {
+    return true;
+  }
+  return hasRole(user, "PROCUREMENT");
 }
 
 // First tab (in SETTINGS_TABS order) this user can actually see — used to
