@@ -954,7 +954,7 @@ export default function RequestDetailModal({
                             openStoredFile(f);
                           }
                         }}
-                        className="flex-1 truncate text-brand-brown hover:underline"
+                        className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
                       >
                         {f.name}
                       </a>

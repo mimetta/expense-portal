@@ -1703,7 +1703,7 @@ export default function RequestForm({
                     openStoredFile(file);
                   }
                 }}
-                className="flex-1 truncate text-brand-brown hover:underline"
+                className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
               >
                 {file.name}
               </a>
@@ -1732,7 +1732,7 @@ export default function RequestForm({
                   <option key={dt} value={dt}>{dt}</option>
                 ))}
               </select>
-              <span className="flex-1 truncate text-brand-dark">{pending.file.name}</span>
+              <span className="min-w-0 flex-1 truncate text-brand-dark">{pending.file.name}</span>
               <span className="text-xs text-brand-subtle">{formatBytes(pending.file.size)} · will upload on submit</span>
               <button
                 type="button"
