@@ -137,12 +137,12 @@ export const EXPENSE_TYPES: ExpenseTypeConfig[] = [
     requiredDocs: { mode: "all", docs: ["ใบเสร็จ/สลิป"] },
   },
   {
-    label: "เบิกสำหรับส่งเสริมการขาย (e.g. KOL/Influencer, แจกสินค้า)",
-    hideBankFields: true,
+    label: "เบิกสินค้าสำหรับส่งเสริมการขาย (e.g. KOL/Influencer/แจกสินค้า)",
+    hidePaymentSection: true,
     defaultRequiresPo: true,
   },
   {
-    label: "เบิกสำหรับ Product Tester/Display (เบิกใช้ภายใน คิดงบจากต้นทุนสินค้า)",
+    label: "เบิกสินค้าสำหรับใช้ภายใน (e.g. Product Tester/Display/Content/Shooting)",
     hidePaymentSection: true,
     defaultRequiresPo: false,
   },
