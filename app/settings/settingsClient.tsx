@@ -4,7 +4,15 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RequiredMark from "@/components/shared/RequiredMark";
 import { BANK_OPTIONS, BUSINESS_UNITS, DEPARTMENTS, PAYMENT_METHODS, ROLES, type Role } from "@/lib/constants";
-import { canAccessSettingsTab, firstAccessibleSettingsTab, SETTINGS_TABS, type SettingsTab } from "@/lib/permissions";
+import {
+  canAccessSettingsTab,
+  firstAccessibleSettingsTab,
+  SETTINGS_TABS,
+  MANAGED_SETTINGS_TABS,
+  DEFAULT_SETTINGS_TAB_ROLES,
+  type SettingsTab,
+  type ManagedSettingsTab,
+} from "@/lib/permissions";
 import type {
   AnnouncementRow,
   CategoryRow,
@@ -28,6 +36,7 @@ const TAB_LABELS: Record<Tab, string> = {
   announcements: "Announcements",
   pettycash: "Petty Cash Custodians",
   companies: "Companies",
+  permissions: "Permissions",
 };
 
 // Order/membership comes from lib/permissions.ts#SETTINGS_TABS — the same
@@ -110,6 +119,13 @@ function SettingsClientInner() {
   const [userLoading, setUserLoading] = useState(true);
   const [tab, setTabState] = useState<Tab | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  // DB-backed settings_tab_permissions config, replacing the old hardcoded
+  // SETTINGS_TAB_ROLES — null while still loading, in which case every
+  // canAccessSettingsTab/firstAccessibleSettingsTab call below falls back
+  // to DEFAULT_SETTINGS_TAB_ROLES (its own default parameter), which is
+  // byte-for-byte the same as today's seeded DB values, so there's no
+  // visible flash of wrong tabs while this is in flight.
+  const [tabConfig, setTabConfig] = useState<Record<ManagedSettingsTab, Role[]> | null>(null);
 
   useEffect(() => {
     fetch("/api/roles/me")
@@ -120,9 +136,18 @@ function SettingsClientInner() {
       .finally(() => setUserLoading(false));
   }, []);
 
+  useEffect(() => {
+    fetch("/api/settings-permissions")
+      .then((res) => res.json())
+      .then((data) => setTabConfig(data.permissions ?? null))
+      .catch(() => {});
+  }, []);
+
+  const effectiveTabConfig = tabConfig ?? DEFAULT_SETTINGS_TAB_ROLES;
+
   const visibleTabs = useMemo(
-    () => (currentUser ? TABS.filter((t) => canAccessSettingsTab(currentUser, t.key)) : []),
-    [currentUser],
+    () => (currentUser ? TABS.filter((t) => canAccessSettingsTab(currentUser, t.key, effectiveTabConfig)) : []),
+    [currentUser, effectiveTabConfig],
   );
 
   // Resolve the active tab once we know who's asking: honor ?tab= from the
@@ -135,24 +160,24 @@ function SettingsClientInner() {
   useEffect(() => {
     if (!currentUser) return;
     const requested = searchParams.get("tab") as Tab | null;
-    const requestedIsValid = !!requested && canAccessSettingsTab(currentUser, requested);
-    const resolved = requestedIsValid ? (requested as Tab) : firstAccessibleSettingsTab(currentUser);
+    const requestedIsValid = !!requested && canAccessSettingsTab(currentUser, requested, effectiveTabConfig);
+    const resolved = requestedIsValid ? (requested as Tab) : firstAccessibleSettingsTab(currentUser, effectiveTabConfig);
     setTabState(resolved);
     if (resolved && resolved !== requested) {
       window.history.replaceState(null, "", `/settings?tab=${resolved}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]);
+  }, [currentUser, effectiveTabConfig]);
 
   // Lightweight, badge-only roles fetch — independent of UserTab's own
   // fetch for its table, so the "New (X)" count is visible on the tab
   // button regardless of which tab is currently open.
   useEffect(() => {
-    if (!currentUser || !canAccessSettingsTab(currentUser, "users")) return;
+    if (!currentUser || !canAccessSettingsTab(currentUser, "users", effectiveTabConfig)) return;
     fetch("/api/roles")
       .then((res) => res.json())
       .then((data) => setPendingCount(getPendingUsers(data.roles ?? []).length));
-  }, [currentUser]);
+  }, [currentUser, effectiveTabConfig]);
 
   const selectTab = (key: Tab) => {
     setTabState(key);
@@ -202,6 +227,7 @@ function SettingsClientInner() {
       {tab === "announcements" && <AnnouncementTab />}
       {tab === "pettycash" && <PettyCashCustodianTab />}
       {tab === "companies" && <CompanyTab />}
+      {tab === "permissions" && <PermissionsTab />}
     </div>
   );
 }
@@ -2585,6 +2611,134 @@ function CompanyTab() {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// --- Tab 9: Permissions --------------------------------------------
+//
+// SUPERADMIN-only (enforced both client-side, by never appearing in
+// visibleTabs for anyone else, and server-side by GET/PATCH
+// /api/settings-permissions — see that route). Controls the DB-backed
+// settings_tab_permissions config that replaced the old hardcoded
+// SETTINGS_TAB_ROLES: which roles can both see AND manage (add/edit/
+// delete within) each of the other 8 tabs. This tab itself is never
+// listed here — it's excluded from ManagedSettingsTab entirely (see
+// lib/permissions.ts) precisely so it can't be reconfigured through
+// itself.
+//
+// SUPERADMIN is never shown as a toggle — it always has full access to
+// every tab regardless of what's configured here (canAccessSettingsTab's
+// unconditional bypass). EMPLOYEE is excluded too since Settings itself
+// is already unreachable for a pure EMPLOYEE (canAccessPage).
+//
+// Reuses the same toggle-button visual style as User Management's "BU
+// Scope" buttons (bordered pill, brand-brown fill + white text when
+// active) for consistency — but NOT its exclusive/single-select click
+// behavior (each BU Scope click replaces the whole value with just that
+// one option). A tab can need several roles active simultaneously today
+// (e.g. suppliers: ACCOUNTING and PROCUREMENT both), so each button here
+// independently toggles its own role in/out of that tab's list instead,
+// the same add/remove logic ScopeMultiSelect already uses for Segment
+// Scope, just rendered as a flat always-visible row rather than a
+// collapsible searchable dropdown (overkill for only 6 roles).
+const TOGGLEABLE_ROLES: Role[] = ROLES.filter((r) => r !== "SUPERADMIN" && r !== "EMPLOYEE");
+
+function PermissionsTab() {
+  const [config, setConfig] = useState<Record<ManagedSettingsTab, Role[]> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [savingTab, setSavingTab] = useState<ManagedSettingsTab | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/settings-permissions")
+      .then((res) => res.json())
+      .then((data) => setConfig(data.permissions ?? null))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  const toggleRole = async (tab: ManagedSettingsTab, role: Role) => {
+    if (!config) return;
+    const current = config[tab];
+    const nextRoles = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
+    const prevConfig = config;
+    setConfig({ ...config, [tab]: nextRoles });
+    setSavingTab(tab);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings-permissions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tab, roles: nextRoles }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to save");
+      }
+    } catch (err) {
+      setConfig(prevConfig);
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingTab(null);
+    }
+  };
+
+  if (loading) {
+    return <p className="text-sm text-brand-muted">Loading...</p>;
+  }
+  if (!config) {
+    return <p className="text-sm text-brand-muted">Failed to load permissions.</p>;
+  }
+
+  return (
+    <div>
+      <p className="mb-4 text-xs text-brand-subtle">
+        Controls which roles can see and manage each Settings tab below. SUPERADMIN always has
+        full access to everything and isn&apos;t shown as a toggle. This Permissions tab itself
+        is SUPERADMIN-only and can&apos;t be reconfigured here.
+      </p>
+      {error && (
+        <div
+          className="mb-3 rounded-md border p-2.5 text-sm"
+          style={{ background: "#FEF2F2", borderColor: "#FCA5A5", color: "#991B1B" }}
+        >
+          {error}
+        </div>
+      )}
+      <div className="space-y-3">
+        {MANAGED_SETTINGS_TABS.map((t) => (
+          <div key={t} className="mm-card">
+            <p className="mb-2 text-sm font-medium text-brand-dark">{TAB_LABELS[t]}</p>
+            <div className="flex flex-wrap gap-2">
+              {TOGGLEABLE_ROLES.map((role) => {
+                const active = config[t].includes(role);
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    disabled={savingTab === t}
+                    onClick={() => toggleRole(t, role)}
+                    className={`rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${
+                      active
+                        ? "border-brand-brown bg-brand-brown text-white"
+                        : "border-brand-border bg-white text-brand-dark hover:bg-[#F9F8F6]"
+                    }`}
+                  >
+                    {role}
+                  </button>
+                );
+              })}
+              {config[t].length === 0 && (
+                <span className="flex items-center px-1 text-xs text-brand-subtle">
+                  SUPERADMIN only — no roles granted
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

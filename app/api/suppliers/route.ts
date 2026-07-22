@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { hasAnyRole } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
 // Reference data for the /submit form's Supplier/Payee picker. Any signed-in
 // @mimetta.co user can read it (same precedent as /api/categories) — GET
@@ -51,7 +51,7 @@ const UNKNOWN_COLUMN_IN_BODY = "PGRST204";
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!hasAnyRole(user, ["SUPERADMIN", "ACCOUNTING", "PROCUREMENT"])) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "suppliers");
 
     const body = (await request.json()) as CreateSupplierBody;
     if (!body.name?.trim()) {

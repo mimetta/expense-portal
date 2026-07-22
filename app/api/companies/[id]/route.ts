@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
 interface UpdateCompanyBody {
   name_en?: string;
@@ -10,16 +10,18 @@ interface UpdateCompanyBody {
   address?: string;
 }
 
-// SUPERADMIN only, per Settings > Companies (see CLAUDE.md-style note: no
-// POST/DELETE — SV and ONEST are the only two rows, seeded by the
-// migration, and this tab only ever edits their name/address fields).
+// SUPERADMIN-only by default (see supabase/migrations/016_settings_tab_permissions.sql's
+// seed data), configurable via Settings > Permissions like the other 7
+// managed tabs. No POST/DELETE — SV and ONEST are the only two rows,
+// seeded by an earlier migration, and this tab only ever edits their
+// name/address fields.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "companies");
 
     const { id } = await params;
     const body = (await request.json()) as UpdateCompanyBody;

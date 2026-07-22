@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { hasAnyRole } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
 // PostgREST's code for "this table isn't in my schema cache" — what you get
 // when the `announcements` table doesn't exist yet (see
@@ -22,7 +22,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const wantsAll = searchParams.get("all") === "1";
 
-    if (wantsAll && !hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
+    // Settings > Announcements' management table always requests ?all=1
+    // (see settingsClient.tsx) — so this needs the same requireSettingsTabRole
+    // check as the mutations below, not just the plain hardcoded role list,
+    // or a role newly granted the "announcements" tab via Settings >
+    // Permissions would see the tab but get a 403 the moment it loads.
+    if (wantsAll) await requireSettingsTabRole(user, "announcements");
 
     const admin = createAdminClient();
     let query = admin
@@ -71,7 +76,7 @@ function attachmentTooLarge(dataUrl: string | undefined): boolean {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "announcements");
 
     const body = (await request.json()) as CreateAnnouncementBody;
     if (!body.title?.trim()) {

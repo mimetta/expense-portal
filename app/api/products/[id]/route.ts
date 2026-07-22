@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { canManageProducts } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
 interface UpdateProductBody {
   sku_code?: string | null;
@@ -17,7 +17,7 @@ export async function PATCH(
 ) {
   try {
     const user = await requireUser();
-    if (!canManageProducts(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "products");
 
     const { id } = await params;
     const body = (await request.json()) as UpdateProductBody;
@@ -43,7 +43,7 @@ export async function DELETE(
 ) {
   try {
     const user = await requireUser();
-    if (!canManageProducts(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "products");
 
     const { id } = await params;
     const admin = createAdminClient();
