@@ -221,7 +221,10 @@ export default function RequestDetailModal({
 
   useEffect(() => {
     if (!editable) return;
-    fetch("/api/suppliers").then((r) => r.json()).then((d) => setSuppliers(d.suppliers ?? []));
+    fetch("/api/suppliers")
+      .then((r) => r.json())
+      .then((d) => setSuppliers(d.suppliers ?? []))
+      .catch((err) => console.error("[suppliers] failed to load:", err));
     fetch("/api/roles").then((r) => r.json()).then((d) => setRoles(d.roles ?? []));
   }, [editable]);
 

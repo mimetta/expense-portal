@@ -493,7 +493,8 @@ export default function RequestForm({
       .then((data) => setCategories(data.categories ?? []));
     fetch("/api/suppliers")
       .then((res) => res.json())
-      .then((data) => setSuppliers(data.suppliers ?? []));
+      .then((data) => setSuppliers(data.suppliers ?? []))
+      .catch((err) => console.error("[suppliers] failed to load:", err));
     fetch("/api/products")
       .then((res) => res.json())
       .then((data) => setProducts(data.products ?? []));
