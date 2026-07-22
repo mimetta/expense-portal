@@ -453,6 +453,20 @@ export default function RequestForm({
   // that field is still a single top-level value, not per-item.
   const primarySegment = items[0]?.segment || "";
 
+  // Payment Details: Supplier/Payee, Payment Method, and Account No/Card No
+  // are hidden specifically when the first item's Category L2 is exactly
+  // "Marketing Influencer / KOL" (confirmed live via GET /api/categories —
+  // department "Marketing (MKT)", cat_l1 "Brand Building"). Keyed off the
+  // first item only, same "first item wins" convention as primarySegment
+  // above — Category L2 isn't locked across items the way Segment now is,
+  // so this deliberately doesn't require every item to match, just the
+  // first. Independent of and stacks with the expense-type-driven
+  // hidePaymentSection/hideBankFields flags (see the Payment Details JSX
+  // and validate() below) — a different mechanism, keyed off live
+  // per-item category data instead of the static EXPENSE_TYPES config.
+  const hideSupplierPaymentMethodAccountFields =
+    (items[0]?.cat_l2 || "") === "Marketing Influencer / KOL";
+
   // --- Payment Details ---------------------------------------------------------
   const [supplierName, setSupplierName] = useState(initial?.supplierName ?? "");
   const [supplierOpen, setSupplierOpen] = useState(false);
@@ -688,16 +702,19 @@ export default function RequestForm({
     // Payment Details fields are all required unless Procurement is taking
     // over entirely (procurement_fills_payment) — each check still only
     // applies where that field is actually shown for this expense type
-    // (hidePaymentSection/hideBankFields/hideDueDate), same as the
+    // (hidePaymentSection/hideBankFields/hideDueDate) or this item's
+    // Category L2 (hideSupplierPaymentMethodAccountFields), same as the
     // visibility rules the JSX below already uses.
     if (!expenseConfig?.hidePaymentSection && !procurementFillsPayment) {
-      if (!supplierName.trim()) {
-        return "Supplier/Payee is required";
+      if (!hideSupplierPaymentMethodAccountFields) {
+        if (!supplierName.trim()) {
+          return "Supplier/Payee is required";
+        }
+        if (!payMethod) {
+          return "Payment Method is required";
+        }
       }
-      if (!payMethod) {
-        return "Payment Method is required";
-      }
-      if (!expenseConfig?.hideBankFields) {
+      if (!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields) {
         if (showBankName && !bankName) {
           return "Bank Name is required";
         }
@@ -1485,57 +1502,61 @@ export default function RequestForm({
           )}
 
           <div className={`grid grid-cols-2 gap-4 ${procurementFillsPayment ? "opacity-60" : ""}`}>
-            <div className="relative">
-              <label className={labelClass}>
-                Supplier/Payee{!procurementFillsPayment && <RequiredMark />}
-              </label>
-              <input
-                className={inputClass}
-                placeholder={
-                  procurementFillsPayment ? "Procurement will fill" : "Type to search or enter a new supplier"
-                }
-                autoComplete="off"
-                value={supplierName}
-                onChange={(e) => {
-                  setSupplierName(e.target.value);
-                  setSupplierOpen(true);
-                }}
-                onFocus={() => setSupplierOpen(true)}
-                onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
-              />
-              {supplierOpen && filteredSuppliers.length > 0 && (
-                <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-brand-border bg-white shadow-lg">
-                  {filteredSuppliers.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          handleSupplierChange(s.name);
-                          setSupplierOpen(false);
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-[#F9F8F6]"
-                      >
-                        {s.name}
-                      </button>
-                    </li>
+            {!hideSupplierPaymentMethodAccountFields && (
+              <div className="relative">
+                <label className={labelClass}>
+                  Supplier/Payee{!procurementFillsPayment && <RequiredMark />}
+                </label>
+                <input
+                  className={inputClass}
+                  placeholder={
+                    procurementFillsPayment ? "Procurement will fill" : "Type to search or enter a new supplier"
+                  }
+                  autoComplete="off"
+                  value={supplierName}
+                  onChange={(e) => {
+                    setSupplierName(e.target.value);
+                    setSupplierOpen(true);
+                  }}
+                  onFocus={() => setSupplierOpen(true)}
+                  onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
+                />
+                {supplierOpen && filteredSuppliers.length > 0 && (
+                  <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-brand-border bg-white shadow-lg">
+                    {filteredSuppliers.map((s) => (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            handleSupplierChange(s.name);
+                            setSupplierOpen(false);
+                          }}
+                          className="block w-full px-3 py-2 text-left text-sm hover:bg-[#F9F8F6]"
+                        >
+                          {s.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {!hideSupplierPaymentMethodAccountFields && (
+              <div>
+                <label className={labelClass}>
+                  Payment Method{!procurementFillsPayment && <RequiredMark />}
+                </label>
+                <select className={inputClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                  <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
                   ))}
-                </ul>
-              )}
-            </div>
-            <div>
-              <label className={labelClass}>
-                Payment Method{!procurementFillsPayment && <RequiredMark />}
-              </label>
-              <select className={inputClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
+                </select>
+              </div>
+            )}
 
-            {!expenseConfig?.hideBankFields && showBankName && (
+            {!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields && showBankName && (
               <div>
                 <label className={labelClass}>
                   Bank Name{!procurementFillsPayment && <RequiredMark />}
@@ -1548,7 +1569,7 @@ export default function RequestForm({
                 </select>
               </div>
             )}
-            {!expenseConfig?.hideBankFields && showCardType && (
+            {!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields && showCardType && (
               <div>
                 <label className={labelClass}>Card Type</label>
                 <select className={inputClass} value={cardType} onChange={(e) => setCardType(e.target.value)}>
@@ -1560,7 +1581,7 @@ export default function RequestForm({
               </div>
             )}
 
-            {!expenseConfig?.hideBankFields && (
+            {!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields && (
               <div>
                 <label className={labelClass}>
                   Account No / Card No{!procurementFillsPayment && <RequiredMark />}
