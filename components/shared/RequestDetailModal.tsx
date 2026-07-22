@@ -928,7 +928,18 @@ export default function RequestDetailModal({
                     <div className="flex items-center gap-2">
                       {editable ? (
                         <select
-                          className={`${inputClass} w-48`}
+                          // Deliberately not `${inputClass} w-48` — inputClass already
+                          // bakes in w-full, and Tailwind's generated w-full/w-48 rules
+                          // share specificity, so which one visually wins depends on
+                          // generation order in the compiled stylesheet, not on className
+                          // string order. That let w-full silently win here, leaving this
+                          // select ~620px wide in a 730px row and squeezing the filename
+                          // link next to it down to 0px width. Spelled out explicitly
+                          // (everything inputClass has, minus w-full) instead, plus
+                          // shrink-0 so it can't be squeezed back down by its flex-1
+                          // sibling once that sibling's own min-w-0 fix (see git history)
+                          // actually has room to use.
+                          className="w-48 shrink-0 rounded-md border border-brand-border bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-brown"
                           value={f.doc_type ?? ""}
                           onChange={(e) => updateFile(i, { doc_type: e.target.value })}
                         >
