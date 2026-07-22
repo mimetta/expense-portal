@@ -210,6 +210,7 @@ const emptySupplierForm = () => ({
   payment_method: "",
   bank_name: "",
   account_no: "",
+  email: "",
   notes: "",
 });
 
@@ -241,6 +242,7 @@ function SupplierTab() {
       payment_method: s.payment_method ?? "",
       bank_name: s.bank_name ?? "",
       account_no: s.account_no ?? "",
+      email: s.email ?? "",
       notes: s.notes ?? "",
     });
     setModal({ mode: "edit", id: s.id });
@@ -297,6 +299,7 @@ function SupplierTab() {
       "Payment Method": s.payment_method ?? "",
       "Bank Name": s.bank_name ?? "",
       "Account No": s.account_no ?? "",
+      Email: s.email ?? "",
       Notes: s.notes ?? "",
     }));
     const sheet = XLSX.utils.json_to_sheet(rows);
@@ -329,6 +332,7 @@ function SupplierTab() {
                 <th className="px-3 py-2">Payment Method</th>
                 <th className="px-3 py-2">Bank Name</th>
                 <th className="px-3 py-2">Account No</th>
+                <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
@@ -339,6 +343,7 @@ function SupplierTab() {
                   <td className="px-3 py-2">{s.payment_method ?? "-"}</td>
                   <td className="px-3 py-2">{s.bank_name ?? "-"}</td>
                   <td className="px-3 py-2">{s.account_no ?? "-"}</td>
+                  <td className="px-3 py-2">{s.email ?? "-"}</td>
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => openEdit(s)} className="mr-3 text-brand-brown hover:underline">
                       Edit
@@ -400,6 +405,15 @@ function SupplierTab() {
                 className={`${inputClass} w-full`}
                 value={form.account_no}
                 onChange={(e) => setForm({ ...form, account_no: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Email</label>
+              <input
+                type="email"
+                className={`${inputClass} w-full`}
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
             </div>
             <div>

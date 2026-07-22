@@ -9,8 +9,16 @@ interface UpdateSupplierBody {
   payment_method?: string | null;
   bank_name?: string | null;
   account_no?: string | null;
+  email?: string | null;
   notes?: string | null;
 }
+
+// See app/api/suppliers/route.ts — same lightweight single-retry pattern
+// for supabase/migrations/015_supplier_email.sql not necessarily being
+// applied yet. PGRST204, not 42703 — verified directly against the live
+// table; an update body naming an unknown column returns PGRST204, not
+// the 42703 a SELECT referencing one would.
+const UNKNOWN_COLUMN_IN_BODY = "PGRST204";
 
 export async function PATCH(
   request: Request,
@@ -24,12 +32,23 @@ export async function PATCH(
     const body = (await request.json()) as UpdateSupplierBody;
 
     const admin = createAdminClient();
-    const { data, error } = await admin
+    let { data, error } = await admin
       .from("suppliers")
       .update(body)
       .eq("id", id)
       .select()
       .single();
+
+    if (error?.code === UNKNOWN_COLUMN_IN_BODY) {
+      const withoutEmail = { ...body };
+      delete withoutEmail.email;
+      ({ data, error } = await admin
+        .from("suppliers")
+        .update(withoutEmail)
+        .eq("id", id)
+        .select()
+        .single());
+    }
 
     if (error) throw error;
     return NextResponse.json({ supplier: data });

@@ -221,7 +221,10 @@ export default function RequestDetailModal({
 
   useEffect(() => {
     if (!editable) return;
-    fetch("/api/suppliers").then((r) => r.json()).then((d) => setSuppliers(d.suppliers ?? []));
+    fetch("/api/suppliers")
+      .then((r) => r.json())
+      .then((d) => setSuppliers(d.suppliers ?? []))
+      .catch((err) => console.error("[suppliers] failed to load:", err));
     fetch("/api/roles").then((r) => r.json()).then((d) => setRoles(d.roles ?? []));
   }, [editable]);
 
@@ -293,6 +296,7 @@ export default function RequestDetailModal({
       pay_method: match?.payment_method || p.pay_method,
       bank_name: match?.bank_name || p.bank_name,
       account_no: match?.account_no || p.account_no,
+      slip_receiver_email: match?.email || p.slip_receiver_email,
     }));
   };
 

@@ -192,6 +192,7 @@ export interface SupplierRow {
   payment_method: string | null;
   bank_name: string | null;
   account_no: string | null;
+  email: string | null;
   notes: string | null;
   created_at: string;
 }
