@@ -217,7 +217,7 @@ export default function BoApprovalsPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-brand-muted">{r.request_id}</span>
                   <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
-                    {r.bu}
+                    {r.use_for_company || "—"}
                   </span>
                   {r.skip_bo && (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
@@ -237,9 +237,6 @@ export default function BoApprovalsPage() {
               </div>
               <div className="mt-1 text-sm font-medium text-brand-dark">{formatCurrency(r.total)}</div>
               <div className="mt-1 text-xs text-brand-muted">Submitted {formatDate(r.timestamp)}</div>
-              {r.due_date && (
-                <div className="mt-1 text-xs text-brand-muted">Due {formatDate(r.due_date)}</div>
-              )}
               {r.status === "BO_APPROVED" && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-brand-muted">
                   <span>Approved by {r.bo_approver ?? "-"} at {formatDate(r.bo_approved_at)}</span>
@@ -285,11 +282,6 @@ export default function BoApprovalsPage() {
                   </div>
                 </div>
               )}
-              <div className="mt-2 flex justify-end">
-                <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-[11px] font-medium text-[#374151]">
-                  BO Approver: {r.bo_approver ?? "—"}
-                </span>
-              </div>
             </div>
           ))}
         </div>
@@ -299,6 +291,7 @@ export default function BoApprovalsPage() {
         <RequestDetailModal
           request={selected}
           onClose={() => setSelected(null)}
+          showBoApprover={false}
           actions={
             selected.status === "BO_APPROVED" && isEditRequestPending(selected) ? (
               <>

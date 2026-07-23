@@ -2,11 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DEPARTMENTS, EXPENSE_TYPES, PAYMENT_METHODS, type Status } from "@/lib/constants";
-import type { ExpenseRequest, SupplierRow } from "@/types/database";
+import type { CompanyRow, ExpenseRequest, SupplierRow } from "@/types/database";
 
 const selectClass =
   "h-[30px] rounded-md border border-brand-border bg-white px-2 text-xs text-brand-dark focus:border-brand-brown focus:outline-none";
 const labelClass = "mb-1 block text-[10px] uppercase tracking-wide text-brand-subtle";
+
+// Same label convention as RequestForm.tsx's companyOptionLabel, e.g.
+// "ONEST — Mimetta Co., Ltd." — kept as a local copy here rather than a
+// shared export since it's a one-line formatter, not worth a new module.
+function companyOptionLabel(c: CompanyRow): string {
+  return `${c.bu} — ${c.name_en}`;
+}
 
 interface FilterBarProps {
   requests: ExpenseRequest[];
@@ -43,8 +50,13 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
   // given due_date is usually being scanned for "what's due this month",
   // not one exact day.
   const [dueDateMonth, setDueDateMonth] = useState("");
+  // Matches requests.use_for_company (a companies.bu value — see
+  // "Use for company" on RequestForm.tsx) — deliberately not the same
+  // field as Segment above, which matches requests.department.
+  const [company, setCompany] = useState("");
 
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
   // Segment options — same /api/departments-with-DEPARTMENTS-fallback
   // convention used by RequestForm.tsx and settingsClient.tsx, rather than
   // deriving options from categories (which is what the old Category filter
@@ -60,6 +72,9 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
       .then((res) => res.json())
       .then((data) => setSegmentOptions(data.departments?.length ? data.departments : [...DEPARTMENTS]))
       .catch(() => setSegmentOptions([...DEPARTMENTS]));
+    fetch("/api/companies")
+      .then((res) => res.json())
+      .then((data) => setCompanies(data.companies ?? []));
   }, []);
 
   const filtered = useMemo(
@@ -71,9 +86,10 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
           (!expenseType || r.expense_type === expenseType) &&
           (!payMethod || r.pay_method === payMethod) &&
           (!supplier || r.supplier_name === supplier) &&
-          (!dueDateMonth || (!!r.due_date && r.due_date.slice(0, 7) === dueDateMonth)),
+          (!dueDateMonth || (!!r.due_date && r.due_date.slice(0, 7) === dueDateMonth)) &&
+          (!company || r.use_for_company === company),
       ),
-    [requests, month, segment, expenseType, payMethod, supplier, dueDateMonth],
+    [requests, month, segment, expenseType, payMethod, supplier, dueDateMonth, company],
   );
 
   useEffect(() => {
@@ -81,7 +97,7 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
-  const activeCount = [month, segment, expenseType, payMethod, supplier, dueDateMonth].filter(
+  const activeCount = [month, segment, expenseType, payMethod, supplier, dueDateMonth, company].filter(
     Boolean,
   ).length;
 
@@ -92,6 +108,7 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
     setPayMethod("");
     setSupplier("");
     setDueDateMonth("");
+    setCompany("");
   };
 
   return (
@@ -181,6 +198,15 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
               value={dueDateMonth}
               onChange={(e) => setDueDateMonth(e.target.value)}
             />
+          </div>
+          <div>
+            <label className={labelClass}>Company</label>
+            <select className={selectClass} value={company} onChange={(e) => setCompany(e.target.value)}>
+              <option value="">All</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.bu}>{companyOptionLabel(c)}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>

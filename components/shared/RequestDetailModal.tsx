@@ -79,6 +79,13 @@ interface RequestDetailModalProps {
   // pages that never show a SUBMITTED+owner-editable request in practice
   // (Procurement/BO/CEO/Accounting) can simply omit it.
   onOwnerSaved?: () => void;
+  // Whether the "BO: {name}" badge shows in the header — on by default
+  // since this modal is the one shared "request preview" surface every
+  // page has (My Requests, Procurement, CEO Approvals, Accounting all
+  // want it), but BO Approvals passes false: a BO looking at their own
+  // approvals queue doesn't need to be told who the BO approver is/would
+  // be. The Due Date line next to it is unaffected by this prop.
+  showBoApprover?: boolean;
 }
 
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
@@ -178,6 +185,7 @@ export default function RequestDetailModal({
   actions,
   footerExtra,
   onOwnerSaved,
+  showBoApprover = true,
 }: RequestDetailModalProps) {
   const [items, setItems] = useState<RequestItem[]>(request.items_json);
   const [payment, setPayment] = useState({
@@ -429,9 +437,21 @@ export default function RequestDetailModal({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold text-brand-dark">{request.request_id}</span>
               <StatusBadge status={request.status} />
-              <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">{request.bu}</span>
+              <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
+                {request.use_for_company || "—"}
+              </span>
             </div>
             <p className="mt-1 text-xs text-brand-subtle">Submitted {formatDate(request.timestamp)}</p>
+            {(request.due_date || showBoApprover) && (
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-brand-muted">
+                <span>{request.due_date ? `Due ${formatDate(request.due_date)}` : ""}</span>
+                {showBoApprover && (
+                  <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-[11px] font-medium text-[#374151]">
+                    BO: {request.bo_approver ?? "—"}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {canPrint && (
