@@ -248,13 +248,33 @@ function DraftsTab({
   loading,
   onContinue,
   onDelete,
+  onDeleteMany,
 }: {
   drafts: DraftRow[];
   loading: boolean;
   onContinue: (id: number) => void;
   onDelete: (id: number) => void;
+  onDeleteMany: (ids: number[]) => void;
 }) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Selection is local to this tab (not lifted to the parent) — nothing
+  // outside DraftsTab needs to know which rows are checked. Cleared after
+  // load/tab changes since `drafts` is a fresh array each fetch anyway.
+  const allSelected = drafts.length > 0 && drafts.every((d) => selectedIds.has(d.id));
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(drafts.map((d) => d.id)));
+  };
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <div>
@@ -263,45 +283,68 @@ function DraftsTab({
       ) : drafts.length === 0 ? (
         <p className="text-sm text-brand-muted">No drafts yet.</p>
       ) : (
-        <div className="mm-table-wrap">
-          <table className="mm-table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Last edited</th>
-                <th>Amount</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {drafts.map((d) => {
-                const items = (d.form_data as { items?: RequestItem[] })?.items;
-                const amount = draftAmount(items);
-                return (
-                  <tr key={d.id}>
-                    <td>{d.title || "Untitled draft"}</td>
-                    <td>{formatDate(d.updated_at)}</td>
-                    <td>{amount > 0 ? formatCurrency(amount) : "-"}</td>
-                    <td>
-                      <button
-                        onClick={() => onContinue(d.id)}
-                        className="text-sm font-medium text-brand-brown hover:underline"
-                      >
-                        Continue
-                      </button>
-                      <button
-                        onClick={() => setDeletingId(d.id)}
-                        className="ml-3 text-sm font-medium text-[#DC2626] hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {selectedIds.size > 0 && (
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm text-brand-muted">{selectedIds.size} selected</span>
+              <button
+                onClick={() => setBulkDeleting(true)}
+                className="mm-btn-danger mm-btn-sm"
+              >
+                🗑️ Delete Selected ({selectedIds.size})
+              </button>
+            </div>
+          )}
+          <div className="mm-table-wrap">
+            <table className="mm-table">
+              <thead>
+                <tr>
+                  <th className="w-8">
+                    <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+                  </th>
+                  <th>Title</th>
+                  <th>Last edited</th>
+                  <th>Amount</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.map((d) => {
+                  const items = (d.form_data as { items?: RequestItem[] })?.items;
+                  const amount = draftAmount(items);
+                  return (
+                    <tr key={d.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(d.id)}
+                          onChange={() => toggleOne(d.id)}
+                        />
+                      </td>
+                      <td>{d.title || "Untitled draft"}</td>
+                      <td>{formatDate(d.updated_at)}</td>
+                      <td>{amount > 0 ? formatCurrency(amount) : "-"}</td>
+                      <td>
+                        <button
+                          onClick={() => onContinue(d.id)}
+                          className="text-sm font-medium text-brand-brown hover:underline"
+                        >
+                          Continue
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(d.id)}
+                          className="ml-3 text-sm font-medium text-[#DC2626] hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {deletingId !== null && (
@@ -324,6 +367,39 @@ function DraftsTab({
                 onClick={() => {
                   onDelete(deletingId);
                   setDeletingId(null);
+                }}
+                className="mm-btn-danger"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkDeleting && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          style={{ backdropFilter: "blur(2px)" }}
+          onClick={() => setBulkDeleting(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 text-base font-semibold text-brand-dark">
+              Delete {selectedIds.size} draft{selectedIds.size === 1 ? "" : "s"}?
+            </h3>
+            <p className="mb-4 text-sm text-brand-muted">This cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBulkDeleting(false)} className="mm-btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onDeleteMany(Array.from(selectedIds));
+                  setSelectedIds(new Set());
+                  setBulkDeleting(false);
                 }}
                 className="mm-btn-danger"
               >
@@ -380,6 +456,25 @@ export default function MyRequestsPage() {
     }
   };
 
+  // Reuses the same per-draft DELETE endpoint (no bulk API route exists —
+  // not worth adding one for what's still N small requests), fired in
+  // parallel rather than sequentially. Reports how many failed, if any,
+  // but still reloads so whichever succeeded disappear from the list.
+  const deleteDrafts = async (ids: number[]) => {
+    try {
+      const results = await Promise.all(
+        ids.map((id) => fetch(`/api/drafts/${id}`, { method: "DELETE" })),
+      );
+      const failed = results.filter((res) => !res.ok).length;
+      loadDrafts();
+      if (failed > 0) {
+        alert(`Failed to delete ${failed} of ${ids.length} draft${ids.length === 1 ? "" : "s"}.`);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete drafts");
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleting) return;
     setDeleteBusy(true);
@@ -422,6 +517,7 @@ export default function MyRequestsPage() {
           loading={draftsLoading}
           onContinue={(id) => router.push(`/submit?draft=${id}`)}
           onDelete={deleteDraft}
+          onDeleteMany={deleteDrafts}
         />
       )}
 
