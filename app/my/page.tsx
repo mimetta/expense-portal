@@ -439,6 +439,7 @@ export default function MyRequestsPage() {
               <tr>
                 <th>Request ID</th>
                 <th>Date</th>
+                <th>Due Date</th>
                 <th>Segment</th>
                 <th>Total</th>
                 <th>Status</th>
@@ -450,6 +451,7 @@ export default function MyRequestsPage() {
                 <tr key={r.request_id} onClick={() => setSelected(r)} className="cursor-pointer">
                   <td className="font-mono text-xs">{r.request_id}</td>
                   <td>{formatDate(r.timestamp)}</td>
+                  <td>{r.due_date ? formatDate(r.due_date) : "-"}</td>
                   <td>{r.department}</td>
                   <td>{formatCurrency(r.total)}</td>
                   <td>

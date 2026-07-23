@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DEPARTMENTS, EXPENSE_TYPES, PAYMENT_METHODS, type Status } from "@/lib/constants";
+import { BUSINESS_UNITS, DEPARTMENTS, EXPENSE_TYPES, PAYMENT_METHODS, type Status } from "@/lib/constants";
 import type { CompanyRow, ExpenseRequest, SupplierRow } from "@/types/database";
 
 const selectClass =
@@ -54,6 +54,11 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
   // "Use for company" on RequestForm.tsx) — deliberately not the same
   // field as Segment above, which matches requests.department.
   const [company, setCompany] = useState("");
+  // Matches requests.bu (the submitter's own BU) directly — kept separate
+  // from Company above specifically for requests migrated from the old GAS
+  // system, which predate use_for_company and never got it backfilled, so
+  // they're only findable via the original bu column.
+  const [bu, setBu] = useState("");
 
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
@@ -87,9 +92,10 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
           (!payMethod || r.pay_method === payMethod) &&
           (!supplier || r.supplier_name === supplier) &&
           (!dueDateMonth || (!!r.due_date && r.due_date.slice(0, 7) === dueDateMonth)) &&
-          (!company || r.use_for_company === company),
+          (!company || r.use_for_company === company) &&
+          (!bu || r.bu === bu),
       ),
-    [requests, month, segment, expenseType, payMethod, supplier, dueDateMonth, company],
+    [requests, month, segment, expenseType, payMethod, supplier, dueDateMonth, company, bu],
   );
 
   useEffect(() => {
@@ -97,7 +103,7 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
-  const activeCount = [month, segment, expenseType, payMethod, supplier, dueDateMonth, company].filter(
+  const activeCount = [month, segment, expenseType, payMethod, supplier, dueDateMonth, company, bu].filter(
     Boolean,
   ).length;
 
@@ -109,6 +115,7 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
     setSupplier("");
     setDueDateMonth("");
     setCompany("");
+    setBu("");
   };
 
   return (
@@ -205,6 +212,15 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
               <option value="">All</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.bu}>{companyOptionLabel(c)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>BU</label>
+            <select className={selectClass} value={bu} onChange={(e) => setBu(e.target.value)}>
+              <option value="">All</option>
+              {BUSINESS_UNITS.map((u) => (
+                <option key={u} value={u}>{u}</option>
               ))}
             </select>
           </div>

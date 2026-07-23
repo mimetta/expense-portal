@@ -132,6 +132,7 @@ export default function AccountingPage() {
                 <th>Request ID</th>
                 <th>Requester</th>
                 <th>Segment</th>
+                <th>Due Date</th>
                 <th>Total</th>
                 <th>Status</th>
                 <th>Slip Receiver</th>
@@ -145,6 +146,7 @@ export default function AccountingPage() {
                   <td className="font-mono text-xs">{r.request_id}</td>
                   <td>{r.requester_name}</td>
                   <td>{r.department}</td>
+                  <td>{r.due_date ? formatDate(r.due_date) : "-"}</td>
                   <td>{formatCurrency(r.total)}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td className="text-xs text-brand-muted">{r.slip_receiver_email ?? "-"}</td>

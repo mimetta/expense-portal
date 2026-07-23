@@ -172,7 +172,7 @@ export default function CeoApprovalsPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-brand-muted">{r.request_id}</span>
                   <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
-                    {r.use_for_company || "—"}
+                    {r.use_for_company || r.bu}
                   </span>
                   {r.skip_bo && (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
@@ -239,6 +239,12 @@ export default function CeoApprovalsPage() {
                   </div>
                 </div>
               )}
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-brand-muted">
+                <span>{r.due_date ? `Due ${formatDate(r.due_date)}` : ""}</span>
+                <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-[11px] font-medium text-[#374151]">
+                  BO: {r.bo_approver ?? "—"}
+                </span>
+              </div>
             </div>
           ))}
         </div>

@@ -438,7 +438,7 @@ export default function RequestDetailModal({
               <span className="text-base font-semibold text-brand-dark">{request.request_id}</span>
               <StatusBadge status={request.status} />
               <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
-                {request.use_for_company || "—"}
+                {request.use_for_company || request.bu}
               </span>
             </div>
             <p className="mt-1 text-xs text-brand-subtle">Submitted {formatDate(request.timestamp)}</p>
