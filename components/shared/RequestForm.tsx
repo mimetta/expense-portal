@@ -1674,6 +1674,7 @@ export default function RequestForm({
           return (
             <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
               <p className="mb-1 font-medium text-brand-dark">Travel documents (per item, by Travel by)</p>
+              <p className="mb-1 text-brand-subtle">รวมรูปภาพเป็นไฟล์ pdf ก่อน upload</p>
               <ul className="space-y-0.5">
                 {travelByValues.flatMap((travelBy) =>
                   (TRAVEL_REQUIRED_DOCS[travelBy as keyof typeof TRAVEL_REQUIRED_DOCS] ?? []).map((docLabel) => {

@@ -39,6 +39,11 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
   const [expenseType, setExpenseType] = useState("");
   const [payMethod, setPayMethod] = useState("");
   const [supplier, setSupplier] = useState("");
+  // Matches the year-month portion of due_date, same "month picker"
+  // convention as the Month filter above (which matches budget_period the
+  // same way) — an exact-date picker would be too narrow given due_date is
+  // usually being scanned for "what's due this month", not one exact day.
+  const [dueDateMonth, setDueDateMonth] = useState("");
 
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
@@ -66,9 +71,10 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
           (!catL1 || r.cat_l1 === catL1) &&
           (!expenseType || r.expense_type === expenseType) &&
           (!payMethod || r.pay_method === payMethod) &&
-          (!supplier || r.supplier_name === supplier),
+          (!supplier || r.supplier_name === supplier) &&
+          (!dueDateMonth || (!!r.due_date && r.due_date.slice(0, 7) === dueDateMonth)),
       ),
-    [requests, month, status, catL1, expenseType, payMethod, supplier],
+    [requests, month, status, catL1, expenseType, payMethod, supplier, dueDateMonth],
   );
 
   useEffect(() => {
@@ -76,7 +82,9 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
-  const activeCount = [month, status, catL1, expenseType, payMethod, supplier].filter(Boolean).length;
+  const activeCount = [month, status, catL1, expenseType, payMethod, supplier, dueDateMonth].filter(
+    Boolean,
+  ).length;
 
   const clear = () => {
     setMonth("");
@@ -85,6 +93,7 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
     setExpenseType("");
     setPayMethod("");
     setSupplier("");
+    setDueDateMonth("");
   };
 
   return (
@@ -174,6 +183,15 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
                 <option key={s.id} value={s.name}>{s.name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className={labelClass}>Due Date</label>
+            <input
+              type="month"
+              className={selectClass}
+              value={dueDateMonth}
+              onChange={(e) => setDueDateMonth(e.target.value)}
+            />
           </div>
         </div>
       </div>
