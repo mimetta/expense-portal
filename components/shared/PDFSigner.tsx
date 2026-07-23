@@ -86,6 +86,20 @@ function decodeImage(dataUrl: string): Promise<HTMLImageElement> {
   });
 }
 
+// Used both for an uploaded signature <input type="file"> and for loading a
+// saved signature back from Storage as a blob (fetched first, same
+// fetch-as-blob-before-decoding convention the PDF load below already uses,
+// to sidestep any cross-origin canvas-tainting issue with drawing a remote
+// image straight onto a <canvas>).
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -106,6 +120,20 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Reusable signature (see supabase/migrations/017_saved_signatures.sql +
+  // app/api/signatures/me/route.ts) — lets the signer skip redrawing on the
+  // trackpad every time, either by reusing whatever they saved before or by
+  // uploading an image file instead of drawing at all.
+  const [savedSignatureUrl, setSavedSignatureUrl] = useState<string | null>(null);
+  const [loadingSavedSig, setLoadingSavedSig] = useState(false);
+  // Set whenever the currently-placed signature came from a fresh drawing or
+  // upload (not yet saved) — drives whether "Save this signature for next
+  // time" is shown. Cleared once saved, and when reusing an already-saved
+  // signature (nothing new to save in that case).
+  const [pendingSaveDataUrl, setPendingSaveDataUrl] = useState<string | null>(null);
+  const [savingSignature, setSavingSignature] = useState(false);
+  const [signatureSavedMsg, setSignatureSavedMsg] = useState<string | null>(null);
 
   const pageCanvasRef = useRef<HTMLCanvasElement>(null);
   const padCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -159,6 +187,26 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
       cancelled = true;
     };
   }, [file.url]);
+
+  // Check once, on open, whether this signer already has a saved signature
+  // to offer as a shortcut. A fetch failure here is non-fatal — the saved
+  // -signature button just doesn't show, drawing/uploading still works.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/signatures/me");
+        if (!res.ok) return;
+        const { url } = (await res.json()) as { url: string | null };
+        if (!cancelled) setSavedSignatureUrl(url ?? null);
+      } catch {
+        // saved signature is a convenience, not required — ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Redraws the current page from the cached raster (if any) plus its
   // signature overlay (if placed) — no pdf.js call, safe to run on every
@@ -278,22 +326,122 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
     }));
   };
 
+  // Shared by all three ways a signature image can end up placed on the
+  // page: drawn on the pad, uploaded as a file, or reused from a saved
+  // signature — same caching + corner-placement logic either way.
+  const placeImageOnCurrentPage = (img: HTMLImageElement) => {
+    const pageCanvas = pageCanvasRef.current;
+    if (!pageCanvas) return;
+    sigImageCacheRef.current.set(pageNum, img);
+    setPlacedSignatures((prev) => ({
+      ...prev,
+      [pageNum]: cornerPlacement(selectedCorner, pageCanvas.width, pageCanvas.height, img),
+    }));
+  };
+
   // Commits the pad's current drawing onto the page at `selectedCorner`
   // (decoding + caching the image if this page doesn't have one cached
   // yet). Re-clicking after redrawing the pad replaces the cached image.
   const placeSignature = async () => {
     const padCanvas = padCanvasRef.current;
-    const pageCanvas = pageCanvasRef.current;
-    if (!padCanvas || !pageCanvas || !hasDrawnSig) return;
+    if (!padCanvas || !hasDrawnSig) return;
     try {
-      const img = await decodeImage(padCanvas.toDataURL("image/png"));
-      sigImageCacheRef.current.set(pageNum, img);
-      setPlacedSignatures((prev) => ({
-        ...prev,
-        [pageNum]: cornerPlacement(selectedCorner, pageCanvas.width, pageCanvas.height, img),
-      }));
+      const dataUrl = padCanvas.toDataURL("image/png");
+      const img = await decodeImage(dataUrl);
+      placeImageOnCurrentPage(img);
+      setPendingSaveDataUrl(dataUrl);
+      setSignatureSavedMsg(null);
     } catch {
       setSaveError("Failed to place signature");
+    }
+  };
+
+  // Reuses the signature saved from a previous session — fetched as a blob
+  // first (see blobToDataUrl's comment) rather than decoding the remote URL
+  // directly, to avoid tainting the canvas. Nothing new to save afterward,
+  // so this does NOT set pendingSaveDataUrl.
+  const handleUseSavedSignature = async () => {
+    if (!savedSignatureUrl) return;
+    setLoadingSavedSig(true);
+    setSaveError(null);
+    try {
+      const res = await fetch(savedSignatureUrl);
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const dataUrl = await blobToDataUrl(blob);
+      const img = await decodeImage(dataUrl);
+      placeImageOnCurrentPage(img);
+      setPendingSaveDataUrl(null);
+      setSignatureSavedMsg(null);
+    } catch {
+      setSaveError("Failed to load saved signature");
+    } finally {
+      setLoadingSavedSig(false);
+    }
+  };
+
+  // Lets someone place a signature from an image file (e.g. a photo/scan of
+  // their real signature) instead of drawing one on the trackpad.
+  const handleUploadSignatureFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow picking the same file again later
+    if (!file) return;
+    setSaveError(null);
+    try {
+      const dataUrl = await blobToDataUrl(file);
+      const img = await decodeImage(dataUrl);
+      placeImageOnCurrentPage(img);
+      setPendingSaveDataUrl(dataUrl);
+      setSignatureSavedMsg(null);
+    } catch {
+      setSaveError("Failed to load the uploaded image");
+    }
+  };
+
+  // Uploads the currently-drawn/uploaded signature to the existing
+  // "signatures" Storage bucket and remembers it against this user's email
+  // (POST /api/signatures/me), so next time they can skip straight to
+  // "Use my saved signature" instead of drawing/uploading again.
+  const handleSaveSignatureForNextTime = async () => {
+    if (!pendingSaveDataUrl) return;
+    setSavingSignature(true);
+    setSaveError(null);
+    setSignatureSavedMsg(null);
+    try {
+      const blob = await (await fetch(pendingSaveDataUrl)).blob();
+      const formData = new FormData();
+      formData.append("file", blob, "signature.png");
+      formData.append("bucket", "signatures");
+      formData.append("filename", "signature.png");
+      const uploadRes = await fetch("/api/storage/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("upload failed");
+      const { url } = await uploadRes.json();
+
+      const saveRes = await fetch("/api/signatures/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!saveRes.ok) throw new Error("save failed");
+
+      setSavedSignatureUrl(url);
+      setPendingSaveDataUrl(null);
+      setSignatureSavedMsg("Saved — you can reuse this signature next time.");
+    } catch {
+      setSaveError("Failed to save signature for next time");
+    } finally {
+      setSavingSignature(false);
+    }
+  };
+
+  const handleRemoveSavedSignature = async () => {
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/signatures/me", { method: "DELETE" });
+      if (!res.ok) throw new Error("delete failed");
+      setSavedSignatureUrl(null);
+    } catch {
+      setSaveError("Failed to remove saved signature");
     }
   };
 
@@ -483,7 +631,31 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         </p>
       )}
 
-      <div className="relative mt-3">
+      {savedSignatureUrl && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-brand-border bg-[#F9F8F6] p-2">
+          <span className="text-xs text-brand-muted">You have a saved signature:</span>
+          <button
+            type="button"
+            disabled={loadingSavedSig}
+            onClick={handleUseSavedSignature}
+            className="rounded-md border border-brand-brown px-3 py-1.5 text-xs font-medium text-brand-brown hover:bg-white disabled:opacity-40"
+          >
+            {loadingSavedSig ? "Loading..." : "✓ Use my saved signature"}
+          </button>
+          <button
+            type="button"
+            onClick={handleRemoveSavedSignature}
+            className="text-xs text-brand-muted underline hover:text-red-600"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+
+      <p className="mt-3 mb-1.5 text-xs font-medium text-brand-muted">
+        Or draw a new signature below, or upload an image of one:
+      </p>
+      <div className="relative">
         <canvas
           ref={padCanvasRef}
           width={PAD_WIDTH}
@@ -505,13 +677,19 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           Draw your signature here
         </div>
       </div>
-      <button
-        type="button"
-        onClick={clearPad}
-        className="mt-2 rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
-      >
-        Clear
-      </button>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={clearPad}
+          className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
+        >
+          Clear
+        </button>
+        <label className="cursor-pointer rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]">
+          Upload signature image
+          <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleUploadSignatureFile} />
+        </label>
+      </div>
 
       <div className="mt-3">
         <p className="mb-1.5 text-xs font-medium text-brand-muted">
@@ -559,8 +737,19 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         >
           Cancel
         </button>
+        {pendingSaveDataUrl && (
+          <button
+            type="button"
+            disabled={savingSignature}
+            onClick={handleSaveSignatureForNextTime}
+            className="rounded-md border border-brand-border px-3 py-1.5 text-sm font-medium text-brand-dark hover:bg-[#F9F8F6] disabled:opacity-40"
+          >
+            {savingSignature ? "Saving..." : "💾 Save this signature for next time"}
+          </button>
+        )}
       </div>
       {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
+      {signatureSavedMsg && <p className="mt-2 text-sm text-brand-sage">{signatureSavedMsg}</p>}
     </div>
   );
 }
