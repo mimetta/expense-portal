@@ -492,24 +492,16 @@ function ScopeMultiSelect({
   options,
   value,
   onChange,
-  formatOption,
 }: {
   label: string;
   allLabel: string;
   options: string[];
   value: string;
   onChange: (v: string) => void;
-  // Optional display-only label formatter — e.g. appending the "(MKT)"-style
-  // abbreviation Submit's Segment dropdown already shows (see
-  // DEPARTMENT_ABBREV/departmentAbbrev above), so the same department reads
-  // identically in both places. The stored value (`opt`, used for onChange/
-  // comparisons) is never touched — this only affects what's rendered.
-  formatOption?: (opt: string) => string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
-  const display = formatOption ?? ((o: string) => o);
 
   useEffect(() => {
     if (!open) return;
@@ -523,7 +515,7 @@ function ScopeMultiSelect({
   const isAll = value === "*";
   const selected = isAll ? [] : value.split(",").map((s) => s.trim()).filter(Boolean);
   const filteredOptions = options.filter((o) => o.toLowerCase().includes(search.toLowerCase()));
-  const summary = isAll ? allLabel : selected.length > 0 ? selected.map(display).join(", ") : "None selected";
+  const summary = isAll ? allLabel : selected.length > 0 ? selected.join(", ") : "None selected";
 
   const toggleValue = (opt: string) => {
     const next = selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt];
@@ -578,7 +570,7 @@ function ScopeMultiSelect({
                     disabled={isAll}
                     onChange={() => toggleValue(opt)}
                   />
-                  <span>{display(opt)}</span>
+                  <span>{opt}</span>
                 </label>
               ))
             )}
@@ -993,7 +985,6 @@ function UserTab() {
               options={segmentOptions}
               value={form.dept_scope}
               onChange={(v) => setForm({ ...form, dept_scope: v })}
-              formatOption={(d) => `${d}${departmentAbbrev(d) ? ` (${departmentAbbrev(d)})` : ""}`}
             />
             <CatL1ScopeGrouped
               categories={categories}

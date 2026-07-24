@@ -1259,7 +1259,7 @@ export default function RequestForm({
                         <option value="">Select...</option>
                         {(departmentOptions ?? []).map((d) => (
                           <option key={d} value={d}>
-                            {d}{departmentAbbrev(d) ? ` (${departmentAbbrev(d)})` : ""}
+                            {d}
                           </option>
                         ))}
                       </select>
