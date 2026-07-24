@@ -195,7 +195,7 @@ export default function AccountingPage() {
         <h3 className="mm-section-label">Payment Date Summary</h3>
         {paymentDates.length === 0 ? (
           <p className="text-sm text-brand-muted">
-            No "Payment" events on the calendar yet — add them from the homepage Calendar to see totals here.
+            No &quot;Payment&quot; events on the calendar yet — add them from the homepage Calendar to see totals here.
           </p>
         ) : (
           <div className="mm-table-wrap">
