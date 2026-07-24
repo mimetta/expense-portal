@@ -1,15 +1,60 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StatusBadge from "@/components/StatusBadge";
 import FilterBar from "@/components/FilterBar";
 import RequestDetailModal from "@/components/shared/RequestDetailModal";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { isEditRequestPending } from "@/lib/status";
-import type { ExpenseRequest } from "@/types/database";
+import { exportRequestsToExcel } from "@/lib/exportRequests";
+import type { CalendarEventRow, ExpenseRequest } from "@/types/database";
 
 type Tab = "pending" | "paid" | "edit-requests";
 const RELEVANT_STATUSES = ["CEO_APPROVED", "PAID"] as const;
+
+interface PaymentBucket {
+  eventDate: string;
+  title: string;
+  total: number;
+  count: number;
+}
+
+// Buckets every currently-unpaid (Awaiting Payment) request into the
+// EARLIEST upcoming "payment"-type calendar_events date on/after its
+// due_date — i.e. "this expense will go out in the next payment run on or
+// after it's due." Requests with no due_date, or whose due_date falls after
+// every payment date currently entered on the calendar, land in a separate
+// "unscheduled" bucket rather than being silently dropped or guessed at.
+// This interpretation was called out explicitly to Darling rather than
+// assumed silently — flag if payment dates should instead be matched some
+// other way (e.g. exact due_date match only).
+function bucketByPaymentDate(
+  requests: ExpenseRequest[],
+  paymentDates: CalendarEventRow[],
+): { buckets: PaymentBucket[]; unscheduled: { total: number; count: number } } {
+  const sorted = [...paymentDates].sort((a, b) => a.event_date.localeCompare(b.event_date));
+  const buckets: PaymentBucket[] = sorted.map((pd) => ({
+    eventDate: pd.event_date,
+    title: pd.title,
+    total: 0,
+    count: 0,
+  }));
+  const unscheduled = { total: 0, count: 0 };
+
+  for (const r of requests) {
+    const due = r.due_date;
+    const bucket = due ? buckets.find((b) => b.eventDate >= due) : undefined;
+    if (bucket) {
+      bucket.total += r.total;
+      bucket.count += 1;
+    } else {
+      unscheduled.total += r.total;
+      unscheduled.count += 1;
+    }
+  }
+
+  return { buckets, unscheduled };
+}
 
 export default function AccountingPage() {
   const [tab, setTab] = useState<Tab>("pending");
@@ -19,6 +64,11 @@ export default function AccountingPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<ExpenseRequest | null>(null);
   const [editRequestCount, setEditRequestCount] = useState(0);
+  // Payment Date Summary — fetched independently of `tab` (always the full
+  // Awaiting Payment set + all "payment"-type calendar events), so the
+  // summary stays accurate no matter which tab is currently displayed.
+  const [awaitingPayment, setAwaitingPayment] = useState<ExpenseRequest[]>([]);
+  const [paymentDates, setPaymentDates] = useState<CalendarEventRow[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -28,7 +78,25 @@ export default function AccountingPage() {
       .finally(() => setLoading(false));
   };
 
+  // Refreshed on every tab switch (cheap, keeps it current) and explicitly
+  // after Mark Paid/Reject below, so the summary never shows a request
+  // that's just been paid or rejected as still "awaiting payment".
+  const loadPaymentSummary = () => {
+    fetch("/api/requests?scope=accounting&tab=pending")
+      .then((res) => res.json())
+      .then((data) => setAwaitingPayment(data.requests ?? []));
+    fetch("/api/calendar-events")
+      .then((res) => res.json())
+      .then((data) => setPaymentDates((data.events ?? []).filter((e: CalendarEventRow) => e.event_type === "payment")));
+  };
+
+  const { buckets: paymentBuckets, unscheduled: unscheduledPayment } = useMemo(
+    () => bucketByPaymentDate(awaitingPayment, paymentDates),
+    [awaitingPayment, paymentDates],
+  );
+
   useEffect(load, [tab]);
+  useEffect(loadPaymentSummary, [tab]);
 
   useEffect(() => {
     fetch("/api/requests?scope=accounting&tab=edit-requests")
@@ -50,6 +118,7 @@ export default function AccountingPage() {
       }
       setSelected(null);
       load();
+      loadPaymentSummary();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update");
     } finally {
@@ -73,6 +142,7 @@ export default function AccountingPage() {
       }
       setSelected(null);
       load();
+      loadPaymentSummary();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to reject");
     } finally {
@@ -105,7 +175,63 @@ export default function AccountingPage() {
 
   return (
     <div>
-      <h1 className="mm-page-title mb-4">Accounting</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="mm-page-title">Accounting</h1>
+        <button
+          onClick={() =>
+            exportRequestsToExcel(
+              filtered,
+              `accounting-${tab}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+            )
+          }
+          disabled={filtered.length === 0}
+          className="mm-btn-secondary mm-btn-sm"
+        >
+          ⬇ Export to Excel
+        </button>
+      </div>
+
+      <div className="mm-card mb-4">
+        <h3 className="mm-section-label">Payment Date Summary</h3>
+        {paymentDates.length === 0 ? (
+          <p className="text-sm text-brand-muted">
+            No "Payment" events on the calendar yet — add them from the homepage Calendar to see totals here.
+          </p>
+        ) : (
+          <div className="mm-table-wrap">
+            <table className="mm-table">
+              <thead>
+                <tr>
+                  <th>Payment Date</th>
+                  <th>Label</th>
+                  <th># Requests</th>
+                  <th>Total Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentBuckets.map((b) => (
+                  <tr key={b.eventDate}>
+                    <td>{formatDate(b.eventDate)}</td>
+                    <td>{b.title}</td>
+                    <td>{b.count}</td>
+                    <td>{formatCurrency(b.total)}</td>
+                  </tr>
+                ))}
+                {unscheduledPayment.count > 0 && (
+                  <tr>
+                    <td colSpan={2} className="text-brand-muted">
+                      No due date / beyond the last scheduled payment date
+                    </td>
+                    <td>{unscheduledPayment.count}</td>
+                    <td>{formatCurrency(unscheduledPayment.total)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="mm-tabs mb-4">
         {(["pending", "paid", "edit-requests"] as Tab[]).map((t) => (
           <button
