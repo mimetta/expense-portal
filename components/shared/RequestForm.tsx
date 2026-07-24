@@ -5,7 +5,6 @@ import RequiredMark from "@/components/shared/RequiredMark";
 import {
   BANK_OPTIONS,
   CARD_TYPES,
-  DEPARTMENT_ABBREV,
   DEPARTMENTS,
   DOCUMENT_TYPES,
   EXPENSE_TYPES,
@@ -67,12 +66,6 @@ function custodianOptionLabel(c: PettyCashCustodianRow): string {
 }
 
 const DRAFT_AUTOSAVE_MS = 60_000;
-
-// departmentOptions is a plain string[] fetched from the DB (not the typed
-// Department union), so this looks the abbreviation up defensively.
-function departmentAbbrev(d: string): string | undefined {
-  return (DEPARTMENT_ABBREV as Record<string, string>)[d];
-}
 
 function formatBytes(n?: number): string {
   if (!n) return "";
