@@ -28,7 +28,9 @@ export type Page =
   | "bo-approvals"
   | "ceo-approvals"
   | "accounting"
+  | "petty-cash"
   | "dashboard"
+  | "budget"
   | "settings";
 
 // Every @mimetta.co user gets Submit + My Requests (they are, at minimum, an
@@ -47,13 +49,25 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
     case "procurement":
       return hasRole(user, "PROCUREMENT");
     case "bo-approvals":
-      return hasRole(user, "BO") || hasRole(user, "PETTY_CASH_CUSTODIAN");
+      return hasRole(user, "BO");
     case "ceo-approvals":
       return hasRole(user, "CEO");
     case "accounting":
       return hasRole(user, "ACCOUNTING");
+    // Split out from BO Approvals' "Petty Cash" sub-tab into its own
+    // top-level page/nav item — a pure PETTY_CASH_CUSTODIAN (no BO role) no
+    // longer has any reason to land on /bo-approvals at all now that the
+    // tab lives here instead.
+    case "petty-cash":
+      return hasRole(user, "PETTY_CASH_CUSTODIAN");
     case "dashboard":
       return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING");
+    case "budget":
+      // CEO/ACCOUNTING see every department; DEPT_HEAD sees the page too but
+      // gets scoped to their own dept_scope — see canViewBudgetDept below.
+      // This mirrors the dashboard rule plus the new role, same convention
+      // as every other canAccessPage case.
+      return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING") || hasRole(user, "DEPT_HEAD");
     case "settings":
       // Visible to every role except a pure EMPLOYEE (or a user with no
       // roles at all, though auto-registration means that's now transient
@@ -209,6 +223,21 @@ export function canPettyCashActOnRequest(user: CurrentUser, request: ExpenseRequ
   if (isSuperadmin(user)) return true;
   return hasRole(user, "PETTY_CASH_CUSTODIAN") && request.petty_cash_holder_email === user.email;
 }
+
+// --- Budget (cashflow_departments) scope matching -------------------------
+// Same dept_scope column/convention as BO, just matched against a
+// cashflow_departments row instead of a request. CEO/ACCOUNTING/SUPERADMIN
+// always see every department; DEPT_HEAD only sees rows where one of their
+// dept_scope values matches the department's full_name.
+export function canViewBudgetDept(
+  user: CurrentUser,
+  department: { full_name: string }
+): boolean {
+  if (isSuperadmin(user)) return true;
+  if (hasRole(user, "CEO") || hasRole(user, "ACCOUNTING")) return true;
+  return rolesOf(user, "DEPT_HEAD").some((scope) => scopeMatches(scope.dept_scope, department.full_name));
+}
+
 
 // Shared by GET /api/requests/[id] and the homepage's payment
 // calendar/stats endpoints — "can this user see this request at all"

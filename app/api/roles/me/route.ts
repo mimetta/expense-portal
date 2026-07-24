@@ -10,6 +10,7 @@ const PAGES: Page[] = [
   "bo-approvals",
   "ceo-approvals",
   "accounting",
+  "petty-cash",
   "dashboard",
   "settings",
 ];

@@ -18,10 +18,12 @@ interface RoleMeResponse {
 const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "submit", href: "/submit", label: "Submit" },
   { page: "my", href: "/my", label: "My Requests" },
+  { page: "petty-cash", href: "/petty-cash", label: "Petty Cash" },
   { page: "procurement", href: "/procurement", label: "Procurement" },
   { page: "bo-approvals", href: "/bo-approvals", label: "BO Approvals" },
   { page: "ceo-approvals", href: "/ceo-approvals", label: "CEO Approvals" },
   { page: "accounting", href: "/accounting", label: "Accounting" },
+  { page: "budget", href: "/budget", label: "Budget" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];
 

@@ -7,13 +7,22 @@ import RequestDetailModal from "@/components/shared/RequestDetailModal";
 import { BUSINESS_UNITS } from "@/lib/constants";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { canBoActOnRequest, hasRole, isSuperadmin } from "@/lib/permissions";
-import { isEditRequestPending } from "@/lib/status";
 import type { CurrentUser, ExpenseRequest } from "@/types/database";
 
-type Tab = "pending" | "edit-requests" | "all";
+// Split out of app/bo-approvals/boapprovalsClient.tsx's "Petty Cash" sub-tab
+// into its own top-level page/nav item (see CLAUDE.md-style history: that
+// tab only ever fetched scope=pettycash&tab=pending — no "All" view existed
+// — so this page adds a real Pending/All pair, matching every other list
+// page in the app, rather than just relocating the single pending list).
+// The underlying approval mechanics are unchanged and still live in
+// GET /api/requests (scope=pettycash) and PATCH .../bo-approve — petty cash
+// custodians approve/reject through the exact same BO_APPROVED action,
+// scoped to requests where they're the named holder (canPettyCashActOnRequest)
+// rather than a bu/dept/cat_l1 BO scope row.
+type Tab = "pending" | "all";
 const RELEVANT_STATUSES = ["SUBMITTED", "PO_UPLOADED", "BO_APPROVED"] as const;
 
-export default function BoApprovalsPage() {
+export default function PettyCashClient() {
   const [tab, setTab] = useState<Tab>("pending");
   const [buFilter, setBuFilter] = useState<string>("ALL");
   const [requests, setRequests] = useState<ExpenseRequest[]>([]);
@@ -22,13 +31,10 @@ export default function BoApprovalsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<ExpenseRequest | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [editRequestCount, setEditRequestCount] = useState(0);
-
-  const isBoRole = !!currentUser && (isSuperadmin(currentUser) || hasRole(currentUser, "BO"));
 
   const load = () => {
     setLoading(true);
-    fetch(`/api/requests?scope=bo&tab=${tab}`)
+    fetch(`/api/requests?scope=pettycash&tab=${tab}`)
       .then((res) => res.json())
       .then((data) => setRequests(data.requests ?? []))
       .finally(() => setLoading(false));
@@ -39,15 +45,6 @@ export default function BoApprovalsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  // Badge count is independent of which tab is currently selected.
-  useEffect(() => {
-    if (!currentUser || !isBoRole) return;
-    fetch("/api/requests?scope=bo&tab=edit-requests")
-      .then((res) => res.json())
-      .then((data) => setEditRequestCount((data.requests ?? []).length));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, currentUser]);
-
   useEffect(() => {
     fetch("/api/roles/me")
       .then((res) => res.json())
@@ -56,10 +53,11 @@ export default function BoApprovalsPage() {
       });
   }, []);
 
-  // Any BO whose scope covers this request can unapprove it, not just the
-  // one who clicked Approve — matches the server-side check in
-  // bo-unapprove/route.ts (which is the actual enforcement; this is UX
-  // only).
+  // Unchanged from the BO Approvals tab this replaces: bo-unapprove/route.ts
+  // only authorizes the BO role (not PETTY_CASH_CUSTODIAN), so a pure
+  // custodian never sees an Unapprove action here — only SUPERADMIN or an
+  // in-scope BO do. Flag if custodian-initiated unapprove is ever wanted;
+  // that would need a server-side change to bo-unapprove/route.ts too.
   const canUnapprove = (r: ExpenseRequest) =>
     !!currentUser && (isSuperadmin(currentUser) || (hasRole(currentUser, "BO") && canBoActOnRequest(currentUser, r)));
 
@@ -126,45 +124,21 @@ export default function BoApprovalsPage() {
     }
   };
 
-  const actOnEditRequest = async (id: string, allow: boolean) => {
-    if (!allow && !confirm("Reject this edit request? The requester will be notified.")) return;
-    setBusy(id);
-    try {
-      const res = await fetch(`/api/requests/${id}/approve-edit`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allow }),
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error ?? "Failed to act on edit request");
-      }
-      setSelected(null);
-      load();
-      setEditRequestCount((c) => Math.max(0, c - 1));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to act on edit request");
-    } finally {
-      setBusy(null);
-    }
-  };
-
   return (
     <div>
-      <h1 className="mm-page-title mb-4">BO Approvals</h1>
+      <h1 className="mm-page-title mb-4">Petty Cash</h1>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="mm-tabs">
-          {isBoRole &&
-            (["pending", "edit-requests", "all"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`mm-tab ${tab === t ? "mm-tab-active" : ""}`}
-              >
-                {t === "pending" ? "Pending" : t === "edit-requests" ? `Edit Requests (${editRequestCount})` : "All"}
-              </button>
-            ))}
+          {(["pending", "all"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`mm-tab ${tab === t ? "mm-tab-active" : ""}`}
+            >
+              {t === "pending" ? "Pending" : "All"}
+            </button>
+          ))}
         </div>
         <select
           className="h-8 rounded-md border border-brand-border px-2 text-[13px]"
@@ -196,7 +170,7 @@ export default function BoApprovalsPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-brand-muted">{r.request_id}</span>
                   <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
-                    {r.use_for_company || r.bu}
+                    {r.bu}
                   </span>
                   {r.skip_bo && (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
@@ -216,9 +190,6 @@ export default function BoApprovalsPage() {
               </div>
               <div className="mt-1 text-sm font-medium text-brand-dark">{formatCurrency(r.total)}</div>
               <div className="mt-1 text-xs text-brand-muted">Submitted {formatDate(r.timestamp)}</div>
-              {r.due_date && (
-                <div className="mt-1 text-xs text-brand-muted">Due {formatDate(r.due_date)}</div>
-              )}
               {r.status === "BO_APPROVED" && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-brand-muted">
                   <span>Approved by {r.bo_approver ?? "-"} at {formatDate(r.bo_approved_at)}</span>
@@ -236,34 +207,6 @@ export default function BoApprovalsPage() {
                   )}
                 </div>
               )}
-              {tab === "edit-requests" && isEditRequestPending(r) && (
-                <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                  <p className="font-medium">Edit requested by {r.requester_name}</p>
-                  <p>Reason: {r.edit_requested_reason ?? "-"}</p>
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        actOnEditRequest(r.request_id, true);
-                      }}
-                      disabled={busy === r.request_id}
-                      className="mm-btn-primary mm-btn-sm"
-                    >
-                      Allow Edit
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        actOnEditRequest(r.request_id, false);
-                      }}
-                      disabled={busy === r.request_id}
-                      className="mm-btn-danger mm-btn-sm"
-                    >
-                      Reject Edit Request
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -273,26 +216,8 @@ export default function BoApprovalsPage() {
         <RequestDetailModal
           request={selected}
           onClose={() => setSelected(null)}
-          showBoApprover={false}
           actions={
-            selected.status === "BO_APPROVED" && isEditRequestPending(selected) ? (
-              <>
-                <button
-                  disabled={busy === selected.request_id}
-                  onClick={() => actOnEditRequest(selected.request_id, true)}
-                  className="mm-btn-primary"
-                >
-                  Allow Edit
-                </button>
-                <button
-                  disabled={busy === selected.request_id}
-                  onClick={() => actOnEditRequest(selected.request_id, false)}
-                  className="mm-btn-danger"
-                >
-                  Reject Edit Request
-                </button>
-              </>
-            ) : (selected.status === "PO_UPLOADED" || (!selected.requires_po && selected.status === "SUBMITTED")) &&
+            (selected.status === "PO_UPLOADED" || (!selected.requires_po && selected.status === "SUBMITTED")) &&
             !selected.skip_bo ? (
               <>
                 <button
