@@ -22,5 +22,16 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  // scripts/** are standalone Node/CLI tools (data audits and one-off DB
+  // fixes), never imported by the deployed app, run directly via `tsx`
+  // (which transpiles per-file with esbuild and doesn't care about this
+  // project's `target`/`lib`, so excluding them here has no effect on
+  // actually running them — `npm run fix:...` etc. keep working unchanged).
+  // They were swept into `next build`'s whole-project type-check by the
+  // broad "**/*.ts" include above, which failed two deploys in a row on
+  // scripts that pre-date any of this — e.g. Map/Set for-of iteration
+  // needing --downlevelIteration under this project's target. Excluding the
+  // whole directory prevents every future standalone script from being able
+  // to break the production build the same way, not just this one file.
+  "exclude": ["node_modules", "scripts"]
 }
