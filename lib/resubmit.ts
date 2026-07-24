@@ -35,6 +35,16 @@ export interface EditableRequestBody {
   requires_po?: boolean;
   files_folder_url?: string;
   files_json?: FileEntry[];
+  // These three were missing entirely — buildEditableFields (below) never
+  // read them, so every edit path that goes through it (resubmit,
+  // owner_edit, edit_resubmit, and the REJECTED-not-resubmitting path in
+  // PATCH /api/requests/[id]) silently dropped whatever the requester typed
+  // into these fields, no matter how many times they edited and re-saved.
+  // Confirmed live on EXP-2026-07-000124: requester edited "Use for
+  // company" twice across two resubmits and it never took.
+  use_for_company?: string;
+  petty_cash_holder_email?: string;
+  procurement_fills_payment?: boolean;
 }
 
 // Builds the full set of submit-page-equivalent fields from a partial edit
@@ -102,6 +112,9 @@ export async function buildEditableFields(
     requires_po: body.requires_po ?? existing.requires_po,
     files_folder_url: body.files_folder_url ?? existing.files_folder_url,
     files_json: body.files_json ?? existing.files_json,
+    use_for_company: body.use_for_company ?? existing.use_for_company,
+    petty_cash_holder_email: body.petty_cash_holder_email ?? existing.petty_cash_holder_email,
+    procurement_fills_payment: body.procurement_fills_payment ?? existing.procurement_fills_payment,
     items_json: items,
     items_summary: totals.items_summary,
     items_count: totals.items_count,
