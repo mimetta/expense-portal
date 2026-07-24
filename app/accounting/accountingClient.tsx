@@ -17,6 +17,21 @@ interface PaymentBucket {
   title: string;
   total: number;
   count: number;
+  requests: ExpenseRequest[];
+}
+
+interface UnscheduledBucket {
+  total: number;
+  count: number;
+  requests: ExpenseRequest[];
+}
+
+interface MonthGroup {
+  monthKey: string;
+  label: string;
+  buckets: PaymentBucket[];
+  totalCount: number;
+  totalAmount: number;
 }
 
 // Buckets every currently-unpaid (Awaiting Payment) request into the
@@ -31,15 +46,16 @@ interface PaymentBucket {
 function bucketByPaymentDate(
   requests: ExpenseRequest[],
   paymentDates: CalendarEventRow[],
-): { buckets: PaymentBucket[]; unscheduled: { total: number; count: number } } {
+): { buckets: PaymentBucket[]; unscheduled: UnscheduledBucket } {
   const sorted = [...paymentDates].sort((a, b) => a.event_date.localeCompare(b.event_date));
   const buckets: PaymentBucket[] = sorted.map((pd) => ({
     eventDate: pd.event_date,
     title: pd.title,
     total: 0,
     count: 0,
+    requests: [],
   }));
-  const unscheduled = { total: 0, count: 0 };
+  const unscheduled: UnscheduledBucket = { total: 0, count: 0, requests: [] };
 
   for (const r of requests) {
     const due = r.due_date;
@@ -47,13 +63,47 @@ function bucketByPaymentDate(
     if (bucket) {
       bucket.total += r.total;
       bucket.count += 1;
+      bucket.requests.push(r);
     } else {
       unscheduled.total += r.total;
       unscheduled.count += 1;
+      unscheduled.requests.push(r);
     }
   }
 
   return { buckets, unscheduled };
+}
+
+function monthLabel(eventDate: string): string {
+  const [y, m] = eventDate.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+// Groups the sorted payment-date buckets by calendar month, so the summary
+// can collapse to one row per month (Darling's "month by month" request)
+// with each month expanding to its individual payment dates, which in turn
+// expand to the actual request list — see the mockup this was built from.
+function groupByMonth(buckets: PaymentBucket[]): MonthGroup[] {
+  const order: string[] = [];
+  const map = new Map<string, PaymentBucket[]>();
+  for (const b of buckets) {
+    const key = b.eventDate.slice(0, 7);
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key)!.push(b);
+  }
+  return order.map((monthKey) => {
+    const group = map.get(monthKey)!;
+    return {
+      monthKey,
+      label: monthLabel(group[0].eventDate),
+      buckets: group,
+      totalCount: group.reduce((s, b) => s + b.count, 0),
+      totalAmount: group.reduce((s, b) => s + b.total, 0),
+    };
+  });
 }
 
 export default function AccountingPage() {
@@ -69,6 +119,25 @@ export default function AccountingPage() {
   // summary stays accurate no matter which tab is currently displayed.
   const [awaitingPayment, setAwaitingPayment] = useState<ExpenseRequest[]>([]);
   const [paymentDates, setPaymentDates] = useState<CalendarEventRow[]>([]);
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [unscheduledExpanded, setUnscheduledExpanded] = useState(false);
+
+  const toggleMonth = (key: string) =>
+    setExpandedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const toggleDate = (key: string) =>
+    setExpandedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const load = () => {
     setLoading(true);
@@ -94,6 +163,7 @@ export default function AccountingPage() {
     () => bucketByPaymentDate(awaitingPayment, paymentDates),
     [awaitingPayment, paymentDates],
   );
+  const monthGroups = useMemo(() => groupByMonth(paymentBuckets), [paymentBuckets]);
 
   useEffect(load, [tab]);
   useEffect(loadPaymentSummary, [tab]);
@@ -198,36 +268,147 @@ export default function AccountingPage() {
             No &quot;Payment&quot; events on the calendar yet — add them from the homepage Calendar to see totals here.
           </p>
         ) : (
-          <div className="mm-table-wrap">
-            <table className="mm-table">
-              <thead>
-                <tr>
-                  <th>Payment Date</th>
-                  <th>Label</th>
-                  <th># Requests</th>
-                  <th>Total Due</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentBuckets.map((b) => (
-                  <tr key={b.eventDate}>
-                    <td>{formatDate(b.eventDate)}</td>
-                    <td>{b.title}</td>
-                    <td>{b.count}</td>
-                    <td>{formatCurrency(b.total)}</td>
-                  </tr>
-                ))}
-                {unscheduledPayment.count > 0 && (
-                  <tr>
-                    <td colSpan={2} className="text-brand-muted">
+          <div>
+            {monthGroups.map((m) => {
+              const monthOpen = expandedMonths.has(m.monthKey);
+              return (
+                <div key={m.monthKey}>
+                  <div
+                    onClick={() => toggleMonth(m.monthKey)}
+                    className="flex cursor-pointer items-center justify-between border-b border-[#F5F0E8] px-1 py-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 text-xs text-brand-subtle">{monthOpen ? "▾" : "▸"}</span>
+                      <span className="text-sm font-medium text-brand-dark">{m.label}</span>
+                    </div>
+                    <div className="flex gap-6 text-sm text-brand-muted">
+                      <span>{m.totalCount} requests</span>
+                      <span className="min-w-[90px] text-right font-medium text-brand-dark">
+                        {formatCurrency(m.totalAmount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {monthOpen && (
+                    <div className="pl-6">
+                      {m.buckets.map((b) => {
+                        const dateOpen = expandedDates.has(b.eventDate);
+                        return (
+                          <div key={b.eventDate}>
+                            <div
+                              onClick={() => toggleDate(b.eventDate)}
+                              className="flex cursor-pointer items-center justify-between border-b border-[#F5F0E8] px-1 py-2.5"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 text-[11px] text-brand-subtle">{dateOpen ? "▾" : "▸"}</span>
+                                <span className="text-[13px] text-brand-dark">{formatDate(b.eventDate)}</span>
+                                <span
+                                  className="rounded-[3px] text-[11px]"
+                                  style={{ background: "#EFF6FF", color: "#1D4ED8", padding: "1px 6px" }}
+                                >
+                                  {b.title}
+                                </span>
+                              </div>
+                              <div className="flex gap-6 text-[13px] text-brand-muted">
+                                <span>{b.count}</span>
+                                <span className="min-w-[90px] text-right font-medium text-brand-dark">
+                                  {formatCurrency(b.total)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {dateOpen && (
+                              <div className="py-1 pb-2 pl-6">
+                                {b.requests.length === 0 ? (
+                                  <p className="py-2 text-xs text-brand-subtle">No requests in this bucket.</p>
+                                ) : (
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-left text-brand-subtle">
+                                        <th className="py-1 pr-2 font-medium">Request ID</th>
+                                        <th className="py-1 pr-2 font-medium">Requester</th>
+                                        <th className="py-1 pr-2 font-medium">Segment</th>
+                                        <th className="py-1 text-right font-medium">Amount</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {b.requests.map((r) => (
+                                        <tr
+                                          key={r.request_id}
+                                          onClick={() => setSelected(r)}
+                                          className="cursor-pointer hover:bg-[#FAFAF7]"
+                                        >
+                                          <td className="py-1 pr-2 font-mono text-brand-dark">{r.request_id}</td>
+                                          <td className="py-1 pr-2 text-brand-dark">{r.requester_name}</td>
+                                          <td className="py-1 pr-2 text-brand-muted">{r.department}</td>
+                                          <td className="py-1 text-right text-brand-dark">
+                                            {formatCurrency(r.total)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {unscheduledPayment.count > 0 && (
+              <div>
+                <div
+                  onClick={() => setUnscheduledExpanded((v) => !v)}
+                  className="flex cursor-pointer items-center justify-between px-1 py-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 text-xs text-brand-subtle">{unscheduledExpanded ? "▾" : "▸"}</span>
+                    <span className="text-sm text-brand-muted">
                       No due date / beyond the last scheduled payment date
-                    </td>
-                    <td>{unscheduledPayment.count}</td>
-                    <td>{formatCurrency(unscheduledPayment.total)}</td>
-                  </tr>
+                    </span>
+                  </div>
+                  <div className="flex gap-6 text-sm text-brand-muted">
+                    <span>{unscheduledPayment.count} requests</span>
+                    <span className="min-w-[90px] text-right font-medium text-brand-dark">
+                      {formatCurrency(unscheduledPayment.total)}
+                    </span>
+                  </div>
+                </div>
+                {unscheduledExpanded && (
+                  <div className="pb-2 pl-9">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-brand-subtle">
+                          <th className="py-1 pr-2 font-medium">Request ID</th>
+                          <th className="py-1 pr-2 font-medium">Requester</th>
+                          <th className="py-1 pr-2 font-medium">Segment</th>
+                          <th className="py-1 text-right font-medium">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unscheduledPayment.requests.map((r) => (
+                          <tr
+                            key={r.request_id}
+                            onClick={() => setSelected(r)}
+                            className="cursor-pointer hover:bg-[#FAFAF7]"
+                          >
+                            <td className="py-1 pr-2 font-mono text-brand-dark">{r.request_id}</td>
+                            <td className="py-1 pr-2 text-brand-dark">{r.requester_name}</td>
+                            <td className="py-1 pr-2 text-brand-muted">{r.department}</td>
+                            <td className="py-1 text-right text-brand-dark">{formatCurrency(r.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
         )}
       </div>
