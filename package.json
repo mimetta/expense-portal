@@ -8,7 +8,16 @@
     "start": "next start",
     "lint": "next lint",
     "migrate:sheets": "tsx scripts/migrate-from-sheets.ts",
-    "import:expensedb": "tsx scripts/import-expensedb-requests.ts"
+    "import:expensedb": "tsx scripts/import-expensedb-requests.ts",
+    "report:missing-company": "tsx scripts/report-missing-use-for-company.ts",
+    "check:override-emails": "tsx scripts/check-override-emails.ts",
+    "backfill:use-for-company": "tsx scripts/backfill-use-for-company.ts",
+    "fix:override": "tsx scripts/fix-use-for-company-override.ts",
+    "report:vat-wht": "tsx scripts/report-vat-wht-rates.ts",
+    "fix:vat-wht": "tsx scripts/fix-vat-wht-rates.ts",
+    "check:duplicate-segments": "tsx scripts/check-duplicate-segments.ts",
+    "fix:category-departments": "tsx scripts/fix-category-departments.ts",
+    "fix:department-names": "tsx scripts/fix-department-names-everywhere.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

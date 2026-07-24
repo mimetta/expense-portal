@@ -6,16 +6,28 @@ export const NEW_EMAIL_DOMAIN = "mimetta.co";
 export const BUSINESS_UNITS = ["SV", "ONEST"] as const;
 export type BusinessUnit = (typeof BUSINESS_UNITS)[number];
 
+// "New Store Investment" and "People (HR)" are deliberately NOT "Store
+// Investment"/"People & HR & System" — an earlier cleanup pass (see
+// scripts/fix-category-departments.ts) guessed these were legacy/typo'd
+// variants of the latter two and merged them away. Darling confirmed
+// (2026-07-24) that's backwards: "New Store Investment" and "People (HR)"
+// are the actual correct, intended segment names — used for both old and
+// new requests — and the merge needed to be reversed everywhere it had
+// already been applied (categories.department) plus propagated to
+// requests.department/dept_config.dept/roles.dept_scope, none of which had
+// been touched by the original merge. See
+// scripts/fix-department-names-everywhere.ts for the reversal + the other 5
+// legitimate legacy-name renames it still applies.
 export const DEPARTMENTS = [
   "Marketing",
   "R&D",
   "Factory",
   "Factory Investment",
-  "Store Investment",
+  "New Store Investment",
   "Operations/Fulfillment",
   "Retail",
   "General Administrative",
-  "People & HR & System",
+  "People (HR)",
   "Merchandise",
   "OEM",
   "Lab Instrument Investment",
@@ -27,7 +39,7 @@ export type Department = (typeof DEPARTMENTS)[number];
 export const DEPARTMENT_ABBREV: Partial<Record<Department, string>> = {
   Marketing: "MKT",
   "Factory Investment": "FACINV",
-  "Store Investment": "STOREINV",
+  "New Store Investment": "STOREINV",
   "Operations/Fulfillment": "OPF",
   "General Administrative": "GA",
   "Lab Instrument Investment": "RD",
@@ -246,37 +258,36 @@ export const CALENDAR_EVENT_TYPES: { value: CalendarEventType; label: string }[]
 export const CALENDAR_MANAGE_ROLES: Role[] = ["SUPERADMIN", "ACCOUNTING", "CEO", "PROCUREMENT"];
 
 // Departments without a dedicated Discord channel fall back to
-// DISCORD_WEBHOOK_DEFAULT (Factory Investment, People & HR & System,
-// Merchandise, COG have no channel listed in the business requirements).
-// Keys are the EXACT strings live in categories.department (verified via a
-// direct REST query against the production table, 2026-07-14) — these are
-// what actually lands in requests.department at submission time, since
-// /submit's department picker is sourced dynamically from /api/departments
-// (itself derived from categories.department), not from the DEPARTMENTS
-// constant above. The previous version of this map used DEPARTMENTS'
-// clean/unabbreviated strings, which no longer matched live data at all
-// except for "R&D", "Retail", and "OEM" — every other department silently
-// fell back to DISCORD_WEBHOOK_DEFAULT (or nothing, if that wasn't set).
+// DISCORD_WEBHOOK_DEFAULT (Factory Investment, Merchandise, COG have no
+// channel listed in the business requirements).
 //
-// One correction from the literal fix spec: "Factory Investment (FACINV)"
-// was requested, but the live table actually stores the bare
-// "Factory Investment" (no "(FACINV)" suffix) — used the real value here
-// instead, since keeping the spec's typo'd string would leave this
-// department exactly as broken as before.
+// Keys must be the EXACT strings that land in requests.department at
+// submission time. Originally written 2026-07-14 against whatever was live
+// in categories.department then (a mix of legacy/abbreviated spellings).
+// Updated 2026-07-24 after scripts/fix-department-names-everywhere.ts
+// normalized 5 of those legacy spellings to their canonical DEPARTMENTS
+// form (COGs->COG, "Fulfillment operation"->Operations/Fulfillment,
+// "General Administrative (GA)"->General Administrative, "Lab Instrument
+// Investment (RD)"->Lab Instrument Investment, "Marketing (MKT)"->Marketing)
+// — those 5 keys below were renamed to match, or every future request in
+// those departments would've silently fallen back to the default channel.
+// "New Store Investment" and "People (HR)" keys are UNCHANGED — those two
+// are canonical as-is (see the DEPARTMENTS comment above), never touched by
+// that normalization pass.
 export const DEPARTMENT_WEBHOOK_ENV: Record<string, string> = {
   Factory: "DISCORD_WEBHOOK_FACTORY",
   "Factory Investment": "DISCORD_WEBHOOK_FACINV",
   "Factory Investment (FACINV)": "DISCORD_WEBHOOK_FACINV",
-  COGs: "DISCORD_WEBHOOK_FACTORY",
+  COG: "DISCORD_WEBHOOK_FACTORY",
   "R&D": "DISCORD_WEBHOOK_RD",
-  "Lab Instrument Investment (RD)": "DISCORD_WEBHOOK_LABINV",
-  "Marketing (MKT)": "DISCORD_WEBHOOK_MARKETING",
+  "Lab Instrument Investment": "DISCORD_WEBHOOK_LABINV",
+  Marketing: "DISCORD_WEBHOOK_MARKETING",
   Merchandise: "DISCORD_WEBHOOK_MARKETING",
-  "General Administrative (GA)": "DISCORD_WEBHOOK_GA",
+  "General Administrative": "DISCORD_WEBHOOK_GA",
   "People (HR)": "DISCORD_WEBHOOK_GA",
   Retail: "DISCORD_WEBHOOK_RETAIL",
   "New Store Investment": "DISCORD_WEBHOOK_STOREINV",
-  "Fulfillment operation": "DISCORD_WEBHOOK_WH",
+  "Operations/Fulfillment": "DISCORD_WEBHOOK_WH",
   OEM: "DISCORD_WEBHOOK_FACTORY",
 };
 
