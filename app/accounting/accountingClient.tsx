@@ -9,8 +9,8 @@ import { isEditRequestPending } from "@/lib/status";
 import { exportRequestsToExcel } from "@/lib/exportRequests";
 import type { CalendarEventRow, ExpenseRequest } from "@/types/database";
 
-type Tab = "pending" | "paid" | "edit-requests";
-const RELEVANT_STATUSES = ["CEO_APPROVED", "PAID"] as const;
+type Tab = "pending" | "paid" | "bo-approved" | "edit-requests";
+const RELEVANT_STATUSES = ["CEO_APPROVED", "PAID", "BO_APPROVED"] as const;
 
 interface PaymentBucket {
   eventDate: string;
@@ -414,13 +414,19 @@ export default function AccountingPage() {
       </div>
 
       <div className="mm-tabs mb-4">
-        {(["pending", "paid", "edit-requests"] as Tab[]).map((t) => (
+        {(["pending", "paid", "bo-approved", "edit-requests"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`mm-tab ${tab === t ? "mm-tab-active" : ""}`}
           >
-            {t === "pending" ? "Awaiting Payment" : t === "paid" ? "Paid" : `Edit Requests (${editRequestCount})`}
+            {t === "pending"
+              ? "Awaiting Payment"
+              : t === "paid"
+              ? "Paid"
+              : t === "bo-approved"
+              ? "BO Approved"
+              : `Edit Requests (${editRequestCount})`}
           </button>
         ))}
       </div>
@@ -443,7 +449,15 @@ export default function AccountingPage() {
                 <th>Total</th>
                 <th>Status</th>
                 <th>Slip Receiver</th>
-                <th>{tab === "pending" ? "CEO Approved" : tab === "paid" ? "Paid At" : "Edit Reason"}</th>
+                <th>
+                  {tab === "pending"
+                    ? "CEO Approved"
+                    : tab === "paid"
+                    ? "Paid At"
+                    : tab === "bo-approved"
+                    ? "BO Approved At"
+                    : "Edit Reason"}
+                </th>
                 <th />
               </tr>
             </thead>
@@ -460,7 +474,9 @@ export default function AccountingPage() {
                   <td className="text-xs text-brand-muted">
                     {tab === "edit-requests"
                       ? r.edit_requested_reason ?? "-"
-                      : formatDate(tab === "pending" ? r.ceo_approved_at : r.paid_at)}
+                      : formatDate(
+                          tab === "pending" ? r.ceo_approved_at : tab === "bo-approved" ? r.bo_approved_at : r.paid_at,
+                        )}
                   </td>
                   <td className="text-right" onClick={(e) => e.stopPropagation()}>
                     {tab === "pending" ? (
@@ -499,6 +515,8 @@ export default function AccountingPage() {
                           </button>
                         </div>
                       )
+                    ) : tab === "bo-approved" ? (
+                      <span className="text-xs text-brand-subtle">Awaiting CEO</span>
                     ) : (
                       <button
                         disabled={busy === r.request_id}
