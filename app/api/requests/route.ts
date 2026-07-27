@@ -104,6 +104,7 @@ export async function GET(request: Request) {
         }
         if (tab === "pending") rows = rows.filter(isAccountingActionable);
         else if (tab === "paid") rows = rows.filter((r) => r.status === "PAID");
+        else if (tab === "bo-approved") rows = rows.filter((r) => r.status === "BO_APPROVED");
         else if (tab === "edit-requests") {
           rows = rows.filter((r) => isEditRequestPending(r) && r.status === "PAID");
         }
