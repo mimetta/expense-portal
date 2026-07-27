@@ -131,6 +131,11 @@ export interface ExpenseRequest {
   // time (same copy-not-join convention as chapter/requester_name) — only
   // set for PETTY_CASH_LABEL requests.
   petty_cash_holder_email: string | null;
+  // Custodian sign-off — a distinct step from bo_approver/bo_approved_at
+  // (see lib/status.ts#isPettyCashApprovable, migration 018). Only set for
+  // PETTY_CASH_LABEL requests.
+  petty_cash_approved_by: string | null;
+  petty_cash_approved_at: string | null;
   // Flat convenience copy of items_json entries that have a travel_by set;
   // items_json itself remains the source of truth (see RequestItem).
   travel_items: { travel_by: string; distance_km: number | null }[];

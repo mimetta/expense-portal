@@ -18,6 +18,7 @@ import {
   isBoActionable,
   isCeoActionable,
   isEditRequestPending,
+  isPettyCashApprovable,
   needsProcurement,
 } from "@/lib/status";
 import { computeTotals } from "@/lib/totals";
@@ -71,9 +72,11 @@ export async function GET(request: Request) {
         break;
       }
 
-      // PETTY_CASH_CUSTODIAN's own tab on /bo-approvals — requests where
-      // they're the named holder, not a bu/dept/cat_l1 scope match (see
-      // canPettyCashActOnRequest).
+      // The Petty Cash page's own scope — requests where the signed-in
+      // custodian is the named holder, not a bu/dept/cat_l1 scope match
+      // (see canPettyCashActOnRequest). "pending" here means "awaiting my
+      // sign-off" (isPettyCashApprovable), not "awaiting BO approval" —
+      // those are now two separate steps, see lib/status.ts.
       case "pettycash": {
         if (!isSuperadmin(user) && !hasRole(user, "PETTY_CASH_CUSTODIAN")) {
           throw new ForbiddenError();
@@ -81,7 +84,7 @@ export async function GET(request: Request) {
         rows = rows.filter(
           (r) => r.expense_type === PETTY_CASH_LABEL && canPettyCashActOnRequest(user, r),
         );
-        if (tab === "pending") rows = rows.filter(isBoActionable);
+        if (tab === "pending") rows = rows.filter(isPettyCashApprovable);
         break;
       }
 

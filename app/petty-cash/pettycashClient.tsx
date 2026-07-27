@@ -7,18 +7,21 @@ import RequestDetailModal from "@/components/shared/RequestDetailModal";
 import { BUSINESS_UNITS } from "@/lib/constants";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { canBoActOnRequest, hasRole, isSuperadmin } from "@/lib/permissions";
+import { isPettyCashApprovable } from "@/lib/status";
 import type { CurrentUser, ExpenseRequest } from "@/types/database";
 
 // Split out of app/bo-approvals/boapprovalsClient.tsx's "Petty Cash" sub-tab
-// into its own top-level page/nav item (see CLAUDE.md-style history: that
-// tab only ever fetched scope=pettycash&tab=pending — no "All" view existed
-// — so this page adds a real Pending/All pair, matching every other list
-// page in the app, rather than just relocating the single pending list).
-// The underlying approval mechanics are unchanged and still live in
-// GET /api/requests (scope=pettycash) and PATCH .../bo-approve — petty cash
-// custodians approve/reject through the exact same BO_APPROVED action,
-// scoped to requests where they're the named holder (canPettyCashActOnRequest)
-// rather than a bu/dept/cat_l1 BO scope row.
+// into its own top-level page/nav item, and then reworked again once it
+// became clear the custodian's sign-off needed to be a genuinely separate
+// step from BO_APPROVED, not a substitute for it (see migration 018,
+// lib/status.ts#isPettyCashApprovable, and PATCH .../petty-cash-approve —
+// three walked-through scenarios: a pure custodian, a custodian who's also
+// an in-scope BO, and an employee borrowing from someone else's fund all
+// need the same custodian-then-BO chain, collapsing to one click only when
+// the same person holds both roles). "Pending" here means "awaiting my
+// sign-off" — a request that's already signed off but still awaiting the
+// real BO shows up in the "All" tab, not "Pending", since there's nothing
+// left for the custodian to do on it.
 type Tab = "pending" | "all";
 const RELEVANT_STATUSES = ["SUBMITTED", "PO_UPLOADED", "BO_APPROVED"] as const;
 
@@ -66,18 +69,18 @@ export default function PettyCashClient() {
     [requests, buFilter],
   );
 
-  const approve = async (id: string) => {
+  const signOff = async (id: string) => {
     setBusy(id);
     try {
-      const res = await fetch(`/api/requests/${id}/bo-approve`, { method: "PATCH" });
+      const res = await fetch(`/api/requests/${id}/petty-cash-approve`, { method: "PATCH" });
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error ?? "Failed to approve");
+        throw new Error(body.error ?? "Failed to sign off");
       }
       setSelected(null);
       load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to approve");
+      alert(err instanceof Error ? err.message : "Failed to sign off");
     } finally {
       setBusy(null);
     }
@@ -190,9 +193,20 @@ export default function PettyCashClient() {
               </div>
               <div className="mt-1 text-sm font-medium text-brand-dark">{formatCurrency(r.total)}</div>
               <div className="mt-1 text-xs text-brand-muted">Submitted {formatDate(r.timestamp)}</div>
+              {r.petty_cash_approved_by && r.status !== "BO_APPROVED" && (
+                <div className="mt-2 text-xs text-brand-muted">
+                  Signed off by {r.petty_cash_approved_by} at {formatDate(r.petty_cash_approved_at)}
+                  {!r.skip_bo && r.status !== "CEO_APPROVED" && r.status !== "PAID" && r.status !== "REJECTED"
+                    ? " — awaiting BO approval"
+                    : ""}
+                </div>
+              )}
               {r.status === "BO_APPROVED" && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-brand-muted">
-                  <span>Approved by {r.bo_approver ?? "-"} at {formatDate(r.bo_approved_at)}</span>
+                  <span>
+                    Signed off by {r.petty_cash_approved_by ?? "-"}, approved by {r.bo_approver ?? "-"} at{" "}
+                    {formatDate(r.bo_approved_at)}
+                  </span>
                   {canUnapprove(r) && (
                     <button
                       onClick={(e) => {
@@ -217,15 +231,14 @@ export default function PettyCashClient() {
           request={selected}
           onClose={() => setSelected(null)}
           actions={
-            (selected.status === "PO_UPLOADED" || (!selected.requires_po && selected.status === "SUBMITTED")) &&
-            !selected.skip_bo ? (
+            isPettyCashApprovable(selected) ? (
               <>
                 <button
                   disabled={busy === selected.request_id}
-                  onClick={() => approve(selected.request_id)}
+                  onClick={() => signOff(selected.request_id)}
                   className="mm-btn-primary"
                 >
-                  Approve
+                  Sign Off
                 </button>
                 <button
                   disabled={busy === selected.request_id}

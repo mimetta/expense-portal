@@ -1,3 +1,4 @@
+import { PETTY_CASH_LABEL } from "@/lib/constants";
 import type { ExpenseRequest } from "@/types/database";
 
 // Status flow (see CLAUDE.md):
@@ -13,14 +14,37 @@ export function needsProcurement(r: ExpenseRequest): boolean {
   return r.requires_po && r.status === "SUBMITTED";
 }
 
+// Petty cash custodian sign-off — a distinct step from BO_APPROVED, added
+// after this scenario was walked through explicitly: a pure custodian, a
+// custodian who's also a BO, and an employee borrowing from someone else's
+// petty cash fund all need the SAME two sign-offs (custodian, then
+// whoever/whatever normally reviews next), collapsing to one click only
+// when the same person holds both roles (see
+// app/api/requests/[id]/petty-cash-approve/route.ts). Deliberately does
+// NOT check skip_bo — the custodian sign-off is always required for a
+// petty cash request regardless of whether the BO step itself is skipped
+// for that segment; only the step *after* sign-off follows skip_bo.
+export function isPettyCashApprovable(r: ExpenseRequest): boolean {
+  if (r.expense_type !== PETTY_CASH_LABEL) return false;
+  if (r.petty_cash_approved_by) return false;
+  return r.requires_po ? r.status === "PO_UPLOADED" : r.status === "SUBMITTED";
+}
+
 export function isBoActionable(r: ExpenseRequest): boolean {
   if (r.skip_bo) return false;
+  // A petty cash request only reaches the segment's real BO once the
+  // custodian has signed off — see isPettyCashApprovable above.
+  if (r.expense_type === PETTY_CASH_LABEL && !r.petty_cash_approved_by) return false;
   if (r.requires_po) return r.status === "PO_UPLOADED";
   return r.status === "SUBMITTED";
 }
 
 export function isCeoActionable(r: ExpenseRequest): boolean {
   if (r.skip_bo) {
+    // Same custodian-sign-off gate as isBoActionable, just on the skip_bo
+    // path where CEO is the very next reviewer after the custodian instead
+    // of a real BO.
+    if (r.expense_type === PETTY_CASH_LABEL && !r.petty_cash_approved_by) return false;
     return r.requires_po ? r.status === "PO_UPLOADED" : r.status === "SUBMITTED";
   }
   return r.status === "BO_APPROVED";
