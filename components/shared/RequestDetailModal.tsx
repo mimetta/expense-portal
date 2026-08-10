@@ -990,10 +990,17 @@ export default function RequestDetailModal({
                         target="_blank"
                         rel="noreferrer"
                         onClick={(e) => {
-                          if (f.path) {
-                            e.preventDefault();
-                            openStoredFile(f);
-                          }
+                          // Always route through openStoredFile — not just
+                          // when f.path is set. Storage-backed files need it
+                          // to re-sign an expired URL, but legacy base64
+                          // data: files need it just as much (openStoredFile
+                          // converts them to a Blob object URL, since
+                          // browsers block/blank a direct data: URL
+                          // navigation once it's past a certain length).
+                          // Letting those fall through to the raw <a href>
+                          // was the actual bug.
+                          e.preventDefault();
+                          openStoredFile(f);
                         }}
                         className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
                       >

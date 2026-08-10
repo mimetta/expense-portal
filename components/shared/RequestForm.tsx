@@ -1770,10 +1770,12 @@ export default function RequestForm({
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => {
-                  if (file.path) {
-                    e.preventDefault();
-                    openStoredFile(file);
-                  }
+                  // Route through openStoredFile unconditionally — see the
+                  // matching fix in RequestDetailModal.tsx for why legacy
+                  // base64 files (no file.path) need this just as much as
+                  // Storage-backed ones do.
+                  e.preventDefault();
+                  openStoredFile(file);
                 }}
                 className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
               >
