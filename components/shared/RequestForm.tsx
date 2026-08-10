@@ -170,6 +170,25 @@ export async function resolveFileUrl(f: FileEntry): Promise<string> {
 
 export async function openStoredFile(f: FileEntry) {
   const url = await resolveFileUrl(f);
+  // Browsers (notably Chrome) block window.open() from navigating a new tab
+  // directly to a data: URL once it's past a certain length — the tab opens
+  // blank instead of showing the file. This only affects the legacy
+  // base64-embedded files that have no Storage `path` (e.g. Procurement's
+  // inline-edit attachments, see RequestDetailModal.tsx's fileToEntry()) —
+  // every Storage-backed file already resolves to a normal https:// URL and
+  // is unaffected. Converting the data: URL to a Blob object URL first
+  // sidesteps the block.
+  if (url.startsWith("data:")) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      return;
+    } catch {
+      // fall through and try opening the raw data: URL as a last resort
+    }
+  }
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
