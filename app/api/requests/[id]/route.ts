@@ -15,6 +15,7 @@ import { getRequestOrThrow, updateRequest } from "@/lib/request-repo";
 import { computeTotals } from "@/lib/totals";
 import { logAudit } from "@/lib/audit";
 import { notify, type NotificationEvent } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import { buildEditableFields, resubmitRequest, type EditableRequestBody } from "@/lib/resubmit";
 import { PETTY_CASH_LABEL } from "@/lib/constants";
 import type { ExpenseRequest, FileEntry, RequestItem } from "@/types/database";
@@ -282,7 +283,10 @@ export async function PATCH(
       });
       await logAudit(user.email, id, "EDIT_RESUBMITTED", { target_status: targetStatus });
       const notifyEvent = EDIT_RESUBMIT_NOTIFY_EVENT[targetStatus];
-      if (notifyEvent) await notify(notifyEvent, updated);
+      if (notifyEvent) {
+        await notify(notifyEvent, updated);
+        await notifyInApp("EDIT_RESUBMITTED", updated);
+      }
       return NextResponse.json({ request: updated });
     }
 
@@ -312,6 +316,7 @@ export async function PATCH(
       if (patch.status === "PO_UPLOADED") {
         await logAudit(user.email, id, "PO_UPLOADED", { po_number: patch.po_number });
         await notify("PO_UPLOADED", updated);
+        await notifyInApp("PO_UPLOADED", updated);
       }
       return NextResponse.json({ request: updated });
     }

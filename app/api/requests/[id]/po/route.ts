@@ -7,6 +7,7 @@ import { needsProcurement } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { FileEntry } from "@/types/database";
 
 interface UploadPoBody {
@@ -62,6 +63,7 @@ export async function PATCH(
 
     await logAudit(user.email, id, "PO_UPLOADED", { po_number: body.po_number });
     await notify("PO_UPLOADED", updated);
+    await notifyInApp("PO_UPLOADED", updated);
 
     return NextResponse.json({ request: updated });
   } catch (err) {

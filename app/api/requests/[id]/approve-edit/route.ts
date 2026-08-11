@@ -7,6 +7,7 @@ import { editRequestApproverStage, isEditRequestPending } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { departmentWebhookUrl, postToWebhook } from "@/lib/discord";
+import { notifyUsers } from "@/lib/notifications";
 
 const UNDEFINED_COLUMN = "42703";
 
@@ -82,6 +83,15 @@ export async function PATCH(
       const deptUrl = departmentWebhookUrl(existing.department);
       if (deptUrl) await postToWebhook(deptUrl, message);
     }
+
+    await notifyUsers(
+      [existing.requester_email],
+      existing.request_id,
+      body.allow ? "EDIT_ALLOWED" : "EDIT_REJECTED",
+      body.allow
+        ? `Your edit request for ${existing.request_id} was approved — you can now resubmit it`
+        : `Your edit request for ${existing.request_id} was rejected`,
+    );
 
     return NextResponse.json({ request: updated });
   } catch (err) {

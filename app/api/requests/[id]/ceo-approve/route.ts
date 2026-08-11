@@ -7,6 +7,7 @@ import { isCeoActionable } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { DeptConfigRow, FileEntry } from "@/types/database";
 
 // Best-effort metadata rename only — actual file storage lives in Google
@@ -67,6 +68,7 @@ export async function PATCH(
 
     await logAudit(user.email, id, "CEO_APPROVED", { signature_required: ceoSignatureRequired });
     await notify("CEO_APPROVED", updated);
+    await notifyInApp("CEO_APPROVED", updated);
 
     return NextResponse.json({ request: updated });
   } catch (err) {

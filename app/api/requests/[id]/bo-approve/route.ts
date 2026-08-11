@@ -13,6 +13,7 @@ import { isBoActionable } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { DeptConfigRow } from "@/types/database";
 
 export async function PATCH(
@@ -65,6 +66,7 @@ export async function PATCH(
 
     await logAudit(user.email, id, "BO_APPROVED", {});
     await notify("BO_APPROVED", updated);
+    await notifyInApp("BO_APPROVED", updated);
 
     return NextResponse.json({ request: updated });
   } catch (err) {

@@ -148,6 +148,16 @@ export interface ExpenseRequest {
   updated_at: string;
 }
 
+export interface NotificationRow {
+  id: string;
+  user_email: string;
+  request_id: string;
+  event: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface RoleRow {
   id: string;
   email: string;

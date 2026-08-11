@@ -14,6 +14,7 @@ import {
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { RejectionHistoryEntry } from "@/types/database";
 
 export async function PATCH(
@@ -69,6 +70,7 @@ export async function PATCH(
 
     await logAudit(user.email, id, "REJECTED", { stage: existing.status, reason: body.reason });
     await notify("REJECTED", updated);
+    await notifyInApp("REJECTED", updated);
 
     return NextResponse.json({ request: updated });
   } catch (err) {

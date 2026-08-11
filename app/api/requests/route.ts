@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import {
   canBoActOnRequest,
   canPettyCashActOnRequest,
@@ -309,6 +310,7 @@ export async function POST(request: Request) {
     const created = inserted as ExpenseRequest;
     await logAudit(user.email, created.request_id, "SUBMITTED", { total: created.total });
     await notify("SUBMITTED", created);
+    await notifyInApp("SUBMITTED", created);
 
     return NextResponse.json({ request: created }, { status: 201 });
   } catch (err) {

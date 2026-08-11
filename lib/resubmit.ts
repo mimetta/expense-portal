@@ -7,6 +7,7 @@ import { computeTotals } from "@/lib/totals";
 import { getExpenseTypeConfig } from "@/lib/constants";
 import { logAudit } from "@/lib/audit";
 import { notify, type NotificationEvent } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { CurrentUser, DeptConfigRow, ExpenseRequest, FileEntry, RequestItem } from "@/types/database";
 
 // Shared by PATCH /api/requests/[id] (resubmit: true) and the dedicated
@@ -190,6 +191,7 @@ export async function resubmitRequest(
     target_status: targetStatus,
   });
   await notify(NOTIFY_EVENT_FOR_STATUS[targetStatus], updated);
+  await notifyInApp("RESUBMITTED", updated);
 
   return updated;
 }

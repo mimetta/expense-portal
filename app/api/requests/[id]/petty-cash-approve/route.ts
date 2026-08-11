@@ -14,6 +14,7 @@ import { isPettyCashApprovable } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { DeptConfigRow } from "@/types/database";
 
 // Custodian sign-off — a distinct step from BO_APPROVED, not a substitute
@@ -89,6 +90,9 @@ export async function PATCH(
     if (patch.status === "BO_APPROVED") {
       await logAudit(user.email, id, "BO_APPROVED", {});
       await notify("BO_APPROVED", updated);
+      await notifyInApp("BO_APPROVED", updated);
+    } else {
+      await notifyInApp("PETTY_CASH_APPROVED", updated);
     }
 
     return NextResponse.json({ request: updated });
