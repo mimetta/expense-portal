@@ -9,6 +9,7 @@ import {
   DEPARTMENTS,
   DOCUMENT_TYPES,
   EXPENSE_TYPES,
+  PAID_EXPENSE_LABEL,
   PAYMENT_METHODS,
   PETTY_CASH_LABEL,
   TRAVEL_BY_OPTIONS,
@@ -393,7 +394,15 @@ export default function RequestForm({
 
   const expenseConfig = getExpenseTypeConfig(expenseType);
   const isPettyCash = expenseType === PETTY_CASH_LABEL;
+  const isPaidExpense = expenseType === PAID_EXPENSE_LABEL;
   const isTravel = expenseType === TRAVEL_EXPENSE_LABEL;
+  // "ชำระแล้ว" (already-paid) requests get the exact same per-item Segment
+  // + Branch/Product line-item behavior Petty Cash has (independent
+  // Segment per row, per-row Branch/Product column, no top-level
+  // Product/Branch field, no "all items must share item 1's Segment"
+  // restriction) — everything else about Petty Cash (the holder field,
+  // hidden PO section, etc.) stays scoped to isPettyCash alone.
+  const usesPerItemSegment = isPettyCash || isPaidExpense;
 
   // Business Unit is always auto-filled and read-only — never a free
   // choice. Resolution: the first non-"*" bu_scope value across the user's
@@ -421,7 +430,7 @@ export default function RequestForm({
   // Product, but optional. Generalizes the old single-department-wide
   // perItemFieldMode to a per-row check now that Segment lives per item.
   const perItemFieldModeFor = (segment: string | undefined): "branch" | "product" | null => {
-    if (!isPettyCash) return null;
+    if (!usesPerItemSegment) return null;
     if (segment === "Retail") return "branch";
     if (segment === "R&D") return "product";
     return null;
@@ -753,9 +762,9 @@ export default function RequestForm({
     budget_period: budgetPeriod,
     // Branch/Product lives per-item (items[].product) when any row is in
     // branch/product mode — the top-level field is only meaningful for
-    // non-Petty-Cash Retail/R&D requests, keyed off the first item's
-    // segment (see primarySegment).
-    product: isPettyCash ? undefined : product || undefined,
+    // requests that still use the single-Segment-for-everything layout,
+    // keyed off the first item's segment (see primarySegment).
+    product: usesPerItemSegment ? undefined : product || undefined,
     cat_l1: items[0]?.cat_l1 || undefined,
     cat_l2: items[0]?.cat_l2 || undefined,
     items,
@@ -1140,11 +1149,12 @@ export default function RequestForm({
             onClick={() =>
               setItems((prev) => [
                 ...prev,
-                // Non-Petty-Cash: every item must share item 1's Segment
-                // (see the Segment <select> below), so a newly added row
-                // starts pre-filled with it instead of blank. Petty Cash
-                // keeps its existing free-mixing — new rows start blank.
-                isPettyCash ? emptyItem() : { ...emptyItem(), segment: prev[0]?.segment || "" },
+                // When every item must share item 1's Segment (see the
+                // Segment <select> below), a newly added row starts
+                // pre-filled with it instead of blank. Petty Cash and
+                // "ชำระแล้ว" both allow free-mixing per row — new rows
+                // start blank for those.
+                usesPerItemSegment ? emptyItem() : { ...emptyItem(), segment: prev[0]?.segment || "" },
               ])
             }
             className="mm-btn-secondary mm-btn-sm normal-case tracking-normal text-brand-brown"
@@ -1154,7 +1164,7 @@ export default function RequestForm({
         </div>
         <div className="mb-4 mt-3 border-b border-[#F0EAE0]" />
 
-        {!isPettyCash && primarySegment === "R&D" && (
+        {!usesPerItemSegment && primarySegment === "R&D" && (
           <div className="mb-3 max-w-xs">
             <label className={labelClass}>Product (optional)</label>
             <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
@@ -1170,7 +1180,7 @@ export default function RequestForm({
             )}
           </div>
         )}
-        {!isPettyCash && primarySegment === "Retail" && (
+        {!usesPerItemSegment && primarySegment === "Retail" && (
           <div className="mb-3 max-w-xs">
             <label className={labelClass}>Branch (optional)</label>
             <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
@@ -1187,7 +1197,7 @@ export default function RequestForm({
           </div>
         )}
 
-        {!isPettyCash && (
+        {!usesPerItemSegment && (
           <p className="mb-3 text-xs text-brand-subtle">
             All items in a request must use the same Segment — submit a separate request for a different Segment.
           </p>
@@ -1224,7 +1234,7 @@ export default function RequestForm({
               {isTravel && <div style={COL.distanceKm}>Distance (km)</div>}
               <div style={COL.catL1}>Category L1<RequiredMark /></div>
               <div style={COL.catL2}>Category L2</div>
-              {isPettyCash && <div style={COL.itemField}>Branch/Product</div>}
+              {usesPerItemSegment && <div style={COL.itemField}>Branch/Product</div>}
               <div style={COL.productCode}>Product Code</div>
               <div style={COL.description}>Description<RequiredMark /></div>
               <div style={COL.netAmount}>Net Amount (THB)</div>
@@ -1251,21 +1261,22 @@ export default function RequestForm({
                         value={item.segment ?? ""}
                         onChange={(e) => {
                           const value = e.target.value;
-                          if (isPettyCash) {
+                          if (usesPerItemSegment) {
                             updateItem(idx, { segment: value, cat_l1: "", cat_l2: "" });
                           } else {
-                            // Non-Petty-Cash: only item 1's select reaches
-                            // here (rows after it are disabled below) — it's
-                            // the single source of truth for every item's
-                            // Segment, so broadcast the change and reset
-                            // every item's now-possibly-invalid category
-                            // selections (categories are segment-scoped).
+                            // Single-Segment expense types: only item 1's
+                            // select reaches here (rows after it are
+                            // disabled below) — it's the single source of
+                            // truth for every item's Segment, so broadcast
+                            // the change and reset every item's
+                            // now-possibly-invalid category selections
+                            // (categories are segment-scoped).
                             setItems((prev) =>
                               prev.map((it) => ({ ...it, segment: value, cat_l1: "", cat_l2: "" })),
                             );
                           }
                         }}
-                        disabled={departmentOptions === null || (!isPettyCash && idx > 0)}
+                        disabled={departmentOptions === null || (!usesPerItemSegment && idx > 0)}
                         required
                       >
                         <option value="">Select...</option>
@@ -1345,7 +1356,7 @@ export default function RequestForm({
                         ))}
                       </select>
                     </div>
-                    {isPettyCash && (
+                    {usesPerItemSegment && (
                       <div style={COL.itemField}>
                         {rowFieldMode ? (
                           <select

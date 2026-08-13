@@ -101,6 +101,7 @@ export interface ExpenseTypeConfig {
 export const PETTY_CASH_LABEL = "เบิกเงินสดย่อย (Petty cash)";
 export const TRAVEL_EXPENSE_LABEL = "เบิกค่าเดินทาง";
 export const ADVANCE_PAYMENT_LABEL = "เบิกเงินทดรองจ่าย (Advance Payment)";
+export const PAID_EXPENSE_LABEL = "เบิกค่าใช้จ่ายที่ชำระแล้ว (ตัดบัตรเครดิต, wallet, อื่นๆ)";
 
 // Expense types the printable request view (app/print/[id]) supports — see
 // CLAUDE.md-style note on RequestDetailModal.tsx's Print button.
@@ -128,7 +129,7 @@ export const EXPENSE_TYPES: ExpenseTypeConfig[] = [
     },
   },
   {
-    label: "เบิกค่าใช้จ่ายที่ชำระแล้ว (ตัดบัตรเครดิต, wallet, อื่นๆ)",
+    label: PAID_EXPENSE_LABEL,
     defaultRequiresPo: false,
     hideDueDate: true,
     requiredDocs: { mode: "any", docs: ["Invoice", "ใบกำกับภาษี (Tax Invoice)"] },
