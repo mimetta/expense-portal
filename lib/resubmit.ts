@@ -132,6 +132,10 @@ const NOTIFY_EVENT_FOR_STATUS: Record<ExpenseRequest["status"], NotificationEven
   PAID: "PAID",
   REJECTED: "REJECTED",
   EDIT_REQUESTED: "EDIT_REQUESTED",
+  // Never actually looked up (resubmitTargetStatus only ever returns a
+  // pre-rejection stage) — included, mapped arbitrarily to REJECTED, only
+  // so this Record stays exhaustively typed against the full Status union.
+  EXPIRED: "REJECTED",
 };
 
 export async function resubmitRequest(
