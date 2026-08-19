@@ -12,10 +12,10 @@ import {
   isFutureMonth,
   pct,
   thb,
-  thbSigned,
   utilisationColor,
+  varianceLabel,
 } from "./format";
-import type { SpendGranularity, SpendNode, SpendReport } from "@/lib/spend";
+import type { SpendCell, SpendGranularity, SpendNode, SpendReport } from "@/lib/spend";
 
 interface Props {
   report: SpendReport;
@@ -79,30 +79,105 @@ function MonthCell({
   );
 }
 
-// --- used bar --------------------------------------------------------------
+// --- metric block ----------------------------------------------------------
+// The columns to the RIGHT of the per-month columns. Identical in all three
+// granularities, so the block is the same shape whether or not month columns
+// precede it.
+//
+// Declared as a list rather than hand-written <td>s so that adding a column
+// later (e.g. % of revenue) is one entry here — header, every body row at
+// every depth, and the footer all render from this array. Nothing below
+// assumes a particular number of metric columns.
 
-function UsedCell({ node }: { node: SpendNode }) {
-  const used = usedPct(node.total.actual, node.total.budget);
-  if (used === null) {
-    return <td className="px-3 py-2 text-right text-brand-subtle tabular-nums">{EM_DASH}</td>;
-  }
-  const color = utilisationColor(used);
+interface MetricColumn {
+  key: string;
+  label: string;
+  /** `emphasis` is set for the sticky footer total row. */
+  cell: (total: SpendCell, emphasis: boolean) => React.ReactNode;
+}
+
+function Money({ value, emphasis, muted }: { value: number; emphasis: boolean; muted?: boolean }) {
   return (
-    <td className="px-3 py-2 tabular-nums">
-      <div className="flex items-center justify-end gap-2">
-        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[#F0EAE0]">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${Math.min(100, used)}%`, background: color }}
-          />
-        </div>
-        <span style={{ color }} className="w-11 text-right">
-          {pct(used)}
-        </span>
-      </div>
-    </td>
+    <span
+      className={`tabular-nums ${emphasis ? "font-semibold " : ""}${
+        muted ? "text-brand-muted" : "text-brand-dark"
+      }`}
+    >
+      {value > 0 ? thb(value) : EM_DASH}
+    </span>
   );
 }
+
+/**
+ * Actual, with variance and budget-utilisation collapsed underneath it as
+ * small muted secondary text instead of two full-size columns of their own:
+ *
+ *     ฿1,562
+ *     +38,000 · ▇▇▁ 91%
+ *
+ * Colour rules are unchanged from the standalone columns they replace:
+ * negative variance in the over-budget red, utilisation on the same
+ * <80 / 80-100 / >100 thresholds via utilisationColor().
+ */
+function ActualMetric({ total, emphasis }: { total: SpendCell; emphasis: boolean }) {
+  const used = usedPct(total.actual, total.budget);
+  const variance = total.budget - total.actual;
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <span
+        className={`tabular-nums text-brand-dark ${emphasis ? "font-semibold" : ""}`}
+      >
+        {total.actual > 0 ? thb(total.actual) : EM_DASH}
+      </span>
+      {used === null ? (
+        // No budget to measure against. A literal "+0 · 0%" here would read
+        // as a real measurement of a perfectly-on-budget segment, which is
+        // the opposite of the truth — one em dash says "not applicable".
+        <span className="text-[11px] leading-none text-brand-subtle">{EM_DASH}</span>
+      ) : (
+        <span className="flex items-center gap-1 text-[11px] leading-none">
+          <span
+            className="tabular-nums"
+            style={{ color: variance < 0 ? HEAT_OVER : undefined }}
+            title={variance < 0 ? "Over budget" : "Under budget"}
+          >
+            {varianceLabel(variance)}
+          </span>
+          <span className="text-brand-subtle">·</span>
+          <span className="h-1 w-8 overflow-hidden rounded-full bg-[#F0EAE0]">
+            <span
+              className="block h-full rounded-full"
+              style={{ width: `${Math.min(100, used)}%`, background: utilisationColor(used) }}
+            />
+          </span>
+          <span className="tabular-nums" style={{ color: utilisationColor(used) }}>
+            {pct(used)}
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+const METRIC_COLUMNS: MetricColumn[] = [
+  {
+    key: "budget",
+    label: "Budget",
+    cell: (t, emphasis) => <Money value={t.budget} emphasis={emphasis} muted />,
+  },
+  {
+    key: "actual",
+    label: "Actual",
+    cell: (t, emphasis) => <ActualMetric total={t} emphasis={emphasis} />,
+  },
+  {
+    key: "pending",
+    label: "Pending",
+    cell: (t, emphasis) => <Money value={t.pending} emphasis={emphasis} muted />,
+  },
+  // Next column (% of revenue) slots in here — no other change required.
+];
 
 // --- row -------------------------------------------------------------------
 
@@ -111,8 +186,6 @@ function Row({
   depth,
   months,
   showMonths,
-  showPending,
-  showVariance,
   fiscalYear,
   expanded,
   toggle,
@@ -121,15 +194,12 @@ function Row({
   depth: number;
   months: number[];
   showMonths: boolean;
-  showPending: boolean;
-  showVariance: boolean;
   fiscalYear: number;
   expanded: Set<string>;
   toggle: (key: string) => void;
 }) {
   const hasChildren = (node.children?.length ?? 0) > 0;
   const isOpen = expanded.has(node.key);
-  const variance = node.total.budget - node.total.actual;
 
   return (
     <>
@@ -179,26 +249,11 @@ function Row({
             <MonthCell key={m} node={node} month={m} fiscalYear={fiscalYear} />
           ))}
 
-        <td className="px-3 py-2 text-right tabular-nums text-brand-muted">
-          {node.total.budget > 0 ? thb(node.total.budget) : EM_DASH}
-        </td>
-        <td className="px-3 py-2 text-right tabular-nums text-brand-dark">
-          {node.total.actual > 0 ? thb(node.total.actual) : EM_DASH}
-        </td>
-        {showPending && (
-          <td className="px-3 py-2 text-right tabular-nums text-brand-muted">
-            {node.total.pending > 0 ? thb(node.total.pending) : EM_DASH}
+        {METRIC_COLUMNS.map((col) => (
+          <td key={col.key} className="px-3 py-2 text-right align-top">
+            {col.cell(node.total, false)}
           </td>
-        )}
-        {showVariance && (
-          <td
-            className="px-3 py-2 text-right tabular-nums"
-            style={{ color: variance < 0 ? HEAT_OVER : undefined }}
-          >
-            {node.total.budget > 0 ? thbSigned(variance) : EM_DASH}
-          </td>
-        )}
-        <UsedCell node={node} />
+        ))}
       </tr>
 
       {isOpen &&
@@ -209,8 +264,6 @@ function Row({
             depth={depth + 1}
             months={months}
             showMonths={showMonths}
-            showPending={showPending}
-            showVariance={showVariance}
             fiscalYear={fiscalYear}
             expanded={expanded}
             toggle={toggle}
@@ -262,13 +315,14 @@ export default function SpendTable({
 }: Props) {
   const toggle = onToggle;
 
-  // Column layout per granularity:
-  //   Month   -> Segment | Budget | Actual | Pending | Variance | Used
-  //   Quarter -> Segment | <months> | Budget | Actual | Pending | Used
-  //   Year    -> Segment | <months> | Budget | Actual | Used
+  // Column layout per granularity. The metric block (METRIC_COLUMNS) is now
+  // IDENTICAL in all three; only whether per-month columns precede it varies:
+  //   Month   -> Segment |            <metric block>
+  //   Quarter -> Segment | <3 months> | <metric block>
+  //   Year    -> Segment | <12 months>| <metric block>
+  // Variance and Used are no longer columns — they are the secondary line
+  // inside the Actual cell (see ActualMetric).
   const showMonths = granularity !== "month";
-  const showPending = granularity !== "year";
-  const showVariance = granularity === "month";
   const months = report.months;
 
   const footer = report.rows.reduce(
@@ -302,8 +356,6 @@ export default function SpendTable({
     total: { budget: footer.budget, actual: footer.actual, pending: footer.pending },
     unbudgeted: false,
   };
-  const footerVariance = footer.budget - footer.actual;
-  const footerUsed = usedPct(footer.actual, footer.budget);
 
   if (report.rows.length === 0) {
     return (
@@ -356,11 +408,11 @@ export default function SpendTable({
                     {MONTH_NAMES[m - 1]}
                   </th>
                 ))}
-              <th className="text-right">Budget</th>
-              <th className="text-right">Actual</th>
-              {showPending && <th className="text-right">Pending</th>}
-              {showVariance && <th className="text-right">Variance</th>}
-              <th className="text-right">Used</th>
+              {METRIC_COLUMNS.map((col) => (
+                <th key={col.key} className="text-right">
+                  {col.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -371,8 +423,6 @@ export default function SpendTable({
                 depth={0}
                 months={months}
                 showMonths={showMonths}
-                showPending={showPending}
-                showVariance={showVariance}
                 fiscalYear={fiscalYear}
                 expanded={expanded}
                 toggle={toggle}
@@ -408,31 +458,11 @@ export default function SpendTable({
                     </td>
                   );
                 })}
-              <td className="px-3 py-2 text-right font-semibold tabular-nums text-brand-muted">
-                {footer.budget > 0 ? thb(footer.budget) : EM_DASH}
-              </td>
-              <td className="px-3 py-2 text-right font-semibold tabular-nums text-brand-dark">
-                {thb(footer.actual)}
-              </td>
-              {showPending && (
-                <td className="px-3 py-2 text-right font-semibold tabular-nums text-brand-muted">
-                  {footer.pending > 0 ? thb(footer.pending) : EM_DASH}
+              {METRIC_COLUMNS.map((col) => (
+                <td key={col.key} className="px-3 py-2 text-right align-top">
+                  {col.cell(footerNode.total, true)}
                 </td>
-              )}
-              {showVariance && (
-                <td
-                  className="px-3 py-2 text-right font-semibold tabular-nums"
-                  style={{ color: footerVariance < 0 ? HEAT_OVER : undefined }}
-                >
-                  {footer.budget > 0 ? thbSigned(footerVariance) : EM_DASH}
-                </td>
-              )}
-              <td
-                className="px-3 py-2 text-right font-semibold tabular-nums"
-                style={footerUsed !== null ? { color: utilisationColor(footerUsed) } : undefined}
-              >
-                {footerUsed === null ? EM_DASH : pct(footerUsed)}
-              </td>
+              ))}
             </tr>
           </tfoot>
         </table>

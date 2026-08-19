@@ -52,6 +52,18 @@ export function thbSigned(value: number): string {
   return `${sign}฿${Math.abs(rounded).toLocaleString("en-US")}`;
 }
 
+/**
+ * Signed, no currency symbol — for the secondary line directly beneath an
+ * Actual figure, where the ฿ on the line above already establishes the unit.
+ * Unlike thbSigned() this shows an explicit "+" for a positive variance
+ * (under budget), so the sign reads at a glance at 11px.
+ */
+export function varianceLabel(value: number): string {
+  const rounded = Math.round(value);
+  const sign = rounded > 0 ? "+" : rounded < 0 ? "-" : "";
+  return `${sign}${Math.abs(rounded).toLocaleString("en-US")}`;
+}
+
 // Compact form for the month cells — "226k", "1.4M". Twelve columns of full
 // baht figures do not fit without shrinking the font, which the spec rules
 // out explicitly.

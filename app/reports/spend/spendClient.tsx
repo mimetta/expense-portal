@@ -11,6 +11,12 @@ import { MONTH_NAMES, QUARTERS, defaultPeriodFor } from "@/components/spend/form
 import { ALL_MONTHS, type SpendGranularity, type SpendNode, type SpendReport } from "@/lib/spend";
 import { BUSINESS_UNITS } from "@/lib/constants";
 
+// Sentinel written to the query string for "no BU filter". Needed because
+// the default is a real BU (ONEST), so an absent bu param can no longer mean
+// "all" — the two have to be distinguishable.
+const ALL_BU = "all";
+const DEFAULT_BU = "ONEST";
+
 // --- URL <-> state ---------------------------------------------------------
 // Every filter lives in the query string so a view is shareable and survives
 // a refresh. Written with history.replaceState rather than router.push for
@@ -28,7 +34,17 @@ function parseState(params: URLSearchParams, currentYear: number): SpendFilterSt
   const yearRaw = Number(params.get("year"));
 
   return {
-    bu: buParam && (BUSINESS_UNITS as readonly string[]).includes(buParam) ? buParam : null,
+    // Default business unit is ONEST when the URL says nothing. "all" is a
+    // real, explicit choice (null internally = no BU filter) and has to round
+    // -trip: toQuery() writes bu=all for it, so that picking All and
+    // refreshing does not silently snap back to the ONEST default.
+    bu: buParam
+      ? buParam === ALL_BU
+        ? null
+        : (BUSINESS_UNITS as readonly string[]).includes(buParam)
+          ? buParam
+          : DEFAULT_BU
+      : DEFAULT_BU,
     granularity,
     // An explicit, in-range ?period= always wins; otherwise fall back to the
     // current month/quarter for the granularity in play.
@@ -44,7 +60,7 @@ function parseState(params: URLSearchParams, currentYear: number): SpendFilterSt
 
 function toQuery(state: SpendFilterState): string {
   const params = new URLSearchParams();
-  if (state.bu) params.set("bu", state.bu);
+  params.set("bu", state.bu ?? ALL_BU);
   params.set("gran", state.granularity);
   if (state.granularity !== "year") params.set("period", String(state.period));
   params.set("year", String(state.year));
