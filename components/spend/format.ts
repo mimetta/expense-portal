@@ -17,6 +17,28 @@ export const QUARTERS: { label: string; months: number[] }[] = [
 
 export const EM_DASH = "—";
 
+/**
+ * The period index to select for a granularity when the URL does not specify
+ * one: current month (1-12), current quarter (1-4), or 1 for Year, where the
+ * index is unused and the fiscal year alone identifies the window.
+ *
+ * Single source of truth on purpose. This used to be inlined in
+ * spendClient.tsx#parseState (correct) *and* hardcoded to 1 in
+ * SpendFilters' granularity buttons (wrong) — so a cold load defaulted to
+ * the current month as intended, but clicking Quarter selected Q1 instead of
+ * the current quarter, and clicking back to Month selected January. Worse,
+ * the URL is rewritten on every state change, so that January stuck: the
+ * shared link and any refresh then genuinely defaulted to Jan.
+ */
+export function defaultPeriodFor(
+  granularity: "month" | "quarter" | "year",
+  now = new Date(),
+): number {
+  if (granularity === "month") return now.getMonth() + 1;
+  if (granularity === "quarter") return Math.floor(now.getMonth() / 3) + 1;
+  return 1;
+}
+
 // THB, no decimals, thousands separators. Figures in this report are
 // segment/period rollups where satang are noise.
 export function thb(value: number): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { MONTH_NAMES, QUARTERS } from "./format";
+import { MONTH_NAMES, QUARTERS, defaultPeriodFor } from "./format";
 import type { SpendBasis, SpendGranularity } from "@/lib/spend";
 
 export interface SpendFilterState {
@@ -58,10 +58,15 @@ export default function SpendFilters({ value, years, departments, onChange }: Pr
               <button
                 key={g.value}
                 type="button"
-                // Reset the period index when switching granularity — a
-                // period of 8 means August under Month but is out of range
-                // for Quarter.
-                onClick={() => onChange({ granularity: g.value, period: 1 })}
+                // The period index has to be reset when switching
+                // granularity — 8 means August under Month but is out of
+                // range for Quarter. Reset to the CURRENT month/quarter, not
+                // to 1: hardcoding 1 here made Quarter land on Q1 and Month
+                // land on January, and since the URL is rewritten from state
+                // that stale January then persisted across refresh/share.
+                onClick={() =>
+                  onChange({ granularity: g.value, period: defaultPeriodFor(g.value) })
+                }
                 className={`mm-tab ${value.granularity === g.value ? "mm-tab-active" : ""}`}
               >
                 {g.label}

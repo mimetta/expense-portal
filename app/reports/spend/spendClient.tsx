@@ -7,7 +7,7 @@ import SpendKpis from "@/components/spend/SpendKpis";
 import SpendTable from "@/components/spend/SpendTable";
 import SpendTrend from "@/components/spend/SpendTrend";
 import PendingPanel from "@/components/spend/PendingPanel";
-import { MONTH_NAMES, QUARTERS } from "@/components/spend/format";
+import { MONTH_NAMES, QUARTERS, defaultPeriodFor } from "@/components/spend/format";
 import { ALL_MONTHS, type SpendGranularity, type SpendNode, type SpendReport } from "@/lib/spend";
 import { BUSINESS_UNITS } from "@/lib/constants";
 
@@ -30,14 +30,12 @@ function parseState(params: URLSearchParams, currentYear: number): SpendFilterSt
   return {
     bu: buParam && (BUSINESS_UNITS as readonly string[]).includes(buParam) ? buParam : null,
     granularity,
+    // An explicit, in-range ?period= always wins; otherwise fall back to the
+    // current month/quarter for the granularity in play.
     period:
       Number.isInteger(periodRaw) && periodRaw >= 1 && periodRaw <= maxPeriod
         ? periodRaw
-        : granularity === "month"
-          ? new Date().getMonth() + 1
-          : granularity === "quarter"
-            ? Math.floor(new Date().getMonth() / 3) + 1
-            : 1,
+        : defaultPeriodFor(granularity),
     year: Number.isInteger(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100 ? yearRaw : currentYear,
     basis: params.get("basis") === "paid" ? "paid" : "approved",
     department: params.get("segment") || null,
