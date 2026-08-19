@@ -31,6 +31,7 @@ export type Page =
   | "petty-cash"
   | "dashboard"
   | "budget"
+  | "spend-report"
   | "settings";
 
 // Every @mimetta.co user gets Submit + My Requests (they are, at minimum, an
@@ -68,6 +69,14 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
       // This mirrors the dashboard rule plus the new role, same convention
       // as every other canAccessPage case.
       return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING") || hasRole(user, "DEPT_HEAD");
+    // Spend vs Budget by Segment. Same finance-visibility rule as dashboard,
+    // plus BO — a budget owner is exactly the person who needs to see spend
+    // against budget for the segments they own. BO viewers are scoped down
+    // to their own bu_scope/dept_scope/cat_l1_scope rows inside
+    // lib/spend.ts#getSpendReport (via the same boScopeMatchesRequest helper
+    // /bo-approvals uses), so granting the page does not grant the data.
+    case "spend-report":
+      return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING") || hasRole(user, "BO");
     case "settings":
       // Visible to every role except a pure EMPLOYEE (or a user with no
       // roles at all, though auto-registration means that's now transient

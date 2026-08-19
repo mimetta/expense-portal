@@ -24,6 +24,7 @@ const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "ceo-approvals", href: "/ceo-approvals", label: "CEO Approvals" },
   { page: "accounting", href: "/accounting", label: "Accounting" },
   { page: "budget", href: "/budget", label: "Budget" },
+  { page: "spend-report", href: "/reports/spend", label: "Spend report" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];
 

@@ -110,7 +110,10 @@ const DEPARTMENT_NAME_MAP: Record<string, string> = {
   OEM: "OEM",
 };
 
-function normalizeDepartment(dept: string | null, unmatched: Set<string>): string | null {
+// Exported so scripts/import-budget.ts applies the same map rather than
+// keeping a second, drifting copy of it. See that script's own header for
+// the "(ABBREV)" suffix correction it layers on top.
+export function normalizeDepartment(dept: string | null, unmatched: Set<string>): string | null {
   if (!dept) return dept;
   const trimmed = dept.trim();
   if (trimmed in DEPARTMENT_NAME_MAP) return DEPARTMENT_NAME_MAP[trimmed];
@@ -143,7 +146,8 @@ const CATEGORY_NAME_MAP: Record<string, string> = {
   "EMPLOYEE BENEFITS & WELFARE (Company-Wide)": "EMPLOYEE BENEFITS & WELFARE (Company-Wide)",
 };
 
-function normalizeCategory(cat: string | null, unmatched: Set<string>): string | null {
+// Exported for scripts/import-budget.ts — see normalizeDepartment above.
+export function normalizeCategory(cat: string | null, unmatched: Set<string>): string | null {
   if (!cat) return cat;
   const trimmed = cat.trim();
   if (trimmed in CATEGORY_NAME_MAP) return CATEGORY_NAME_MAP[trimmed];
@@ -395,7 +399,14 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run the migration when this file is the script being executed.
+// scripts/import-budget.ts imports normalizeDepartment/normalizeCategory from
+// here (rather than duplicating the two maps), and a bare top-level main()
+// call would fire the whole migration pass — hitting the database and
+// printing its report — merely as a side effect of that import.
+if (process.argv[1]?.includes("migrate-from-sheets")) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

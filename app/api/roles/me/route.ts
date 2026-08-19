@@ -12,6 +12,7 @@ const PAGES: Page[] = [
   "accounting",
   "petty-cash",
   "dashboard",
+  "spend-report",
   "settings",
 ];
 
