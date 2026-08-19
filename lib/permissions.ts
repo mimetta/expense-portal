@@ -34,6 +34,33 @@ export type Page =
   | "spend-report"
   | "settings";
 
+// Every Page, exhaustively. Declared as Record<Page, true> so that adding a
+// member to the union above without adding it here is a COMPILE error.
+//
+// This exists because the nav is gated on GET /api/roles/me's `access` map:
+// components/Nav.tsx filters on `data.access?.[link.page]`, so a Page that
+// never gets iterated here is simply absent from that object, reads as
+// undefined, and the nav item silently disappears — no type error, no
+// runtime error, nothing in the logs. "budget" was lost that way (it was in
+// Nav's LINKS and in canAccessPage, but missing from the hand-maintained
+// array this replaces), and "spend-report" would have gone the same way.
+// A plain `Page[]` literal cannot catch that; this can.
+const ALL_PAGES: Record<Page, true> = {
+  submit: true,
+  my: true,
+  procurement: true,
+  "bo-approvals": true,
+  "ceo-approvals": true,
+  accounting: true,
+  "petty-cash": true,
+  dashboard: true,
+  budget: true,
+  "spend-report": true,
+  settings: true,
+};
+
+export const PAGES = Object.keys(ALL_PAGES) as Page[];
+
 // Every @mimetta.co user gets Submit + My Requests (they are, at minimum, an
 // employee who can incur expenses). Additional pages require the matching
 // role, and SUPERADMIN always has full access. Dashboard (budget/financial

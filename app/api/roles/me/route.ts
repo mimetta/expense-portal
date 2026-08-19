@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-helpers";
-import { canAccessPage, type Page } from "@/lib/permissions";
-
-const PAGES: Page[] = [
-  "submit",
-  "my",
-  "procurement",
-  "bo-approvals",
-  "ceo-approvals",
-  "accounting",
-  "petty-cash",
-  "dashboard",
-  "spend-report",
-  "settings",
-];
+// PAGES is exported from lib/permissions.ts and derived from an exhaustive
+// Record<Page, true>, so it can never again drift out of sync with the Page
+// union — a page missing here is invisible in the nav with no error at all.
+import { canAccessPage, PAGES } from "@/lib/permissions";
 
 export async function GET() {
   try {
