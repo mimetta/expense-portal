@@ -17,6 +17,12 @@ export const QUARTERS: { label: string; months: number[] }[] = [
 
 export const EM_DASH = "—";
 
+// U+2212 MINUS SIGN, not an ASCII hyphen. In a tabular-nums font the hyphen
+// is a narrow glyph that does not occupy a digit slot, so a column of mixed
+// positive and negative figures fails to align on the decimal; the true
+// minus is digit-width and does.
+const MINUS = "−";
+
 /**
  * The period index to select for a granularity when the URL does not specify
  * one: current month (1-12), current quarter (1-4), or 1 for Year, where the
@@ -48,7 +54,7 @@ export function thb(value: number): string {
 
 export function thbSigned(value: number): string {
   const rounded = Math.round(value);
-  const sign = rounded < 0 ? "-" : "";
+  const sign = rounded < 0 ? MINUS : "";
   return `${sign}฿${Math.abs(rounded).toLocaleString("en-US")}`;
 }
 
@@ -60,7 +66,7 @@ export function thbSigned(value: number): string {
  */
 export function varianceLabel(value: number): string {
   const rounded = Math.round(value);
-  const sign = rounded > 0 ? "+" : rounded < 0 ? "-" : "";
+  const sign = rounded > 0 ? "+" : rounded < 0 ? MINUS : "";
   return `${sign}${Math.abs(rounded).toLocaleString("en-US")}`;
 }
 
@@ -69,7 +75,7 @@ export function varianceLabel(value: number): string {
 // out explicitly.
 export function compact(value: number): string {
   const abs = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
+  const sign = value < 0 ? MINUS : "";
   if (abs >= 1_000_000) {
     const m = abs / 1_000_000;
     return `${sign}${m >= 10 ? Math.round(m) : m.toFixed(1)}M`;
@@ -91,7 +97,22 @@ export const HEAT_OVER = "#B23A2F";  // > 100%
 export interface Heat {
   color: string;
   background: string;
+  bold: boolean;
 }
+
+// Per-band tint + a darker companion text colour, matching
+// docs/spend-report-mockup-v2.html. Earlier this used one uniform alpha with
+// the band colour itself as the text, which left the figure sitting on its
+// own hue at too little contrast to read comfortably — worst for the `ok`
+// band, where #2E7D52 on a green tint is the least legible of the three.
+// The text colours below are deliberately NOT the band colours.
+const HEAT_BANDS = {
+  ok: { color: "#1E5537", background: "rgba(46, 125, 82, 0.10)", bold: false },
+  warn: { color: "#7A5A0F", background: "rgba(201, 154, 46, 0.14)", bold: false },
+  // Only the over-budget band is bolded — bolding all three removes the
+  // emphasis that makes an overspent month jump out of a healthy row.
+  over: { color: "#8E2A21", background: "rgba(178, 58, 47, 0.12)", bold: true },
+} as const;
 
 /**
  * Utilisation tint for a month cell. Returns null when there is no budget to
@@ -102,10 +123,7 @@ export interface Heat {
 export function heatFor(actual: number, budget: number): Heat | null {
   if (budget <= 0) return null;
   const used = (actual / budget) * 100;
-  const color = used > 100 ? HEAT_OVER : used >= 80 ? HEAT_NEAR : HEAT_UNDER;
-  // Low-alpha fill of the same hue — a tint, not a solid block, so the
-  // figure itself stays the thing you read.
-  return { color, background: `${color}1F` };
+  return used > 100 ? HEAT_BANDS.over : used >= 80 ? HEAT_BANDS.warn : HEAT_BANDS.ok;
 }
 
 export function utilisationColor(used: number): string {

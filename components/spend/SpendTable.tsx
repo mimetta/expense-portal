@@ -41,10 +41,13 @@ function MonthCell({
   node,
   month,
   fiscalYear,
+  emphasis = false,
 }: {
   node: SpendNode;
   month: number;
   fiscalYear: number;
+  /** Set for the sticky footer total row. */
+  emphasis?: boolean;
 }) {
   const cell = node.byMonth[month];
   const current = isCurrentMonth(fiscalYear, month);
@@ -62,9 +65,16 @@ function MonthCell({
   }
 
   const heat = heatFor(cell.actual, cell.budget);
+  // Only the over band carries weight of its own; the footer adds its own
+  // emphasis on top so the total row still reads as a total.
   const style: React.CSSProperties = heat
-    ? { ...base, background: heat.background, color: heat.color, fontWeight: 500 }
-    : base;
+    ? {
+        ...base,
+        background: heat.background,
+        color: heat.color,
+        fontWeight: emphasis ? 600 : heat.bold ? 500 : 400,
+      }
+    : { ...base, fontWeight: emphasis ? 600 : undefined };
 
   const title = heat
     ? `${MONTH_NAMES[month - 1]}: ${thb(cell.actual)} of ${thb(cell.budget)} (${pct(
@@ -96,13 +106,20 @@ interface MetricColumn {
   cell: (total: SpendCell, emphasis: boolean) => React.ReactNode;
 }
 
-function Money({ value, emphasis, muted }: { value: number; emphasis: boolean; muted?: boolean }) {
+function Money({
+  value,
+  emphasis,
+  tone = "dark",
+}: {
+  value: number;
+  emphasis: boolean;
+  /** "accent" = terracotta, for Pending — it is a signal, not chrome. */
+  tone?: "dark" | "muted" | "accent";
+}) {
+  const toneClass =
+    tone === "accent" ? "text-brand-accent" : tone === "muted" ? "text-brand-muted" : "text-brand-dark";
   return (
-    <span
-      className={`tabular-nums ${emphasis ? "font-semibold " : ""}${
-        muted ? "text-brand-muted" : "text-brand-dark"
-      }`}
-    >
+    <span className={`tabular-nums ${emphasis ? "font-semibold " : ""}${toneClass}`}>
       {value > 0 ? thb(value) : EM_DASH}
     </span>
   );
@@ -139,7 +156,9 @@ function ActualMetric({ total, emphasis }: { total: SpendCell; emphasis: boolean
         <span className="flex items-center gap-1 text-[11px] leading-none">
           <span
             className="tabular-nums"
-            style={{ color: variance < 0 ? HEAT_OVER : undefined }}
+            // Under budget is as much a result as over budget — leaving the
+            // positive uncoloured made "under" read as absence of a signal.
+            style={{ color: variance < 0 ? HEAT_OVER : HEAT_UNDER }}
             title={variance < 0 ? "Over budget" : "Under budget"}
           >
             {varianceLabel(variance)}
@@ -164,7 +183,7 @@ const METRIC_COLUMNS: MetricColumn[] = [
   {
     key: "budget",
     label: "Budget",
-    cell: (t, emphasis) => <Money value={t.budget} emphasis={emphasis} muted />,
+    cell: (t, emphasis) => <Money value={t.budget} emphasis={emphasis} tone="muted" />,
   },
   {
     key: "actual",
@@ -174,7 +193,7 @@ const METRIC_COLUMNS: MetricColumn[] = [
   {
     key: "pending",
     label: "Pending",
-    cell: (t, emphasis) => <Money value={t.pending} emphasis={emphasis} muted />,
+    cell: (t, emphasis) => <Money value={t.pending} emphasis={emphasis} tone="accent" />,
   },
   // Next column (% of revenue) slots in here — no other change required.
 ];
@@ -438,26 +457,21 @@ export default function SpendTable({
               >
                 Total
               </th>
+              {/* The same MonthCell the body rows use, so the total row is
+                  heat-tinted on the same thresholds. It previously rendered
+                  its own plain bold figure, which meant the one row most
+                  likely to be scanned first was the only row not showing
+                  month-level utilisation. */}
               {showMonths &&
-                months.map((m) => {
-                  const cell = footerNode.byMonth[m];
-                  const future = isFutureMonth(fiscalYear, m);
-                  return (
-                    <td
-                      key={m}
-                      className="px-2 py-2 text-right font-semibold tabular-nums"
-                      style={
-                        isCurrentMonth(fiscalYear, m) ? { background: CURRENT_MONTH_BG } : undefined
-                      }
-                    >
-                      {!cell || cell.actual === 0 || future ? (
-                        <span className="font-normal text-brand-subtle">{EM_DASH}</span>
-                      ) : (
-                        compact(cell.actual)
-                      )}
-                    </td>
-                  );
-                })}
+                months.map((m) => (
+                  <MonthCell
+                    key={m}
+                    node={footerNode}
+                    month={m}
+                    fiscalYear={fiscalYear}
+                    emphasis
+                  />
+                ))}
               {METRIC_COLUMNS.map((col) => (
                 <td key={col.key} className="px-3 py-2 text-right align-top">
                   {col.cell(footerNode.total, true)}

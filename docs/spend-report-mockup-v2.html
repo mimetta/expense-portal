@@ -1,4 +1,62 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  Spend Report — visual spec for /reports/spend
+  ============================================================================
+
+  Read this before treating anything here as authoritative.
+
+  This file was committed AFTER the page was built (the page was implemented
+  from a written spec), so the two were reconciled afterwards rather than the
+  page being built from this file. Both sides were changed in that pass. What
+  follows records which side won on each point, so the next person knows which
+  parts of this mockup to trust.
+
+  AUTHORITATIVE — the code was changed to match this file
+    · Month-cell heat bands: <80% ok, 80–100% warn, >100% over, on
+      #2E7D52 / #C99A2E / #B23A2F, with per-band tint alpha (.10 / .14 / .12)
+      and the darker companion text colours #1E5537 / #7A5A0F / #8E2A21.
+      Only the over band is bolded.
+    · The footer total row is heat-tinted on the same thresholds as body rows.
+    · Positive (under-budget) variance renders green #2E7D52, not uncoloured.
+    · Negative figures use a true minus sign (U+2212), not an ASCII hyphen —
+      the hyphen is not digit-width and breaks tabular-nums alignment.
+    · Pending figures render terracotta #BD5A2E.
+
+  NOT AUTHORITATIVE — this file was changed to match the code
+    · Drill-down is TWO-STAGE: segment → cat_l1, then cat_l1 → cat_l2, each
+      node with its own toggle. This mockup originally revealed both levels
+      from a single level-0 toggle, which is unusable against the real 314
+      category lines.
+    · Elapsed % is day-weighted, not whole-month. On 20 Aug 2026 that puts
+      Q3 at 55% (Jul 31 + Aug 20 = 51 of 92 days); whole-month counting would
+      say 67%. Both sides now agree on the day-weighted rule.
+    · Compact figures keep a millions branch — 1.5M, not 1500k.
+    · Segments sort by total actual desc with unbudgeted last; this mockup
+      previously relied on hand-ordered sample data.
+    · Used % rounds to a whole number.
+
+  DELIBERATELY DIFFERENT — neither side is wrong, both were requested
+    · Variance and Used are NOT standalone columns in the shipped page. They
+      are a ~11px secondary line inside the Actual cell:  ฿1,562 / +38,000 ·
+      91%. This mockup still draws them as columns.
+    · The shipped metric block is identical across all three granularities,
+      which means Year view has a Pending column. This mockup omits Pending
+      from Year view.
+
+  KNOWN-ACCEPTABLE COSMETIC DELTAS — do not "fix" either side
+    · child row background (#FDFCFA here vs #FCFBF9 shipped)
+    · row indent pixel values (34/56 here vs 30/48 shipped)
+    · sticky segment column min-width (190px here vs 260px shipped)
+    · month column sizing (fixed 62px here vs natural width shipped)
+    · footer font weight and background
+    · current-month shade (#F6F3EC here vs #F5F2EC shipped)
+    · the Used slot for an unbudgeted row (the word "unbudgeted" here vs an
+      em dash shipped)
+
+  Sample data below is illustrative only — it is not a snapshot of real
+  figures, and the real `budgets` table is empty until the budget import runs.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -266,7 +324,15 @@ function pendingOf(n,i){
 const sum = (n,fn,ms) => ms.reduce((s,i)=>s+fn(n,i),0);
 
 const fmt  = n => n.toLocaleString('en-US',{maximumFractionDigits:0});
-const fmtK = n => n===0 ? '—' : (Math.abs(n)>=1000 ? Math.round(n/1000)+'k' : fmt(n));
+// Matches components/spend/format.ts#compact — keeps a millions branch so a
+// 12-month row does not render 1,500,000 as "1500k".
+const fmtK = n => {
+  if(n===0) return '—';
+  const abs = Math.abs(n), sign = n<0 ? '\u2212' : '';
+  if(abs>=1e6){ const m = abs/1e6; return sign + (m>=10 ? Math.round(m) : m.toFixed(1)) + 'M'; }
+  if(abs>=1000) return sign + Math.round(abs/1000) + 'k';
+  return sign + Math.round(abs);
+};
 const band = p => p===null ? 'none' : (p>100 ? 'over' : (p>=80 ? 'warn' : 'ok'));
 
 const VIEWS = {
@@ -328,24 +394,36 @@ function render(){
 
   // body
   let body = '', gid = 0;
+  // TWO-STAGE drill-down, matching the shipped page: every node with children
+  // carries its own toggle, and each row is tied to its IMMEDIATE parent. So
+  // segment -> cat_l1 is one click and cat_l1 -> cat_l2 is another. This
+  // mockup originally put the toggle only on level 0 and tied every
+  // descendant to it, revealing cat_l1 and cat_l2 together — unusable against
+  // the real 314 category lines, which is why the code did not follow it.
   const rowFor = (node, level, parentGid) => {
     const g = 'g'+(gid++);
     const kids = !isLeaf(node);
     const cls = ['lvl'+level, level>0?'kid':''].join(' ');
     const of  = level>0 ? ' data-of="'+parentGid+'"' : '';
-    let nameHtml = '';
-    if(level===0) nameHtml += kids ? '<button class="twist" data-group="'+g+'" aria-expanded="false">▸</button>' : '<span style="display:inline-block;width:24px"></span>';
+    let nameHtml = kids
+      ? '<button class="twist" data-group="'+g+'" aria-expanded="false">▸</button>'
+      : '<span style="display:inline-block;width:24px"></span>';
     nameHtml += '<span class="name">'+node.name+'</span>';
     if(node.unbudgeted) nameHtml += '<span class="chip">no budget set</span>';
-    body += '<tr class="'+cls+'"'+of+'><td class="namecell">'+nameHtml+'</td>'
+    body += '<tr class="'+cls+'"'+of+' data-self="'+g+'"><td class="namecell">'+nameHtml+'</td>'
           + monthCells(node, ms, showMonths) + summaryCells(node, ms, V.cols) + '</tr>';
-    if(kids) node.children.forEach(c=>{
-      const cg = rowFor(c, level+1, level===0 ? g : parentGid);
-      return cg;
-    });
+    if(kids) sortNodes(node.children).forEach(c=> rowFor(c, level+1, g));
     return g;
   };
-  DATA.forEach(seg=> rowFor(seg,0,null));
+  // Matches the shipped page: budgeted segments by total actual desc,
+  // unbudgeted last. The mockup previously relied on hand-ordered DATA.
+  const sortNodes = ns => [...ns].sort((a,b)=>{
+    const au = !!a.unbudgeted, bu = !!b.unbudgeted;
+    if(au !== bu) return au ? 1 : -1;
+    const d = sum(b,actualOf,ms) - sum(a,actualOf,ms);
+    return d !== 0 ? d : a.name.localeCompare(b.name);
+  });
+  sortNodes(DATA).forEach(seg=> rowFor(seg,0,null));
 
   // total row
   const TOT = { name:'Total', children:DATA };
@@ -354,12 +432,22 @@ function render(){
 
   document.getElementById('tbl').innerHTML = h + '<tbody>'+body+'</tbody>' + foot;
 
+  // Collapsing a node must also collapse everything beneath it, otherwise a
+  // re-expand would pop grandchildren back into view still expanded.
+  const collapseTree = g => {
+    document.querySelectorAll('.kid[data-of="'+g+'"]').forEach(r=>{
+      r.classList.remove('show');
+      const t = r.querySelector('.twist');
+      if(t){ t.setAttribute('aria-expanded','false'); t.textContent='▸'; collapseTree(t.dataset.group); }
+    });
+  };
   document.querySelectorAll('.twist').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const g = btn.dataset.group, open = btn.getAttribute('aria-expanded')==='true';
       btn.setAttribute('aria-expanded', String(!open));
       btn.textContent = open ? '▸' : '▾';
-      document.querySelectorAll('.kid[data-of="'+g+'"]').forEach(r=> r.classList.toggle('show', !open));
+      if(open) collapseTree(g);
+      else document.querySelectorAll('.kid[data-of="'+g+'"]').forEach(r=> r.classList.add('show'));
     });
   });
 
@@ -377,17 +465,24 @@ function renderKpis(ms){
   const prevA = prevMs.length ? sum(TOT,actualOf,prevMs) : 0;
   const delta = prevA ? (A-prevA)/prevA*100 : null;
   const used = B ? A/B*100 : 0, proj = B ? (A+P)/B*100 : 0;
-  const elapsedMs = ms.filter(i=>i<=NOW).length, elapsed = ms.length ? elapsedMs/ms.length*100 : 0;
+  // Day-weighted, matching components/spend/format.ts#elapsedFraction.
+// On 20 Aug 2026, Q3 = (Jul 31 + Aug 20) / (31+31+30) = 51/92 = 55%.
+// Whole-month counting would say 67%.
+const TODAY = 20; // 20 Aug 2026
+const daysIn = i => new Date(2026, i+1, 0).getDate();
+let eD = 0, tD = 0;
+ms.forEach(i => { tD += daysIn(i); if(i < NOW) eD += daysIn(i); else if(i === NOW) eD += TODAY; });
+const elapsed = tD ? Math.min(100, eD/tD*100) : 0;
   const periodName = view==='month'?'Jul 2026':view==='quarter'?'Q2 2026':'FY 2025';
   document.getElementById('kpis').innerHTML = `
     <div class="card"><div class="label">Actual spend</div><div class="val num">฿${fmt(A)}</div>
       <div class="foot">${delta===null?'no prior period':`<span class="${delta>0?'delta-up':'delta-down'}">${delta>0?'▲':'▼'} ${Math.abs(delta).toFixed(1)}%</span> vs ${periodName}`}</div></div>
     <div class="card"><div class="label">Budget</div><div class="val num">฿${fmt(B)}</div>
       <div class="foot">${B-A>=0?`฿${fmt(B-A)} remaining`:`<span class="delta-up">฿${fmt(A-B)} over</span>`}</div></div>
-    <div class="card"><div class="label">Budget used</div><div class="val num">${used.toFixed(1)}<small>%</small></div>
+    <div class="card"><div class="label">Budget used</div><div class="val num">${Math.round(used)}<small>%</small></div>
       <div class="foot">Elapsed: ${Math.round(elapsed)}% · ${used>elapsed+3?'running ahead':'on pace'}</div></div>
     <div class="card"><div class="label">Pending approval</div><div class="val num pend">฿${fmt(P)}</div>
-      <div class="foot">Would push used to <b>${proj.toFixed(1)}%</b></div></div>`;
+      <div class="foot">Would push used to <b>${Math.round(proj)}%</b></div></div>`;
   document.getElementById('pendTotal').textContent = '฿'+fmt(sum({name:'t',children:DATA},pendingOf,[NOW]));
 }
 
