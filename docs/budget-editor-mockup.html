@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget entry & approval — Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2B; --terracotta:#BD5A2E; --cream:#FAF8F4; --sand:#D8CBB0;
+    --ink:#1B1B18; --muted:#6B6B60; --white:#fff;
+    --ok:#2E7D52; --warn:#C99A2E; --over:#B23A2F;
+    --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1300px;margin:0 auto;padding:24px 20px 64px}
+  .num{font-family:'DM Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+  /* mockup-only screen switcher */
+  .screens{display:flex;gap:0;margin-bottom:22px;border:1px dashed var(--sand);border-radius:var(--radius);overflow:hidden;background:#FFFDF7}
+  .screens button{flex:1;border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:11px 14px;cursor:pointer;border-left:1px dashed var(--sand)}
+  .screens button:first-child{border-left:0}
+  .screens button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .screens-hint{font-size:11px;color:var(--muted);padding:6px 12px 0;letter-spacing:.04em;text-transform:uppercase}
+
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  h1{font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0}
+  .actions{display:flex;gap:9px;align-items:center}
+  .btn{border:1px solid var(--sand);background:var(--white);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer}
+  .btn:hover{border-color:var(--forest)}
+  .btn-primary{background:var(--forest);border-color:var(--forest);color:#fff}
+  .btn-danger{border-color:#E4C4BE;color:var(--over)}
+  .btn:focus-visible{outline:2px solid var(--forest);outline-offset:2px}
+
+  .status{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:500;padding:4px 11px;border-radius:99px;border:1px solid var(--sand);color:var(--muted)}
+  .status i{width:7px;height:7px;border-radius:99px;background:currentColor}
+  .status.draft{background:#F6F3EC;color:var(--muted)}
+  .status.submitted{background:#FBF2EC;color:var(--terracotta);border-color:#EBD3C4}
+  .status.approved{background:#F1F7F2;color:var(--forest);border-color:#C6D8CB}
+
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  select{font:inherit;padding:8px 12px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);color:var(--ink)}
+  .seg{display:inline-flex;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden}
+  .seg button{border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:8px 15px;cursor:pointer}
+  .seg button+button{border-left:1px solid var(--sand)}
+  .seg button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .spacer{flex:1}
+
+  .banner{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;line-height:1.5}
+  .banner b{font-weight:500}
+  .banner.info{background:#F6F3EC;border:1px solid var(--sand);color:var(--ink)}
+  .banner.warn{background:#FBF2EC;border:1px solid #EBD3C4;color:#7A3A18}
+  .banner.block{background:#FBF0EE;border:1px solid #E4C4BE;color:#8E2A21}
+  .banner .ico{font-size:15px;line-height:1.3;flex:none}
+
+  .tbl-scroll{overflow-x:auto;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:right;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 8px;border-bottom:1px solid var(--sand);background:#FDFCFA;white-space:nowrap}
+  th.l{text-align:left}
+  td{padding:0;border-bottom:1px solid #EFEAE0;white-space:nowrap}
+  td.pad{padding:8px 10px}
+  .namecol{position:sticky;left:0;z-index:2;background:var(--white);min-width:210px;max-width:210px;text-align:left}
+  thead .namecol{background:#FDFCFA}
+  .totcol{border-left:1px solid var(--sand);text-align:right;padding:8px 12px;font-weight:500}
+  tr.l1grp td{background:#F6F3EC;font-weight:500;font-size:12.5px;letter-spacing:.02em}
+  tr.l1grp .namecol{background:#F6F3EC}
+  .l2name{padding-left:22px;color:var(--ink)}
+  tfoot td{background:#FDFCFA;font-weight:700;border-top:1px solid var(--sand)}
+  tfoot .namecol{background:#FDFCFA}
+
+  input.cell{width:100%;border:0;background:transparent;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:13px;text-align:right;padding:8px 8px;color:var(--ink)}
+  input.cell:hover{background:#FBF9F5}
+  input.cell:focus{outline:2px solid var(--forest);outline-offset:-2px;background:#fff}
+  input.cell.changed{background:rgba(189,90,46,.09);color:#8E3F1B;font-weight:500}
+  td.mo{width:74px}
+  .ro{padding:8px 8px;text-align:right;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:13px}
+  .ro.changed{background:rgba(189,90,46,.09);color:#8E3F1B;font-weight:500}
+  .ro.zero{color:#C0BBAE}
+  .delta{display:block;font-size:10.5px;font-weight:400;margin-top:1px}
+  .delta.up{color:var(--over)} .delta.down{color:var(--ok)}
+
+  .rowtools{display:flex;gap:2px;padding-left:6px}
+  .rowtools button{border:1px solid transparent;background:transparent;color:#B9B4A7;cursor:pointer;font-size:11px;padding:1px 4px;border-radius:4px;font-family:'DM Mono',monospace}
+  tr:hover .rowtools button{color:var(--muted);border-color:var(--sand);background:#fff}
+  .rowtools button:hover{color:var(--forest);border-color:var(--forest)}
+
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .card{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:14px 16px}
+  .card .label{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:8px}
+  .card .val{font-size:22px;font-weight:500;letter-spacing:-.02em}
+  .card .foot{margin-top:6px;font-size:12px;color:var(--muted)}
+
+  .hint{font-size:12.5px;color:var(--muted);margin:9px 0 0}
+  kbd{font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--sand);border-bottom-width:2px;border-radius:4px;padding:1px 5px;background:#fff;color:var(--ink)}
+
+  .hist{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden}
+  .hrow{display:flex;gap:14px;align-items:center;padding:13px 16px;border-bottom:1px solid #EFEAE0}
+  .hrow:last-child{border-bottom:0}
+  .hrow .when{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);width:120px;flex:none}
+  .hrow .who{width:190px;flex:none;font-size:13px}
+  .hrow .what{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+  .hrow .amt{font-family:'DM Mono',monospace;font-weight:500;font-size:13px}
+
+  .comment{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);resize:vertical;min-height:70px;margin-top:4px}
+
+  .note{margin-top:32px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)}
+  .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+  .screen{display:none} .screen.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div>
+    <div class="screens-hint">Mockup only — switch between the three states</div>
+    <div class="screens" role="group">
+      <button data-s="bo" aria-pressed="true">BO · edit draft</button>
+      <button data-s="ceo" aria-pressed="false">CEO · review revision</button>
+      <button data-s="hist" aria-pressed="false">History</button>
+    </div>
+  </div>
+
+  <!-- ══════════ BO EDITOR ══════════ -->
+  <div class="screen on" id="s-bo">
+    <div class="page-head">
+      <div>
+        <h1>Budget · Marketing</h1>
+        <p class="sub">ONEST · FY2026 · revision 3 <span class="status draft"><i></i>Draft</span></p>
+      </div>
+      <div class="actions">
+        <button class="btn">Discard changes</button>
+        <button class="btn">Save draft</button>
+        <button class="btn btn-primary">Submit for CEO approval</button>
+      </div>
+    </div>
+
+    <div class="bar">
+      <select><option>ONEST</option><option>SV</option></select>
+      <select><option>Marketing</option><option>Factory</option><option>R&amp;D</option><option>G&amp;A</option><option>Retail</option></select>
+      <select><option>FY2026</option><option>FY2027</option></select>
+      <div class="spacer"></div>
+      <div class="seg" role="group" aria-label="Compare against">
+        <button aria-pressed="true">vs approved</button>
+        <button aria-pressed="false">vs FY2025 actual</button>
+      </div>
+    </div>
+
+    <div class="banner info">
+      <span class="ico">◆</span>
+      <div><b>Approved budget is live; your edits are not.</b> Nothing here affects the spend report until the CEO approves this revision. Highlighted cells differ from the currently approved figures.</div>
+    </div>
+
+    <div class="tbl-scroll">
+      <table id="boTable"></table>
+    </div>
+    <p class="hint">
+      Paste 12 values straight from Sheets into any row · <kbd>→</kbd> fills the rest of the year from a cell ·
+      <kbd>↑↓←→</kbd> moves between cells · <kbd>C</kbd> copies the FY2025 actual into the row
+    </p>
+
+    <div class="summary" id="boSummary"></div>
+  </div>
+
+  <!-- ══════════ CEO REVIEW ══════════ -->
+  <div class="screen" id="s-ceo">
+    <div class="page-head">
+      <div>
+        <h1>Budget revision · Marketing</h1>
+        <p class="sub">ONEST · FY2026 · revision 3 <span class="status submitted"><i></i>Awaiting your approval</span></p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-danger">Request changes</button>
+        <button class="btn btn-primary">Approve revision</button>
+      </div>
+    </div>
+
+    <div class="banner warn">
+      <span class="ico">◆</span>
+      <div><b>Submitted by Nok (BO · Marketing) on 19 Aug 2026, 14:22.</b> Approving publishes all 5 lines at once and they take effect in the spend report immediately. 8 of 60 monthly figures changed.</div>
+    </div>
+
+    <div class="banner block">
+      <span class="ico">✕</span>
+      <div><b>You cannot approve a revision you submitted.</b> Shown here for the case where one person holds both BO and CEO — the Approve button is disabled and another CEO must act. <i>(Mockup: this banner appears only in that situation.)</i></div>
+    </div>
+
+    <div class="summary" id="ceoSummary"></div>
+
+    <div class="tbl-scroll">
+      <table id="ceoTable"></table>
+    </div>
+    <p class="hint">Changed figures are highlighted with the difference beneath. Unchanged months are shown for context.</p>
+
+    <div style="margin-top:18px">
+      <label style="font-size:12.5px;color:var(--muted);font-weight:500">Note to Nok <span style="font-weight:400">(required when requesting changes)</span></label>
+      <textarea class="comment" placeholder="e.g. Q4 influencer spend looks high against the revised revenue forecast — please rework Oct–Dec."></textarea>
+    </div>
+  </div>
+
+  <!-- ══════════ HISTORY ══════════ -->
+  <div class="screen" id="s-hist">
+    <div class="page-head">
+      <div>
+        <h1>Budget history · Marketing</h1>
+        <p class="sub">ONEST · FY2026 · every revision, who submitted it and who approved it</p>
+      </div>
+      <div class="actions"><button class="btn">Export audit trail</button></div>
+    </div>
+
+    <div class="hist">
+      <div class="hrow">
+        <span class="when">19 Aug 14:22</span>
+        <span class="who">Nok · BO</span>
+        <span class="what">Revision 3 submitted — 8 monthly figures across 3 lines</span>
+        <span class="status submitted"><i></i>Awaiting CEO</span>
+        <span class="amt">฿8,640,000</span>
+      </div>
+      <div class="hrow">
+        <span class="when">02 Jul 09:41</span>
+        <span class="who">Preecha · CEO</span>
+        <span class="what">Revision 2 approved — H2 uplift for the Central Rama 9 launch</span>
+        <span class="status approved"><i></i>Live</span>
+        <span class="amt">฿8,400,000</span>
+      </div>
+      <div class="hrow">
+        <span class="when">28 Jun 16:08</span>
+        <span class="who">Preecha · CEO</span>
+        <span class="what">Revision 1 rejected — "Affiliate line unchanged from last year despite the channel shift"</span>
+        <span class="status draft"><i></i>Rejected</span>
+        <span class="amt">฿8,760,000</span>
+      </div>
+      <div class="hrow">
+        <span class="when">14 Jan 11:30</span>
+        <span class="who">Preecha · CEO</span>
+        <span class="what">Opening budget approved</span>
+        <span class="status approved"><i></i>Superseded</span>
+        <span class="amt">฿8,160,000</span>
+      </div>
+    </div>
+    <p class="hint">Every approved revision is kept. The spend report always reads the latest approved figures, so a historical report re-run months later shows the budget that was live at the time.</p>
+  </div>
+
+  <div class="note">
+    <b>Decisions baked into this mockup — confirm or change:</b>
+    <ol>
+      <li><b>One revision covers one segment for the whole year.</b> All of Marketing's cat_l1/cat_l2 lines × 12 months are approved or rejected as a unit. A BO working on Marketing and Factory raises two revisions.</li>
+      <li><b>Approved figures stay live while a draft is edited.</b> The spend report never reads a draft. Editing budget can't accidentally change what the report shows.</li>
+      <li><b>Every revision is retained, not overwritten.</b> Needed for the audit trail, and it means a report for a past period can show the budget that was actually live then — say if that matters, because it changes the schema.</li>
+      <li><b>No self-approval.</b> A user holding both BO and CEO can submit but not approve their own revision. Same control as the KinOS write-off rule.</li>
+      <li><b>Rejection requires a note</b>, and it returns the revision to draft with the BO's figures intact so they can amend rather than retype.</li>
+      <li><b>Entry ergonomics carry this feature.</b> 5 lines × 12 months is 60 cells here; a real segment may be 15 lines and 180 cells. Paste-a-row, fill-right, copy-last-year and arrow-key navigation are not polish — without them nobody will keep the budget current.</li>
+      <li><b>cat_l2 lines come from the existing category list</b>, so budget can only be set against categories that requests can actually be filed under. Adding a line means adding a category in Settings first.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// approved = currently live; proposed = this draft
+const ROWS=[
+  {l1:'Content', l2:'Content production', approved:[180,180,180,180,180,180,180,180,180,180,180,180],
+                                          proposed:[180,180,180,180,180,180,210,210,210,180,180,180]},
+  {l1:'Content', l2:'Influencer / KOL',   approved:[120,120,120,120,120,120,120,120,120,120,120,120],
+                                          proposed:[120,120,120,120,120,120,120,120,120,150,150,150]},
+  {l1:'Events',  l2:'Booth & fabrication',approved:[150,150,150,150,150,150,150,150,150,150,150,150],
+                                          proposed:[150,150,150,150,150,150,150,150,150,150,150,150]},
+  {l1:'Events',  l2:'Offline campaign',   approved:[110,110,110,110,110,110,110,110,110,110,110,110],
+                                          proposed:[110,110,110,110,110,110,110,110,110,110,110,110]},
+  {l1:'Affiliate',l2:'Affiliate fees',    approved:[160,160,160,160,160,160,160,160,160,160,160,160],
+                                          proposed:[160,160,160,160,160,160,160,160,160,160,160,160]}
+];
+const K=1000;
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+const rowSum=a=>a.reduce((s,v)=>s+v,0);
+const totalOf=key=>ROWS.reduce((s,r)=>s+rowSum(r[key]),0)*K;
+
+function groupRows(){
+  const out=[]; let last=null;
+  ROWS.forEach((r,i)=>{ if(r.l1!==last){ out.push({grp:r.l1}); last=r.l1; } out.push({row:r,i}); });
+  return out;
+}
+
+function header(extra){
+  let h='<thead><tr><th class="namecol l">Line</th>';
+  MONTHS.forEach(m=> h+='<th>'+m+'</th>');
+  h+='<th class="totcol">FY total</th>';
+  if(extra) h+='<th class="totcol">Change</th>';
+  return h+'</tr></thead>';
+}
+
+function renderBO(){
+  let b='';
+  groupRows().forEach(item=>{
+    if(item.grp){
+      b+='<tr class="l1grp"><td class="namecol pad" colspan="14">'+item.grp+'</td></tr>';
+      return;
+    }
+    const r=item.row;
+    b+='<tr data-i="'+item.i+'"><td class="namecol pad"><div style="display:flex;align-items:center;justify-content:space-between">'
+     +'<span class="l2name">'+r.l2+'</span><span class="rowtools">'
+     +'<button title="Copy FY2025 actual into this row">C</button>'
+     +'<button title="Clear row">×</button></span></div></td>';
+    r.proposed.forEach((v,m)=>{
+      const ch=v!==r.approved[m];
+      b+='<td class="mo"><input class="cell'+(ch?' changed':'')+'" data-i="'+item.i+'" data-m="'+m+'" value="'+fmt(v*K)+'"></td>';
+    });
+    b+='<td class="totcol num">'+fmt(rowSum(r.proposed)*K)+'</td></tr>';
+  });
+  let f='<tfoot><tr><td class="namecol pad">Total</td>';
+  MONTHS.forEach((_,m)=>{ f+='<td class="mo"><div class="ro">'+fmt(ROWS.reduce((s,r)=>s+r.proposed[m],0)*K)+'</div></td>'; });
+  f+='<td class="totcol num">'+fmt(totalOf('proposed'))+'</td></tr></tfoot>';
+  document.getElementById('boTable').innerHTML=header(false)+'<tbody>'+b+'</tbody>'+f;
+
+  const ap=totalOf('approved'), pr=totalOf('proposed'), d=pr-ap;
+  let changed=0; ROWS.forEach(r=>r.proposed.forEach((v,m)=>{ if(v!==r.approved[m]) changed++; }));
+  document.getElementById('boSummary').innerHTML=`
+    <div class="card"><div class="label">Approved (live)</div><div class="val num">฿${fmt(ap)}</div><div class="foot">revision 2 · 2 Jul</div></div>
+    <div class="card"><div class="label">This draft</div><div class="val num">฿${fmt(pr)}</div><div class="foot">${changed} of 60 figures changed</div></div>
+    <div class="card"><div class="label">Change</div><div class="val num" style="color:${d>0?'var(--over)':'var(--ok)'}">${d>0?'+':'−'}฿${fmt(Math.abs(d))}</div><div class="foot">${(d/ap*100).toFixed(1)}% vs approved</div></div>
+    <div class="card"><div class="label">FY2026 actual so far</div><div class="val num">฿4,204,000</div><div class="foot">Jan–Aug · 51% of this draft</div></div>`;
+
+  document.querySelectorAll('#boTable input.cell').forEach(inp=>{
+    inp.addEventListener('focus',()=>inp.select());
+    inp.addEventListener('change',()=>{
+      const i=+inp.dataset.i,m=+inp.dataset.m;
+      const v=Math.round((parseFloat(inp.value.replace(/[^0-9.-]/g,''))||0)/K);
+      ROWS[i].proposed[m]=v; renderBO();
+    });
+    inp.addEventListener('keydown',e=>{
+      const i=+inp.dataset.i,m=+inp.dataset.m;
+      let t=null;
+      if(e.key==='ArrowRight'&&inp.selectionStart===inp.value.length) t=[i,m+1];
+      if(e.key==='ArrowLeft'&&inp.selectionStart===0) t=[i,m-1];
+      if(e.key==='ArrowDown') t=[i+1,m];
+      if(e.key==='ArrowUp') t=[i-1,m];
+      if(t){ e.preventDefault(); const el=document.querySelector('input.cell[data-i="'+t[0]+'"][data-m="'+t[1]+'"]'); if(el) el.focus(); }
+    });
+    inp.addEventListener('paste',e=>{
+      const txt=(e.clipboardData||window.clipboardData).getData('text');
+      const vals=txt.trim().split(/[\t,;]|\s{2,}/).map(s=>parseFloat(s.replace(/[^0-9.-]/g,''))).filter(v=>!isNaN(v));
+      if(vals.length<2) return;
+      e.preventDefault();
+      const i=+inp.dataset.i; let m=+inp.dataset.m;
+      vals.forEach(v=>{ if(m<12) ROWS[i].proposed[m++]=Math.round(v/K); });
+      renderBO();
+    });
+  });
+}
+
+function renderCEO(){
+  let b='';
+  groupRows().forEach(item=>{
+    if(item.grp){ b+='<tr class="l1grp"><td class="namecol pad" colspan="15">'+item.grp+'</td></tr>'; return; }
+    const r=item.row;
+    b+='<tr><td class="namecol pad"><span class="l2name">'+r.l2+'</span></td>';
+    r.proposed.forEach((v,m)=>{
+      const a=r.approved[m], ch=v!==a, d=v-a;
+      b+='<td class="mo"><div class="ro'+(ch?' changed':'')+'">'+fmt(v*K)
+       +(ch?'<span class="delta '+(d>0?'up':'down')+'">'+(d>0?'+':'−')+fmt(Math.abs(d)*K)+'</span>':'')+'</div></td>';
+    });
+    const rd=rowSum(r.proposed)-rowSum(r.approved);
+    b+='<td class="totcol num">'+fmt(rowSum(r.proposed)*K)+'</td>'
+     +'<td class="totcol num" style="color:'+(rd>0?'var(--over)':rd<0?'var(--ok)':'var(--muted)')+'">'
+     +(rd===0?'—':(rd>0?'+':'−')+fmt(Math.abs(rd)*K))+'</td></tr>';
+  });
+  let f='<tfoot><tr><td class="namecol pad">Total</td>';
+  MONTHS.forEach((_,m)=>{
+    const p=ROWS.reduce((s,r)=>s+r.proposed[m],0), a=ROWS.reduce((s,r)=>s+r.approved[m],0);
+    f+='<td class="mo"><div class="ro'+(p!==a?' changed':'')+'">'+fmt(p*K)+'</div></td>';
+  });
+  const td=totalOf('proposed')-totalOf('approved');
+  f+='<td class="totcol num">'+fmt(totalOf('proposed'))+'</td>'
+   +'<td class="totcol num" style="color:var(--over)">+'+fmt(td)+'</td></tr></tfoot>';
+  document.getElementById('ceoTable').innerHTML=header(true)+'<tbody>'+b+'</tbody>'+f;
+
+  const ap=totalOf('approved'), pr=totalOf('proposed'), d=pr-ap;
+  document.getElementById('ceoSummary').innerHTML=`
+    <div class="card"><div class="label">Currently approved</div><div class="val num">฿${fmt(ap)}</div><div class="foot">live in the spend report now</div></div>
+    <div class="card"><div class="label">Proposed</div><div class="val num">฿${fmt(pr)}</div><div class="foot">3 of 5 lines touched</div></div>
+    <div class="card"><div class="label">Change</div><div class="val num" style="color:var(--over)">+฿${fmt(d)}</div><div class="foot">+${(d/ap*100).toFixed(1)}% · all in H2</div></div>
+    <div class="card"><div class="label">Actual Jan–Aug</div><div class="val num">฿4,204,000</div><div class="foot">tracking 103% of approved</div></div>`;
+}
+
+document.querySelectorAll('.screens button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.screens button').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+    document.getElementById('s-'+b.dataset.s).classList.add('on');
+  });
+});
+renderBO(); renderCEO();
+</script>
+</body>
+</html>
