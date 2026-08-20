@@ -1154,6 +1154,151 @@ to everyone who can see the request.
 
 ---
 
+## Spend vs Budget by Segment report (built)
+
+Spend by Segment (department) and by Month against budget. **Shipped** — the earlier revision
+of this section described it as "approved design, not yet built" and specified a
+`/spend-report` route; both are stale. What exists:
+
+**Visual spec:** `docs/spend-report-mockup-v2.html`. The page was actually built from a written
+spec before that file was committed to the repo (it was added later, in `b3fd636`), so the two
+are close but not identical — see "Known divergences from the mockup" below.
+
+- **Route**: `/reports/spend` — `app/reports/spend/page.tsx` (server guard) +
+  `spendClient.tsx` (client), the same split every other gated page uses. Note this is
+  **not** `/spend-report`, which was the working name and was never used.
+- **Access**: `"spend-report"` in the `Page` union and `canAccessPage()` — SUPERADMIN / CEO /
+  ACCOUNTING / **BO**. BO was added beyond the old Dashboard rule because a budget owner is
+  exactly who needs spend-vs-budget for their own segments; BO viewers are scoped down inside
+  `lib/spend.ts` so granting the page does not grant the data.
+- **Nav**: `{ page: "spend-report", href: "/reports/spend", label: "Spend report" }` in
+  `components/Nav.tsx`. A page is only reachable if its key is *also* in the exhaustive
+  `PAGES` list — see "Nav gating" below.
+- **Data layer**: `lib/spend.ts#getSpendReport({ bu, fiscalYear, months, basis,
+  departmentFilter, viewer })`. Two business decisions are pinned at the top of that file as
+  the single source of truth — `SPEND_AMOUNT_FIELD` (`'total'`, flip to `'amount_net'` for
+  pre-VAT budgets) and `SPEND_PERIOD_FIELD` (`'budget_period'`, flip to `'created_at'`) — plus
+  `ACTUAL_APPROVED` / `ACTUAL_PAID` / `PENDING_STATUS`. **Nothing else in the feature may
+  hardcode a status or amount field.**
+- **API**: `GET /api/spend-report?year=&bu=&months=&basis=&department=`.
+- **Drill-down**: Segment -> Category L1 -> Category L2. Deeper than the `budget_2026`-era
+  design allowed, because the report reads the `budgets` table (migration 016), which carries
+  a figure at `bu + department + cat_l1 + cat_l2 + fiscal_year + month`.
+- **Columns**: per-month columns (0 in Month view, 3 in Quarter, 12 in Year) followed by an
+  identical metric block in all three views — Budget | Actual | Pending — rendered from the
+  `METRIC_COLUMNS` array in `SpendTable.tsx`. Variance and budget-utilisation are **not**
+  columns; they are a ~11px secondary line inside the Actual cell.
+- **Filters**: BU tabs (default **ONEST**; "All" is written to the URL as `bu=all` so it
+  round-trips), granularity tabs, period select, segment select, and an approved/paid basis
+  toggle. All state lives in the query string.
+
+### Schema and reconciliation
+
+`supabase/migrations/016_budgets.sql` adds the `budgets` table plus `v_request_spend` (one row
+per request line item) and two pre-aggregated views. Corrections made to the drafted view after
+checking the live schema, all of which still apply:
+
+- `requests` has no `id` column — the PK is `request_id`.
+- `budget_period` is usable (991/991 rows valid `YYYY-MM`) but is **TEXT**, so it is parsed
+  with `to_date()`, not `extract()`.
+- The period fallback is `requests."timestamp"`, **not** `created_at` — `created_at` is the row
+  insert time and is 2026-07-21 for every legacy imported row.
+- Items carry **no `total` key**; item gross is derived as `amount_net + VAT - WHT`. Where the
+  item sum diverges from `requests.total` by more than 1 THB (8 of 991 requests) the header
+  total is allocated proportionally, and the last line of every request absorbs the rounding
+  residual so `sum(amount)` per request is exactly `requests.total`.
+- There is no `DRAFT` status in this schema.
+
+Reconciled against live data: year-view total actual equals the raw `v_request_spend` sum, and
+the 12 footer month cells sum to the year total, for every BU x basis combination.
+
+### Known divergences from the mockup
+
+Deliberate: Variance and Used are secondary text inside the Actual cell rather than two
+standalone columns, and the metric block is identical across all three granularities (which
+adds a Pending column to Year view, where the mockup has none). Both were explicitly requested
+after the mockup was drawn. Everything else that differs is unreviewed drift — do not treat
+the shipped page as the reference; the mockup is.
+
+### Known gaps
+
+`budgets` is **empty**. Until `npm run import:budget -- --file=<csv> --year=<YYYY>` is run,
+every segment shows the "no budget set" chip and an em-dash secondary line. Separately, 41
+`(bu, department, cat_l1)` combinations carrying ~ThB 6.5M of FY2026 spend do not exist in
+`categories` at all, so they cannot be budgeted against; and 2 category lines (SV Merchandise
+NPD / Replenishing) have no BO in scope.
+
+---
+
+## Verification
+
+Rules for claiming something works. Each of these was learned by getting it wrong in this
+repo.
+
+- **A passing build is not evidence a deployment works.** `npm run build` compiles the working
+  tree on this machine. It says nothing about whether the deployed page loads, whether the
+  route is reachable, or whether the data behind it exists. Verify against a loaded page.
+- **"I could not verify X" is not "X is broken" — say which one you mean.** They call for
+  different actions from the reader, and blurring them wastes a debugging cycle. If a check
+  was blocked (no session, no data, no access), say it was blocked and why.
+- **Check HEAD in a clean worktree, not the working tree, before claiming a branch compiles.**
+  `next build` and `tsc` read uncommitted files. A branch whose fixes exist only as unstaged
+  edits will build locally and fail for everyone else. `git worktree add <tmp> HEAD` then
+  `npx tsc --noEmit` is the check that actually answers the question — this exact gap shipped a
+  branch whose committed tree failed with three `TS2741` errors while the local build was
+  green.
+
+### Nav gating
+
+`components/Nav.tsx` filters its links on `data.access?.[link.page]`, where `access` comes from
+`GET /api/roles/me` iterating `PAGES`. `PAGES` is exported from `lib/permissions.ts` and derived
+from an exhaustive `Record<Page, true>`, so omitting a page is a **compile error**. It used to
+be a hand-maintained literal, and `"budget"` was silently missing from it — present in `LINKS`
+and in `canAccessPage`, absent from the access map, so the tab never rendered for anyone, with
+no error anywhere. Do not reintroduce a second hand-kept list.
+
+---
+
+## supabase/pending/
+
+Migrations that are written but **not applied**, parked outside `supabase/migrations/` on
+purpose. `supabase db push` reads the directory, not git, so an unapplied file left in
+`migrations/` means push can never be a clean no-op — and if it sorts before an applied
+migration, the CLI refuses to run at all without `--include-all`. Moving a parked migration
+here keeps it in the working tree and out of push's path. Nothing here is applied by any
+tooling; moving a file back into `migrations/` is what schedules it.
+
+Currently holds `015_budget_cashflow.sql` (the ONEST P&L port). It is **partially applied**:
+its `roles_role_check` statement was run by hand, so `DEPT_HEAD` is live, while none of its
+five `cashflow_*` tables or the `cashflow_actuals` view exist. See that directory's README.
+
+---
+
+## DEPT_HEAD and BO are separate, and stay separate
+
+Two scoped roles that both use the same `dept_scope` mechanism on `roles`, for different
+things. They are **not** being consolidated:
+
+- **DEPT_HEAD owns product management.** `lib/permissions.ts#canManageProducts` grants
+  Product/SKU management to a DEPT_HEAD scoped to R&D, so R&D manages its own SKU list without
+  going through Procurement. Also gates the Budget page via `canViewBudgetDept`.
+- **BO owns budget.** The budget editor is BO-scoped. `canViewBudgetDept` is *not* the right
+  helper for it.
+
+Scope lives in three comma-separated columns on `roles` — `bu_scope` / `dept_scope` /
+`cat_l1_scope`, `'*'` for unrestricted — matched by `boScopeMatchesRequest`. **A user may hold
+several BO rows and they are OR-ed** (`canBoActOnRequest` -> `rolesOf(user, "BO").some(...)`;
+`lib/auth.ts#selectRolesByEmail` loads every row with no `.single()`/`.limit()`).
+`siriwan.b@mimetta.co` is the first such user (BO/COG + BO/Factory Investment, migration 017).
+
+**A scope on a non-BO row is invisible to BO logic.** `rolesOf(user, "BO")` filters to
+`role = 'BO'` only, so a `dept_scope` sitting on a PETTY_CASH_CUSTODIAN row does nothing for
+approvals, `?scope=bo`, or the spend report. That was the cause of 14 category lines having no
+budget owner and of `EXP-2026-08-000110` being stuck at `SUBMITTED` with no eligible approver;
+migration 017 fixed it by granting real BO rows rather than by widening any existing row.
+
+---
+
 ## Notifications (Discord Webhooks)
 
 Env vars: `DISCORD_WEBHOOK_FACTORY`, `DISCORD_WEBHOOK_MARKETING`, `DISCORD_WEBHOOK_RD`,
@@ -1561,6 +1706,79 @@ silently "corrected", since it's not certain which side is wrong (maybe `DEPARTM
 supposed to change) — but it needs a decision before `--apply` is ever used. The live dry run
 also found 3 department values and 15 category values matching neither map at all (unmatched,
 left as-is); rerun the script to see the current list, since live data continues to change.
+
+---
+
+## Legacy requests import script
+
+`scripts/import-expensedb-requests.ts` — distinct from `migrate-from-sheets.ts` above, which
+only normalizes rows already sitting in Supabase. This is the script that actually puts the
+legacy Google Sheets "ExpenseDB - Requests" export's ~825 historical rows into the live
+`requests` table in the first place. Same conventions: plain Node script
+(`npx tsx scripts/import-expensedb-requests.ts` / `npm run import:expensedb`), **dry-run by
+default**, `--apply` to write, reads `.env.local` itself. The CSV is never committed (`*.csv` is
+gitignored) — pass `--file=/path/to/"ExpenseDB - Requests.csv"`, or drop it in the repo root
+under that exact name (the script's default).
+
+No external CSV-parsing dependency exists in this repo, so the script has its own small
+RFC4180-compliant parser (quoted fields, embedded commas/newlines, `""`-escaped quotes) rather
+than adding one.
+
+**Column mapping notes** (see the script's own header comment and inline comments for the full
+list):
+- Department/category normalization reuses `migrate-from-sheets.ts`'s legacy-name coverage, but
+  with corrected, **unsuffixed** department targets (`lib/constants.ts#DEPARTMENTS` has no
+  `"(ABBREV)"` suffix — that's display-only; see the confirmed mismatch flagged in
+  `migrate-from-sheets.ts`'s own map, deliberately not reused here).
+- `budget_period` is backfilled from `timestamp` (`YYYY-MM`) wherever the legacy sheet left it
+  blank — the column is `not null` and the legacy data frequently didn't populate it.
+- Each legacy row becomes a single-entry `items_json` array (this predates the multi-item
+  feature) built from the flat `cat_l1`/`cat_l2`/`product`/`product_code`/`description`/
+  `amount_net`/`vat_rate`/`wht_rate` columns.
+- `rejection_history` entries are remapped from the legacy shape
+  (`round`/`rejected_by`/`stage`/`reason`/`rejected_at`/`resubmitted_at`) to the current
+  `RejectionHistoryEntry` shape (`stage`/`actor_email`/`reason`/`rejected_at`). The legacy sheet
+  has **no `rejected_by` column at all** — `requests.rejected_by` is recovered from the last
+  rejection_history entry's `rejected_by` where that isn't the literal `"(unknown)"` sentinel the
+  legacy system itself recorded when it didn't know; stays `null` otherwise. Same treatment for
+  `rejected_at`/`rejected_stage` when the top-level columns are blank but the history entry has a
+  real value. The dry-run report counts how many REJECTED rows end up with no recoverable
+  actor/date — a legacy data gap, not a bug in this script.
+- `files_json` and the legacy sheet's separate `po_files_json` column are merged into the single
+  `files_json` array this schema actually has, with merged-in PO entries tagged
+  `doc_type: "PO / Purchase Order (legacy)"`.
+- Dates are parsed assuming Google Sheets' default US-locale CSV export format (`M/D/YYYY[
+  H:MM:SS]`) — the script logs a warning if any parsed month component exceeds 12 (a sign the
+  data is actually `D/M/YYYY` and this assumption is wrong; investigate before trusting parsed
+  dates if that warning appears).
+- Idempotent by `request_id`: existing rows in the live table are skipped, never overwritten —
+  safe to re-run after fixing an unmatched-value map or a failed row.
+
+**EXPIRED status**: 36 legacy rows' true historical status is `EXPIRED`, which
+`004_new_features.sql` had removed from the `requests_status_check` CHECK constraint (written
+when the table was still empty, on the assumption there was no historical data to reconcile
+against it). `supabase/migrations/014_reallow_expired_status.sql` re-adds it — chosen over
+remapping those rows to `REJECTED` or dropping them, to keep the imported history accurate. This
+is purely a terminal, inert historical status going forward (nothing currently produces it; the
+old auto-expiry cron is already gone) — `lib/constants.ts#STATUSES`, `lib/status.ts`
+(`STATUS_LABELS` + `isTerminal`), `components/StatusBadge.tsx` (`COLORS`), and
+`lib/resubmit.ts` (`NOTIFY_EVENT_FOR_STATUS`) were all exhaustively typed against the `Status`
+union and needed an `EXPIRED` entry each — without it, `StatusBadge` would throw destructuring
+`undefined` the first time any of these rows rendered anywhere an "All" tab shows them.
+
+**`request_id_seq` must be advanced after import.** Historical rows insert with an explicit,
+already-formatted `request_id` (preserving the exact legacy ID, per the same rule
+`migrate-from-sheets.ts` follows) rather than going through `generate_request_id()` — which means
+`request_id_seq` never learns about these months. Left alone, the next *real* submission in an
+already-imported month would start back at sequence 1 and collide with an imported row's primary
+key. The script computes each imported month's max sequence number and, in `--apply` mode,
+upserts `request_id_seq.last_seq` up to at least that value (never down — `GREATEST` against
+whatever's already there) for every affected `year_month`.
+
+Applying `014_reallow_expired_status.sql` (SQL editor, or `supabase db push` with real
+credentials — same constraint as every other migration in this project, no `SUPABASE_ACCESS_TOKEN`
+in this agent environment) is required before `--apply`; the dry run works either way since it
+only reads.
 
 ---
 
