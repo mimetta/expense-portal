@@ -103,7 +103,13 @@ const DEPARTMENT_NAME_MAP: Record<string, string> = {
   HR: "People & HR & System",
   COG: "COG",
   COGS: "COG",
-  Factory: "Factory",
+  // Was Factory: "Factory". Retargeted to COG 2026-08-25 when Factory was
+  // removed from lib/constants.ts#DEPARTMENTS — mapping a legacy "Factory"
+  // to itself would now normalize to a department that no longer exists.
+  // This map is also imported by scripts/import-budget.ts, so a budget CSV
+  // row labelled Factory now lands on COG rather than tripping that script's
+  // "not in DEPARTMENTS" warning.
+  Factory: "COG",
   "R&D": "R&D",
   Retail: "Retail",
   Merchandise: "Merchandise",

@@ -21,7 +21,13 @@ export type BusinessUnit = (typeof BUSINESS_UNITS)[number];
 export const DEPARTMENTS = [
   "Marketing",
   "R&D",
-  "Factory",
+  // "Factory" was removed 2026-08-25. It was never a real department: it had
+  // zero rows in `categories` (so /submit never offered it and /api/departments
+  // never returned it), yet 307 legacy-imported requests carried it, making it
+  // the single largest source of un-budgetable spend — ThB 5.23M, 80% of the
+  // orphan total. Migration 019 remapped every one of those requests, and their
+  // items_json[].segment, to COG. "Factory Investment" below is a DIFFERENT
+  // department and stays. See docs/categories-reconciliation.md.
   "Factory Investment",
   "New Store Investment",
   "Operations/Fulfillment",
@@ -273,7 +279,14 @@ export const CALENDAR_MANAGE_ROLES: Role[] = ["SUPERADMIN", "ACCOUNTING", "CEO",
 // are canonical as-is (see the DEPARTMENTS comment above), never touched by
 // that normalization pass.
 export const DEPARTMENT_WEBHOOK_ENV: Record<string, string> = {
-  Factory: "DISCORD_WEBHOOK_FACTORY",
+  // The "Factory" key was dropped 2026-08-25 alongside its removal from
+  // DEPARTMENTS above. It is dead either way: no request carries
+  // department = 'Factory' any more (migration 019 remapped all 307), and none
+  // can be created with it since the /submit picker is fed from `categories`,
+  // which has no Factory rows. Notification routing for that spend is
+  // unaffected — COG below already maps to the same DISCORD_WEBHOOK_FACTORY
+  // channel, so the remapped requests keep reaching the same Discord channel
+  // they did before.
   "Factory Investment": "DISCORD_WEBHOOK_FACINV",
   "Factory Investment (FACINV)": "DISCORD_WEBHOOK_FACINV",
   COG: "DISCORD_WEBHOOK_FACTORY",
