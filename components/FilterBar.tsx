@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { EXPENSE_TYPES, PAYMENT_METHODS, STATUSES, type Status } from "@/lib/constants";
-import { STATUS_LABELS } from "@/lib/status";
-import type { CategoryRow, ExpenseRequest, SupplierRow } from "@/types/database";
+import { BUSINESS_UNITS, DEPARTMENTS, EXPENSE_TYPES, PAYMENT_METHODS, type Status } from "@/lib/constants";
+import type { CompanyRow, ExpenseRequest, SupplierRow } from "@/types/database";
 
 const selectClass =
   "h-[30px] rounded-md border border-brand-border bg-white px-2 text-xs text-brand-dark focus:border-brand-brown focus:outline-none";
 const labelClass = "mb-1 block text-[10px] uppercase tracking-wide text-brand-subtle";
+
+// Same label convention as RequestForm.tsx's companyOptionLabel, e.g.
+// "ONEST — Mimetta Co., Ltd." — kept as a local copy here rather than a
+// shared export since it's a one-line formatter, not worth a new module.
+function companyOptionLabel(c: CompanyRow): string {
+  return `${c.bu} — ${c.name_en}`;
+}
 
 interface FilterBarProps {
   requests: ExpenseRequest[];
@@ -31,44 +37,65 @@ function AdjustmentsIcon() {
   );
 }
 
-export default function FilterBar({ requests, onFilteredChange, statuses = STATUSES }: FilterBarProps) {
+export default function FilterBar({ requests, onFilteredChange }: FilterBarProps) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState("");
-  const [status, setStatus] = useState("");
-  const [catL1, setCatL1] = useState("");
+  const [segment, setSegment] = useState("");
   const [expenseType, setExpenseType] = useState("");
   const [payMethod, setPayMethod] = useState("");
   const [supplier, setSupplier] = useState("");
+  // Matches the year-month portion of due_date, same "month picker"
+  // convention as the Submitted Month filter above (which matches
+  // budget_period the same way) — an exact-date picker would be too narrow
+  // given due_date is usually being scanned for "what's due this month",
+  // not one exact day.
+  const [dueDateMonth, setDueDateMonth] = useState("");
+  // Matches requests.use_for_company (a companies.bu value — see
+  // "Use for company" on RequestForm.tsx) — deliberately not the same
+  // field as Segment above, which matches requests.department.
+  const [company, setCompany] = useState("");
+  // Matches requests.bu (the submitter's own BU) directly — kept separate
+  // from Company above specifically for requests migrated from the old GAS
+  // system, which predate use_for_company and never got it backfilled, so
+  // they're only findable via the original bu column.
+  const [bu, setBu] = useState("");
 
-  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  // Segment options — same /api/departments-with-DEPARTMENTS-fallback
+  // convention used by RequestForm.tsx and settingsClient.tsx, rather than
+  // deriving options from categories (which is what the old Category filter
+  // used) — Segment here means requests.department (see RequestItem.segment
+  // in types/database.ts), a different field than cat_l1.
+  const [segmentOptions, setSegmentOptions] = useState<string[]>([...DEPARTMENTS]);
 
   useEffect(() => {
-    fetch("/api/categories")
-      .then((res) => res.json())
-      .then((data) => setCategories(data.categories ?? []));
     fetch("/api/suppliers")
       .then((res) => res.json())
       .then((data) => setSuppliers(data.suppliers ?? []));
+    fetch("/api/departments")
+      .then((res) => res.json())
+      .then((data) => setSegmentOptions(data.departments?.length ? data.departments : [...DEPARTMENTS]))
+      .catch(() => setSegmentOptions([...DEPARTMENTS]));
+    fetch("/api/companies")
+      .then((res) => res.json())
+      .then((data) => setCompanies(data.companies ?? []));
   }, []);
-
-  const catL1Options = useMemo(
-    () => Array.from(new Set(categories.map((c) => c.cat_l1).filter(Boolean))) as string[],
-    [categories],
-  );
 
   const filtered = useMemo(
     () =>
       requests.filter(
         (r) =>
           (!month || r.budget_period === month) &&
-          (!status || r.status === status) &&
-          (!catL1 || r.cat_l1 === catL1) &&
+          (!segment || r.department === segment) &&
           (!expenseType || r.expense_type === expenseType) &&
           (!payMethod || r.pay_method === payMethod) &&
-          (!supplier || r.supplier_name === supplier),
+          (!supplier || r.supplier_name === supplier) &&
+          (!dueDateMonth || (!!r.due_date && r.due_date.slice(0, 7) === dueDateMonth)) &&
+          (!company || r.use_for_company === company) &&
+          (!bu || r.bu === bu),
       ),
-    [requests, month, status, catL1, expenseType, payMethod, supplier],
+    [requests, month, segment, expenseType, payMethod, supplier, dueDateMonth, company, bu],
   );
 
   useEffect(() => {
@@ -76,15 +103,19 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered]);
 
-  const activeCount = [month, status, catL1, expenseType, payMethod, supplier].filter(Boolean).length;
+  const activeCount = [month, segment, expenseType, payMethod, supplier, dueDateMonth, company, bu].filter(
+    Boolean,
+  ).length;
 
   const clear = () => {
     setMonth("");
-    setStatus("");
-    setCatL1("");
+    setSegment("");
     setExpenseType("");
     setPayMethod("");
     setSupplier("");
+    setDueDateMonth("");
+    setCompany("");
+    setBu("");
   };
 
   return (
@@ -118,11 +149,11 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
 
       <div
         className="overflow-hidden"
-        style={{ maxHeight: open ? 120 : 0, transition: "max-height 0.2s ease" }}
+        style={{ maxHeight: open ? 76 : 0, transition: "max-height 0.2s ease" }}
       >
-        <div className="flex flex-wrap gap-3 px-5 pb-4 pt-1">
+        <div className="flex flex-nowrap items-end gap-3 overflow-x-auto px-5 pb-4 pt-1">
           <div>
-            <label className={labelClass}>Month</label>
+            <label className={labelClass}>Submitted month</label>
             <input
               type="month"
               className={selectClass}
@@ -131,20 +162,11 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
             />
           </div>
           <div>
-            <label className={labelClass}>Status</label>
-            <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <label className={labelClass}>Segment</label>
+            <select className={selectClass} value={segment} onChange={(e) => setSegment(e.target.value)}>
               <option value="">All</option>
-              {statuses.map((s) => (
-                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Category</label>
-            <select className={selectClass} value={catL1} onChange={(e) => setCatL1(e.target.value)}>
-              <option value="">All</option>
-              {catL1Options.map((c) => (
-                <option key={c} value={c}>{c}</option>
+              {segmentOptions.map((s) => (
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
@@ -172,6 +194,33 @@ export default function FilterBar({ requests, onFilteredChange, statuses = STATU
               <option value="">All</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Due Date</label>
+            <input
+              type="month"
+              className={selectClass}
+              value={dueDateMonth}
+              onChange={(e) => setDueDateMonth(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Company</label>
+            <select className={selectClass} value={company} onChange={(e) => setCompany(e.target.value)}>
+              <option value="">All</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.bu}>{companyOptionLabel(c)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>BU</label>
+            <select className={selectClass} value={bu} onChange={(e) => setBu(e.target.value)}>
+              <option value="">All</option>
+              {BUSINESS_UNITS.map((u) => (
+                <option key={u} value={u}>{u}</option>
               ))}
             </select>
           </div>

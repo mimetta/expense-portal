@@ -17,6 +17,7 @@ import {
   getExpenseTypeConfig,
 } from "@/lib/constants";
 import { isBoActionable, isCeoActionable, isAccountingActionable, isOwnerEditable, needsProcurement } from "@/lib/status";
+import { canPettyCashActOnRequest } from "@/lib/permissions";
 import type { CompanyRow, ExpenseRequest, FileEntry, RequestItem, RoleRow, SupplierRow } from "@/types/database";
 
 const inputClass =
@@ -78,6 +79,13 @@ interface RequestDetailModalProps {
   // pages that never show a SUBMITTED+owner-editable request in practice
   // (Procurement/BO/CEO/Accounting) can simply omit it.
   onOwnerSaved?: () => void;
+  // Whether the "BO: {name}" badge shows in the header — on by default
+  // since this modal is the one shared "request preview" surface every
+  // page has (My Requests, Procurement, CEO Approvals, Accounting all
+  // want it), but BO Approvals passes false: a BO looking at their own
+  // approvals queue doesn't need to be told who the BO approver is/would
+  // be. The Due Date line next to it is unaffected by this prop.
+  showBoApprover?: boolean;
 }
 
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
@@ -177,6 +185,7 @@ export default function RequestDetailModal({
   actions,
   footerExtra,
   onOwnerSaved,
+  showBoApprover = true,
 }: RequestDetailModalProps) {
   const [items, setItems] = useState<RequestItem[]>(request.items_json);
   const [payment, setPayment] = useState({
@@ -220,7 +229,10 @@ export default function RequestDetailModal({
 
   useEffect(() => {
     if (!editable) return;
-    fetch("/api/suppliers").then((r) => r.json()).then((d) => setSuppliers(d.suppliers ?? []));
+    fetch("/api/suppliers")
+      .then((r) => r.json())
+      .then((d) => setSuppliers(d.suppliers ?? []))
+      .catch((err) => console.error("[suppliers] failed to load:", err));
     fetch("/api/roles").then((r) => r.json()).then((d) => setRoles(d.roles ?? []));
   }, [editable]);
 
@@ -252,12 +264,26 @@ export default function RequestDetailModal({
   const isOwnerOfRequest = currentUser?.email === request.requester_email;
   const canOwnerEditNow = (isOwnerOfRequest || isSuperadminUser) && isOwnerEditable(request);
 
-  // Print view — Accounting stage and above (CEO_APPROVED/PAID), or any
-  // time for SUPERADMIN/ACCOUNTING.
+  // Print view — Accounting stage and above (CEO_APPROVED/PAID), any time
+  // for SUPERADMIN/ACCOUNTING, or the request's own owner/petty cash
+  // holder at any status (previously the owner had no way to print their
+  // own request until it reached CEO_APPROVED, even though it's theirs).
+  // canPettyCashActOnRequest expects a full CurrentUser (email/name/
+  // allRoles/chapter) and doesn't null-guard internally — this component's
+  // local `currentUser` state only carries email/allRoles (see GET
+  // /api/roles/me's field whitelist), so it's null-checked here first and
+  // padded with placeholder name/chapter values the function never reads.
   const hasAccountingRole = currentUser?.allRoles.some((r) => r.role === "ACCOUNTING") ?? false;
+  const isPettyCashHolderForRequest =
+    !!currentUser && canPettyCashActOnRequest({ ...currentUser, name: "", chapter: null }, request);
   const canPrint =
     PRINTABLE_EXPENSE_TYPES.includes(request.expense_type) &&
-    (isSuperadminUser || hasAccountingRole || request.status === "CEO_APPROVED" || request.status === "PAID");
+    (isSuperadminUser ||
+      hasAccountingRole ||
+      isOwnerOfRequest ||
+      isPettyCashHolderForRequest ||
+      request.status === "CEO_APPROVED" ||
+      request.status === "PAID");
 
   const filteredSuppliers = useMemo(() => {
     const q = payment.supplier_name.trim().toLowerCase();
@@ -278,6 +304,7 @@ export default function RequestDetailModal({
       pay_method: match?.payment_method || p.pay_method,
       bank_name: match?.bank_name || p.bank_name,
       account_no: match?.account_no || p.account_no,
+      slip_receiver_email: match?.email || p.slip_receiver_email,
     }));
   };
 
@@ -410,9 +437,21 @@ export default function RequestDetailModal({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold text-brand-dark">{request.request_id}</span>
               <StatusBadge status={request.status} />
-              <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">{request.bu}</span>
+              <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
+                {request.use_for_company || request.bu}
+              </span>
             </div>
             <p className="mt-1 text-xs text-brand-subtle">Submitted {formatDate(request.timestamp)}</p>
+            {(request.due_date || showBoApprover) && (
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-brand-muted">
+                <span>{request.due_date ? `Due ${formatDate(request.due_date)}` : ""}</span>
+                {showBoApprover && (
+                  <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-[11px] font-medium text-[#374151]">
+                    BO: {request.bo_approver ?? "—"}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {canPrint && (
@@ -477,6 +516,28 @@ export default function RequestDetailModal({
             </div>
           )}
 
+          {/* Purely informational — lets the requester know up front (from
+              the moment of submission) that a CEO signature will eventually
+              be required, without implying it's actionable yet. Deliberately
+              excludes BO_APPROVED/PO_UPLOADED, where the actionable blue
+              banner above already covers this — the two never show together. */}
+          {request.ceo_signature_required &&
+            request.status !== "BO_APPROVED" &&
+            request.status !== "PO_UPLOADED" && (
+              <div
+                className="text-xs text-brand-muted"
+                style={{
+                  background: "#F9F8F6",
+                  borderLeft: "3px solid #93C5FD",
+                  padding: "8px 12px",
+                  marginBottom: 16,
+                }}
+              >
+                ℹ️ คำขอนี้ต้องมีลายเซ็น CEO ก่อนการจ่ายเงิน (This request will require a CEO
+                signature before payment)
+              </div>
+            )}
+
           {/* Request Info */}
           <section>
             <h3 className="mm-section-label">Request Info</h3>
@@ -501,13 +562,23 @@ export default function RequestDetailModal({
                   <Field label="Urgent Reason">{request.urgent_reason}</Field>
                 </div>
               )}
-              {request.product && <Field label={branchLabel}>{request.product}</Field>}
             </div>
           </section>
 
           {/* Expense Items */}
           <section>
             <h3 className="mm-section-label">Expense Items</h3>
+            {/* Top-level Product/Branch (non-Petty-Cash Retail/R&D requests
+                only — matches RequestForm.tsx's relocation of the same
+                field into this box). request.product is only ever set for
+                this single-value case; Petty Cash's per-item equivalent
+                lives in the table below instead (hasItemProductColumn). */}
+            {request.product && (
+              <p className="mb-2 text-xs text-brand-dark">
+                <span className="text-brand-subtle">{branchLabel}: </span>
+                {request.product}
+              </p>
+            )}
             <div className="overflow-x-auto rounded-md border border-brand-border">
               <table className="w-full text-xs">
                 <thead className="bg-[#F9F8F6] text-left text-brand-dark">
@@ -887,7 +958,18 @@ export default function RequestDetailModal({
                     <div className="flex items-center gap-2">
                       {editable ? (
                         <select
-                          className={`${inputClass} w-48`}
+                          // Deliberately not `${inputClass} w-48` — inputClass already
+                          // bakes in w-full, and Tailwind's generated w-full/w-48 rules
+                          // share specificity, so which one visually wins depends on
+                          // generation order in the compiled stylesheet, not on className
+                          // string order. That let w-full silently win here, leaving this
+                          // select ~620px wide in a 730px row and squeezing the filename
+                          // link next to it down to 0px width. Spelled out explicitly
+                          // (everything inputClass has, minus w-full) instead, plus
+                          // shrink-0 so it can't be squeezed back down by its flex-1
+                          // sibling once that sibling's own min-w-0 fix (see git history)
+                          // actually has room to use.
+                          className="w-48 shrink-0 rounded-md border border-brand-border bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-brown"
                           value={f.doc_type ?? ""}
                           onChange={(e) => updateFile(i, { doc_type: e.target.value })}
                         >
@@ -920,7 +1002,7 @@ export default function RequestDetailModal({
                           e.preventDefault();
                           openStoredFile(f);
                         }}
-                        className="flex-1 truncate text-brand-brown hover:underline"
+                        className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
                       >
                         {f.name}
                       </a>

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
 // Reference data for the /submit form's cascading BU -> department ->
 // product -> cat_l1 -> cat_l2 pickers. Any signed-in @mimetta.co user can
@@ -68,7 +68,7 @@ function dedupeKey(row: { bu: string; department: string; cat_l1: string | null;
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "categories");
 
     const body = (await request.json()) as CategoryInput & { bulk?: boolean; rows?: CategoryInput[] };
     const admin = createAdminClient();

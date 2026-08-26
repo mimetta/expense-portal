@@ -107,6 +107,7 @@ export interface ExpenseTypeConfig {
 export const PETTY_CASH_LABEL = "เบิกเงินสดย่อย (Petty cash)";
 export const TRAVEL_EXPENSE_LABEL = "เบิกค่าเดินทาง";
 export const ADVANCE_PAYMENT_LABEL = "เบิกเงินทดรองจ่าย (Advance Payment)";
+export const PAID_EXPENSE_LABEL = "เบิกค่าใช้จ่ายที่ชำระแล้ว (ตัดบัตรเครดิต, wallet, อื่นๆ)";
 
 // Expense types the printable request view (app/print/[id]) supports — see
 // CLAUDE.md-style note on RequestDetailModal.tsx's Print button.
@@ -134,7 +135,7 @@ export const EXPENSE_TYPES: ExpenseTypeConfig[] = [
     },
   },
   {
-    label: "เบิกค่าใช้จ่ายที่ชำระแล้ว (ตัดบัตรเครดิต, wallet, อื่นๆ)",
+    label: PAID_EXPENSE_LABEL,
     defaultRequiresPo: false,
     hideDueDate: true,
     requiredDocs: { mode: "any", docs: ["Invoice", "ใบกำกับภาษี (Tax Invoice)"] },
@@ -155,12 +156,12 @@ export const EXPENSE_TYPES: ExpenseTypeConfig[] = [
     requiredDocs: { mode: "all", docs: ["ใบเสร็จ/สลิป"] },
   },
   {
-    label: "เบิกสำหรับส่งเสริมการขาย (e.g. KOL/Influencer, แจกสินค้า)",
-    hideBankFields: true,
+    label: "เบิกสินค้าสำหรับส่งเสริมการขาย (e.g. KOL/Influencer/แจกสินค้า)",
+    hidePaymentSection: true,
     defaultRequiresPo: true,
   },
   {
-    label: "เบิกสำหรับ Product Tester/Display (เบิกใช้ภายใน คิดงบจากต้นทุนสินค้า)",
+    label: "เบิกสินค้าสำหรับใช้ภายใน (e.g. Product Tester/Display/Content/Shooting)",
     hidePaymentSection: true,
     defaultRequiresPo: false,
   },
@@ -235,6 +236,7 @@ export const TRAVEL_BY_OPTIONS = [
   "รถยนต์/จักรยานยนต์ส่วนตัว",
   "รถสาธารณะ (BTS/MRT/Bus)",
   "Grab/Taxi",
+  "ค่าทางด่วน/ค่าที่จอด",
 ] as const;
 export type TravelBy = (typeof TRAVEL_BY_OPTIONS)[number];
 
@@ -245,6 +247,7 @@ export const TRAVEL_REQUIRED_DOCS: Record<TravelBy, string[]> = {
   "รถยนต์/จักรยานยนต์ส่วนตัว": ["ภาพถ่ายเลขไมล์", "ระยะทางใน Google Maps"],
   "รถสาธารณะ (BTS/MRT/Bus)": ["ใบเสร็จรับเงิน หรือ สลิปเติมเงิน หรือ ประวัติการเดินทางจากแอป"],
   "Grab/Taxi": ["ใบเสร็จรับเงินอิเล็กทรอนิกส์ (E-Receipt)"],
+  "ค่าทางด่วน/ค่าที่จอด": ["ใบเสร็จรับเงิน"],
 };
 
 // Homepage calendar (see CLAUDE.md "Homepage Calendar") — not a DB CHECK

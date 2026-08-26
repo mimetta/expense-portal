@@ -4,7 +4,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import {
   canBoActOnRequest,
-  canPettyCashActOnRequest,
   computeCeoSignatureRequired,
   hasRole,
   isSuperadmin,
@@ -14,6 +13,7 @@ import { isBoActionable } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { DeptConfigRow } from "@/types/database";
 
 export async function PATCH(
@@ -22,7 +22,7 @@ export async function PATCH(
 ) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user) && !hasRole(user, "BO") && !hasRole(user, "PETTY_CASH_CUSTODIAN")) {
+    if (!isSuperadmin(user) && !hasRole(user, "BO")) {
       throw new ForbiddenError();
     }
 
@@ -35,10 +35,14 @@ export async function PATCH(
         `Request ${id} is not awaiting BO approval (status: ${existing.status}, skip_bo: ${existing.skip_bo})`,
       );
     }
-    // Petty cash custodians act via the same BO_APPROVE action, scoped to
-    // requests where they're the named holder rather than a bu/dept/cat_l1
-    // scope row (see CLAUDE.md-style note on canPettyCashActOnRequest).
-    if (!isSuperadmin(user) && !canBoActOnRequest(user, existing) && !canPettyCashActOnRequest(user, existing)) {
+    // Petty cash custodians no longer approve directly through this route —
+    // their sign-off is a separate, earlier step (see
+    // PATCH /api/requests/[id]/petty-cash-approve), which is also what
+    // isBoActionable now requires before a petty cash request even reaches
+    // here. Only a real in-scope BO (or SUPERADMIN) can act on this route —
+    // if that same person is also the assigned custodian, petty-cash-approve
+    // folds this transition into their one sign-off click instead.
+    if (!isSuperadmin(user) && !canBoActOnRequest(user, existing)) {
       throw new ForbiddenError("This request is outside your BO scope");
     }
 
@@ -62,6 +66,7 @@ export async function PATCH(
 
     await logAudit(user.email, id, "BO_APPROVED", {});
     await notify("BO_APPROVED", updated);
+    await notifyInApp("BO_APPROVED", updated);
 
     return NextResponse.json({ request: updated });
   } catch (err) {

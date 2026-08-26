@@ -1,19 +1,25 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { hasAnyRole } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 
-// SUPERADMIN + CEO only: dept_config drives skip_bo/skip_ceo/CEO-signature
-// rules, so exposing it more broadly would leak approval thresholds to
-// staff. GET is restricted too (not just mutations) for the same reason —
-// unlike suppliers/products/categories, nothing outside Settings needs to
-// read this table, so there's no submit-form picker to keep open for
-// everyone the way there is for those.
+// dept_config drives skip_bo/skip_ceo/CEO-signature rules, so exposing it
+// more broadly would leak approval thresholds to staff. GET is restricted
+// too (not just mutations) for the same reason — unlike
+// suppliers/products/categories, nothing outside Settings needs to read
+// this table, so there's no submit-form picker to keep open for everyone
+// the way there is for those. Routed through the same
+// requireSettingsTabRole check as the mutations below (not just the
+// literal mutation routes) — this GET is how the CEO Signature Rules tab
+// actually loads its data, so "can see this tab" (settings_tab_permissions)
+// and "can call this GET" need to stay the same rule, or a role newly
+// granted the tab via Settings > Permissions would see it in the nav but
+// get a 403 the moment they open it.
 export async function GET() {
   try {
     const user = await requireUser();
-    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "deptconfig");
 
     const admin = createAdminClient();
     const { data, error } = await admin.from("dept_config").select("*");
@@ -38,7 +44,7 @@ interface DeptConfigInput {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!hasAnyRole(user, ["SUPERADMIN", "CEO"])) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "deptconfig");
 
     const body = (await request.json()) as DeptConfigInput;
     if (!body.dept?.trim()) {

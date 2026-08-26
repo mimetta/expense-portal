@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser, ForbiddenError, UNDEFINED_COLUMN } from "@/lib/auth";
+import { requireUser, UNDEFINED_COLUMN } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { requireSettingsTabRole } from "@/lib/settings-permissions";
 import { ROLES, type Role } from "@/lib/constants";
 
 interface UpdateRoleBody {
@@ -20,7 +20,7 @@ export async function PATCH(
 ) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "users");
 
     const { id } = await params;
     const body = (await request.json()) as UpdateRoleBody;
@@ -82,7 +82,7 @@ export async function DELETE(
 ) {
   try {
     const user = await requireUser();
-    if (!isSuperadmin(user)) throw new ForbiddenError();
+    await requireSettingsTabRole(user, "users");
 
     const { id } = await params;
     const admin = createAdminClient();

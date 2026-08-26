@@ -1230,6 +1230,49 @@ NPD / Replenishing) have no BO in scope.
 
 ---
 
+## Migration numbering is deliberately out of order (015, 024, 025)
+
+`supabase/migrations/` is NOT in applied order, and this is intentional — do
+not "correct" it.
+
+Two lines of work ran in parallel against the same database: main's feature
+stream (supplier email, DB-backed settings permissions, saved signatures,
+petty cash sign-off, notifications) and the spend-report/categories
+reconciliation stream (016-023). Both picked numbers from the same pool, so
+on merging, four numbers collided with entirely different content — and the
+reconciliation set 016-023 was ALREADY APPLIED and recorded in the remote
+`supabase_migrations` table, so renumbering it would have desynchronised a
+history that had just been repaired.
+
+Resolution, applied 2026-08-26:
+
+| file | applied? | note |
+| --- | --- | --- |
+| `015_supplier_email.sql` | yes | main's; number was free (the reconciliation 015 is parked in `supabase/pending/`), so it kept it |
+| `016_budgets.sql` … `023_spend_view_by_item_segment.sql` | yes | reconciliation stream, numbering untouched |
+| `024_settings_tab_permissions.sql` | yes | **was main's 016.** Renumbered to clear the collision, then `migration repair --status applied` — its objects already existed (`settings_tab_permissions`, 8 rows). DDL was NOT re-run. |
+| `025_saved_signatures.sql` | yes | **was main's 017.** Same treatment (`saved_signatures`, 3 rows already present). |
+| `026_petty_cash_signoff.sql` | **no** | was main's 018. Genuinely unapplied — `requests.petty_cash_signed_off_at` does not exist. |
+| `027_notifications.sql` | **no** | was main's 019. Genuinely unapplied — the `notifications` table does not exist. |
+
+So 015, 024 and 025 sit out of numeric order in the history: they were
+applied long before 016-023 but are recorded after them. That is a faithful
+record of a repair, not a mistake.
+
+The applied-but-renumbered files (024, 025) had to sort AFTER the
+reconciliation set rather than before it: `supabase db push` refuses to run
+at all when a local file that is not in the remote history sorts before the
+last remote entry ("Found local migration files to be inserted before the
+last migration on remote database"). Numbering them 024/025 and repairing
+them keeps push able to proceed.
+
+Any code comment referencing a migration by filename was updated with it —
+`lib/settings-permissions.ts`, `app/api/settings-permissions/route.ts`,
+`app/api/companies/[id]/route.ts`, `app/api/signatures/me/route.ts`,
+`components/shared/PDFSigner.tsx`, `app/api/notifications/route.ts`.
+
+---
+
 ## Verification
 
 Rules for claiming something works. Each of these was learned by getting it wrong in this

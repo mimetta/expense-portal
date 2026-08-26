@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import NotificationBell from "@/components/NotificationBell";
 import type { Page } from "@/lib/permissions";
 import type { RoleRow } from "@/types/database";
 
@@ -112,6 +113,7 @@ export default function Nav() {
             })}
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            <NotificationBell />
             <span className="whitespace-nowrap text-[13px] text-brand-subtle">{data.user.email}</span>
             <button
               onClick={handleSignOut}

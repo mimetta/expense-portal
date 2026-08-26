@@ -131,6 +131,11 @@ export interface ExpenseRequest {
   // time (same copy-not-join convention as chapter/requester_name) — only
   // set for PETTY_CASH_LABEL requests.
   petty_cash_holder_email: string | null;
+  // Custodian sign-off — a distinct step from bo_approver/bo_approved_at
+  // (see lib/status.ts#isPettyCashApprovable, migration 018). Only set for
+  // PETTY_CASH_LABEL requests.
+  petty_cash_approved_by: string | null;
+  petty_cash_approved_at: string | null;
   // Flat convenience copy of items_json entries that have a travel_by set;
   // items_json itself remains the source of truth (see RequestItem).
   travel_items: { travel_by: string; distance_km: number | null }[];
@@ -141,6 +146,16 @@ export interface ExpenseRequest {
   procurement_fills_payment: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface NotificationRow {
+  id: string;
+  user_email: string;
+  request_id: string;
+  event: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
 }
 
 export interface RoleRow {
@@ -192,6 +207,7 @@ export interface SupplierRow {
   payment_method: string | null;
   bank_name: string | null;
   account_no: string | null;
+  email: string | null;
   notes: string | null;
   created_at: string;
 }

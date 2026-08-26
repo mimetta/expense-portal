@@ -6,6 +6,7 @@ import { hasRole, isSuperadmin } from "@/lib/permissions";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 
 export async function PATCH(
   request: Request,
@@ -37,6 +38,7 @@ export async function PATCH(
       });
       await logAudit(user.email, id, "PAID", {});
       await notify("PAID", updated);
+      await notifyInApp("PAID", updated);
       return NextResponse.json({ request: updated });
     }
 

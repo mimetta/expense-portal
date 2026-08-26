@@ -3,10 +3,18 @@ import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import { canBoActOnRequest, canPettyCashActOnRequest, hasRole, isSuperadmin } from "@/lib/permissions";
-import { isAccountingActionable, isCeoActionable, isBoActionable, isTerminal, needsProcurement } from "@/lib/status";
+import {
+  isAccountingActionable,
+  isCeoActionable,
+  isBoActionable,
+  isPettyCashApprovable,
+  isTerminal,
+  needsProcurement,
+} from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/discord";
+import { notifyInApp } from "@/lib/notifications";
 import type { RejectionHistoryEntry } from "@/types/database";
 
 export async function PATCH(
@@ -32,7 +40,13 @@ export async function PATCH(
       isSuperadmin(user) ||
       (hasRole(user, "PROCUREMENT") && needsProcurement(existing)) ||
       (hasRole(user, "BO") && isBoActionable(existing) && canBoActOnRequest(user, existing)) ||
-      (hasRole(user, "PETTY_CASH_CUSTODIAN") && isBoActionable(existing) && canPettyCashActOnRequest(user, existing)) ||
+      // A custodian can only reject before their own sign-off — once
+      // they've signed off, the request has moved on to whoever reviews
+      // next (real BO, or CEO on the skip_bo path) and it's out of the
+      // custodian's hands, same as any other completed approval step.
+      (hasRole(user, "PETTY_CASH_CUSTODIAN") &&
+        isPettyCashApprovable(existing) &&
+        canPettyCashActOnRequest(user, existing)) ||
       (hasRole(user, "CEO") && isCeoActionable(existing)) ||
       (hasRole(user, "ACCOUNTING") && isAccountingActionable(existing));
 
@@ -56,6 +70,7 @@ export async function PATCH(
 
     await logAudit(user.email, id, "REJECTED", { stage: existing.status, reason: body.reason });
     await notify("REJECTED", updated);
+    await notifyInApp("REJECTED", updated);
 
     return NextResponse.json({ request: updated });
   } catch (err) {

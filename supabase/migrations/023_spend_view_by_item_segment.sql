@@ -12,6 +12,26 @@
 -- Building items, and surfaced as the non-existent (ONEST, R&D, Brand
 -- Building). The item's own segment is the accurate per-line attribution.
 --
+-- CORRECTION (2026-08-26, on merging main). This header originally implied
+-- multi-segment requests were an open-ended source of new drift. Main's
+-- d91937a ("enforce one Segment per request for non-Petty-Cash") has since
+-- closed most of that: for every non-Petty-Cash expense type the form now
+-- copies item[0]'s segment onto any row added, broadcasts a segment change
+-- to every row, and states "All items in a request must use the same
+-- Segment". EXP-2026-08-000109 (ชำระแล้ว) and EXP-2026-07-000132 (Advance
+-- Payment) could not be created that way today.
+--
+-- It is NOT closed entirely: Petty Cash is deliberately exempt from that
+-- rule (isPettyCash keeps per-item segments, since one petty cash claim
+-- legitimately covers several segments). EXP-2026-07-000116 is exactly that
+-- — a Petty Cash request spanning People (HR), Operations/Fulfillment and
+-- General Administrative — and more like it can still be created.
+--
+-- So this view change is not merely a historical cleanup: it remains the
+-- only correct attribution for Petty Cash going forward. What changes is the
+-- expected volume — a trickle from one exempt expense type, rather than from
+-- every type.
+--
 -- SAFE NOW: migration 020 normalised the six legacy segment spellings, so
 -- every items_json[].segment is a value in lib/constants.ts#DEPARTMENTS.
 -- Before that, switching would have created orphan segments carrying

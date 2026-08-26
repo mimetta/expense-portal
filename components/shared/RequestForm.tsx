@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import RequiredMark from "@/components/shared/RequiredMark";
+import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/client";
 import {
   BANK_OPTIONS,
   CARD_TYPES,
   DEPARTMENTS,
   DOCUMENT_TYPES,
   EXPENSE_TYPES,
+  PAID_EXPENSE_LABEL,
   PAYMENT_METHODS,
   PETTY_CASH_LABEL,
   TRAVEL_BY_OPTIONS,
@@ -84,36 +86,64 @@ function creditDeadlineMessage(): string {
   return "⚠️ เลยกำหนดส่งเอกสารวันที่ 15 แล้ว กรุณาติดต่อฝ่ายบัญชี";
 }
 
-// Uploads one picked File to the private "attachments" Supabase Storage
-// bucket (see app/api/upload/route.ts) and returns the resulting
-// FileEntry — replaces the old fileToEntry() base64 conversion for every
-// new pick, and the Google Drive upload that briefly replaced that.
-// Historical requests may still carry base64 `data:` URLs (from before
-// either upload feature) or drive.google.com URLs (from the Drive-based
-// build); both are left as-is, not migrated.
+// Uploads one picked File directly from the browser to the private
+// "attachments" Supabase Storage bucket, via a signed upload URL/token
+// minted by POST /api/upload/signed-upload-url — the file bytes never pass
+// through a Vercel serverless function, only the small JSON token
+// request/response does. Replaces the old fileToEntry() base64 conversion,
+// the Google Drive upload that briefly replaced that, and then the
+// FormData-through-POST-/api/upload proxy that replaced Drive — that
+// proxy route is still in place (see app/api/upload/route.ts) but no
+// longer called from here, because it relayed the whole file through the
+// function and silently 413'd on anything over Vercel's ~4.5MB request
+// body limit. Historical requests may still carry base64 `data:` URLs
+// (from before any Storage-based upload existed) or drive.google.com URLs
+// (from the Drive-based build); both are left as-is, not migrated.
 async function uploadFileEntry(
   file: File,
   requestId: string,
   budgetPeriod: string,
   documentType: string,
 ): Promise<FileEntry> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("requestId", requestId);
-  formData.append("budgetPeriod", budgetPeriod);
-  formData.append("documentType", documentType);
-
-  const res = await fetch("/api/upload", { method: "POST", body: formData });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body.success) {
-    console.error("[upload] failed:", res.status, body);
-    const detail = [body.error, body.hint].filter(Boolean).join(" — ");
-    throw new Error(detail || `Failed to upload ${file.name} (HTTP ${res.status})`);
+  const tokenRes = await fetch("/api/upload/signed-upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      requestId,
+      budgetPeriod,
+      documentType,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+    }),
+  });
+  const tokenBody = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenBody.success) {
+    console.error("[upload] failed to get signed upload URL:", tokenRes.status, tokenBody);
+    const detail = [tokenBody.error, tokenBody.hint].filter(Boolean).join(" — ");
+    throw new Error(detail || `Failed to prepare upload for ${file.name} (HTTP ${tokenRes.status})`);
   }
+  const { path, token } = tokenBody as { path: string; token: string };
+
+  const supabase = createBrowserSupabaseClient();
+  const { error: uploadError } = await supabase.storage
+    .from("attachments")
+    .uploadToSignedUrl(path, token, file, { contentType: file.type || "application/octet-stream" });
+  if (uploadError) {
+    console.error("[upload] direct-to-storage upload failed:", uploadError);
+    throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+  }
+
+  // uploadToSignedUrl only returns { path, fullPath } — no readable URL —
+  // so mint the initial one through the same route every later re-open
+  // already uses (GET /api/upload/signed-url), rather than adding a
+  // second URL-minting path just for this first read.
+  const url = await resolveFileUrl({ name: file.name, url: "", path, size: file.size, doc_type: documentType });
+
   return {
-    name: body.fileName ?? file.name,
-    url: body.url,
-    path: body.path,
+    name: file.name,
+    url,
+    path,
     size: file.size,
     doc_type: documentType,
   };
@@ -364,7 +394,15 @@ export default function RequestForm({
 
   const expenseConfig = getExpenseTypeConfig(expenseType);
   const isPettyCash = expenseType === PETTY_CASH_LABEL;
+  const isPaidExpense = expenseType === PAID_EXPENSE_LABEL;
   const isTravel = expenseType === TRAVEL_EXPENSE_LABEL;
+  // "ชำระแล้ว" (already-paid) requests get the exact same per-item Segment
+  // + Branch/Product line-item behavior Petty Cash has (independent
+  // Segment per row, per-row Branch/Product column, no top-level
+  // Product/Branch field, no "all items must share item 1's Segment"
+  // restriction) — everything else about Petty Cash (the holder field,
+  // hidden PO section, etc.) stays scoped to isPettyCash alone.
+  const usesPerItemSegment = isPettyCash || isPaidExpense;
 
   // Business Unit is always auto-filled and read-only — never a free
   // choice. Resolution: the first non-"*" bu_scope value across the user's
@@ -392,7 +430,7 @@ export default function RequestForm({
   // Product, but optional. Generalizes the old single-department-wide
   // perItemFieldMode to a per-row check now that Segment lives per item.
   const perItemFieldModeFor = (segment: string | undefined): "branch" | "product" | null => {
-    if (!isPettyCash) return null;
+    if (!usesPerItemSegment) return null;
     if (segment === "Retail") return "branch";
     if (segment === "R&D") return "product";
     return null;
@@ -424,13 +462,31 @@ export default function RequestForm({
   );
 
   // requests.department (dept_config matching / BO scope filtering) is
-  // populated from the first item's segment when items span more than one
-  // — same "first item wins" convention already used for cat_l1/cat_l2 in
-  // mixed-category multi-item requests (see CLAUDE.md "Multi-Item
-  // Requests"). Also drives the top-level Product/Branch field below for
-  // non-Petty-Cash Retail/R&D requests, since that field is still a single
-  // top-level value, not per-item.
+  // populated from the first item's segment — same "first item wins"
+  // convention already used for cat_l1/cat_l2 in mixed-category multi-item
+  // requests (see CLAUDE.md "Multi-Item Requests"). For non-Petty-Cash
+  // expense types every item is now locked to share item 1's Segment (see
+  // the Segment <select> in the Expense Items table below), so this is
+  // simply "the request's one Segment" in that case — Petty Cash is the
+  // only expense type where items can still genuinely differ. Also drives
+  // the top-level Product/Branch field (rendered inside the Expense Items
+  // box, above the item rows) for non-Petty-Cash Retail/R&D requests, since
+  // that field is still a single top-level value, not per-item.
   const primarySegment = items[0]?.segment || "";
+
+  // Payment Details: Supplier/Payee, Payment Method, and Account No/Card No
+  // are hidden specifically when the first item's Category L2 is exactly
+  // "Marketing Influencer / KOL" (confirmed live via GET /api/categories —
+  // department "Marketing (MKT)", cat_l1 "Brand Building"). Keyed off the
+  // first item only, same "first item wins" convention as primarySegment
+  // above — Category L2 isn't locked across items the way Segment now is,
+  // so this deliberately doesn't require every item to match, just the
+  // first. Independent of and stacks with the expense-type-driven
+  // hidePaymentSection/hideBankFields flags (see the Payment Details JSX
+  // and validate() below) — a different mechanism, keyed off live
+  // per-item category data instead of the static EXPENSE_TYPES config.
+  const hideSupplierPaymentMethodAccountFields =
+    (items[0]?.cat_l2 || "") === "Marketing Influencer / KOL";
 
   // --- Payment Details ---------------------------------------------------------
   const [supplierName, setSupplierName] = useState(initial?.supplierName ?? "");
@@ -476,7 +532,8 @@ export default function RequestForm({
       .then((data) => setCategories(data.categories ?? []));
     fetch("/api/suppliers")
       .then((res) => res.json())
-      .then((data) => setSuppliers(data.suppliers ?? []));
+      .then((data) => setSuppliers(data.suppliers ?? []))
+      .catch((err) => console.error("[suppliers] failed to load:", err));
     fetch("/api/products")
       .then((res) => res.json())
       .then((data) => setProducts(data.products ?? []));
@@ -517,13 +574,19 @@ export default function RequestForm({
   // same convention as dept_config and BO role scopes elsewhere in the app.
   // Segment now lives per item row (not a single top-level value), so this
   // takes the row's own segment instead of closing over one shared value.
+  // Filtered against useForCompany (which company entity this expense is
+  // actually for), not bu (the requester's own BU scope, purely
+  // informational about who's submitting) — categories/products belong to
+  // a company entity, not to whichever BU the requester happens to be
+  // scoped to. companies.bu and categories.bu/products.bu share the same
+  // value domain (see companies.find((c) => c.bu === useForCompany) above).
   const catL1OptionsFor = (segment: string | undefined) =>
     Array.from(
       new Set(
         categories
           .filter(
             (c) =>
-              (c.bu === "*" || c.bu === bu) &&
+              (c.bu === "*" || c.bu === useForCompany) &&
               (c.department === "*" || c.department === segment) &&
               c.cat_l1,
           )
@@ -537,7 +600,7 @@ export default function RequestForm({
         categories
           .filter(
             (c) =>
-              (c.bu === "*" || c.bu === bu) &&
+              (c.bu === "*" || c.bu === useForCompany) &&
               (c.department === "*" || c.department === segment) &&
               (!cat_l1 || c.cat_l1 === cat_l1) &&
               c.cat_l2,
@@ -550,7 +613,7 @@ export default function RequestForm({
     Array.from(
       new Set(
         products
-          .filter((p) => p.department === dept && (!p.bu || p.bu === bu))
+          .filter((p) => p.department === dept && (!p.bu || p.bu === useForCompany))
           .map((p) => p.product_name),
       ),
     );
@@ -590,6 +653,7 @@ export default function RequestForm({
       if (match.payment_method) setPayMethod(match.payment_method);
       if (match.bank_name) setBankName(match.bank_name);
       if (match.account_no) setAccountNo(match.account_no);
+      if (match.email) setSlipReceiverEmail(match.email);
     }
   };
 
@@ -659,16 +723,19 @@ export default function RequestForm({
     // Payment Details fields are all required unless Procurement is taking
     // over entirely (procurement_fills_payment) — each check still only
     // applies where that field is actually shown for this expense type
-    // (hidePaymentSection/hideBankFields/hideDueDate), same as the
+    // (hidePaymentSection/hideBankFields/hideDueDate) or this item's
+    // Category L2 (hideSupplierPaymentMethodAccountFields), same as the
     // visibility rules the JSX below already uses.
     if (!expenseConfig?.hidePaymentSection && !procurementFillsPayment) {
-      if (!supplierName.trim()) {
-        return "Supplier/Payee is required";
+      if (!hideSupplierPaymentMethodAccountFields) {
+        if (!supplierName.trim()) {
+          return "Supplier/Payee is required";
+        }
+        if (!payMethod) {
+          return "Payment Method is required";
+        }
       }
-      if (!payMethod) {
-        return "Payment Method is required";
-      }
-      if (!expenseConfig?.hideBankFields) {
+      if (!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields) {
         if (showBankName && !bankName) {
           return "Bank Name is required";
         }
@@ -695,9 +762,9 @@ export default function RequestForm({
     budget_period: budgetPeriod,
     // Branch/Product lives per-item (items[].product) when any row is in
     // branch/product mode — the top-level field is only meaningful for
-    // non-Petty-Cash Retail/R&D requests, keyed off the first item's
-    // segment (see primarySegment).
-    product: isPettyCash ? undefined : product || undefined,
+    // requests that still use the single-Segment-for-everything layout,
+    // keyed off the first item's segment (see primarySegment).
+    product: usesPerItemSegment ? undefined : product || undefined,
     cat_l1: items[0]?.cat_l1 || undefined,
     cat_l2: items[0]?.cat_l2 || undefined,
     items,
@@ -1044,39 +1111,6 @@ export default function RequestForm({
             required
           />
         </div>
-
-        {!isPettyCash && primarySegment === "R&D" && (
-          <div className="mt-4">
-            <label className={labelClass}>Product (optional)</label>
-            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
-              <option value="">-</option>
-              {productOptionsFor("R&D").map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            {productOptionsFor("R&D").length === 0 && (
-              <p className="mt-1 text-xs text-brand-subtle">
-                No R&amp;D products yet — add them in Settings &gt; Product/SKU Management.
-              </p>
-            )}
-          </div>
-        )}
-        {!isPettyCash && primarySegment === "Retail" && (
-          <div className="mt-4">
-            <label className={labelClass}>Branch (optional)</label>
-            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
-              <option value="">-</option>
-              {productOptionsFor("Retail").map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            {productOptionsFor("Retail").length === 0 && (
-              <p className="mt-1 text-xs text-brand-subtle">
-                No branches yet — add them in Settings &gt; Product/SKU Management (Segment = Retail).
-              </p>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ===================== PO Required ===================== */}
@@ -1112,13 +1146,62 @@ export default function RequestForm({
           <span>Expense Items</span>
           <button
             type="button"
-            onClick={() => setItems((prev) => [...prev, emptyItem()])}
+            onClick={() =>
+              setItems((prev) => [
+                ...prev,
+                // When every item must share item 1's Segment (see the
+                // Segment <select> below), a newly added row starts
+                // pre-filled with it instead of blank. Petty Cash and
+                // "ชำระแล้ว" both allow free-mixing per row — new rows
+                // start blank for those.
+                usesPerItemSegment ? emptyItem() : { ...emptyItem(), segment: prev[0]?.segment || "" },
+              ])
+            }
             className="mm-btn-secondary mm-btn-sm normal-case tracking-normal text-brand-brown"
           >
             + Add Expense Item
           </button>
         </div>
         <div className="mb-4 mt-3 border-b border-[#F0EAE0]" />
+
+        {!usesPerItemSegment && primarySegment === "R&D" && (
+          <div className="mb-3 max-w-xs">
+            <label className={labelClass}>Product (optional)</label>
+            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
+              <option value="">-</option>
+              {productOptionsFor("R&D").map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            {productOptionsFor("R&D").length === 0 && (
+              <p className="mt-1 text-xs text-brand-subtle">
+                No R&amp;D products yet — add them in Settings &gt; Product/SKU Management.
+              </p>
+            )}
+          </div>
+        )}
+        {!usesPerItemSegment && primarySegment === "Retail" && (
+          <div className="mb-3 max-w-xs">
+            <label className={labelClass}>Branch (optional)</label>
+            <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
+              <option value="">-</option>
+              {productOptionsFor("Retail").map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            {productOptionsFor("Retail").length === 0 && (
+              <p className="mt-1 text-xs text-brand-subtle">
+                No branches yet — add them in Settings &gt; Product/SKU Management (Segment = Retail).
+              </p>
+            )}
+          </div>
+        )}
+
+        {!usesPerItemSegment && (
+          <p className="mb-3 text-xs text-brand-subtle">
+            All items in a request must use the same Segment — submit a separate request for a different Segment.
+          </p>
+        )}
 
         <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] px-3 py-2 text-xs text-brand-dark">
           Amount is optional — Procurement จะกรอกเพิ่มตอนอัปโหลด PO | Category L1 และ Description จำเป็นต้องกรอก
@@ -1151,7 +1234,7 @@ export default function RequestForm({
               {isTravel && <div style={COL.distanceKm}>Distance (km)</div>}
               <div style={COL.catL1}>Category L1<RequiredMark /></div>
               <div style={COL.catL2}>Category L2</div>
-              {isPettyCash && <div style={COL.itemField}>Branch/Product</div>}
+              {usesPerItemSegment && <div style={COL.itemField}>Branch/Product</div>}
               <div style={COL.productCode}>Product Code</div>
               <div style={COL.description}>Description<RequiredMark /></div>
               <div style={COL.netAmount}>Net Amount (THB)</div>
@@ -1176,10 +1259,24 @@ export default function RequestForm({
                       <select
                         className={`${cellClass} w-full`}
                         value={item.segment ?? ""}
-                        onChange={(e) =>
-                          updateItem(idx, { segment: e.target.value, cat_l1: "", cat_l2: "" })
-                        }
-                        disabled={departmentOptions === null}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (usesPerItemSegment) {
+                            updateItem(idx, { segment: value, cat_l1: "", cat_l2: "" });
+                          } else {
+                            // Single-Segment expense types: only item 1's
+                            // select reaches here (rows after it are
+                            // disabled below) — it's the single source of
+                            // truth for every item's Segment, so broadcast
+                            // the change and reset every item's
+                            // now-possibly-invalid category selections
+                            // (categories are segment-scoped).
+                            setItems((prev) =>
+                              prev.map((it) => ({ ...it, segment: value, cat_l1: "", cat_l2: "" })),
+                            );
+                          }
+                        }}
+                        disabled={departmentOptions === null || (!usesPerItemSegment && idx > 0)}
                         required
                       >
                         <option value="">Select...</option>
@@ -1259,7 +1356,7 @@ export default function RequestForm({
                         ))}
                       </select>
                     </div>
-                    {isPettyCash && (
+                    {usesPerItemSegment && (
                       <div style={COL.itemField}>
                         {rowFieldMode ? (
                           <select
@@ -1428,57 +1525,61 @@ export default function RequestForm({
           )}
 
           <div className={`grid grid-cols-2 gap-4 ${procurementFillsPayment ? "opacity-60" : ""}`}>
-            <div className="relative">
-              <label className={labelClass}>
-                Supplier/Payee{!procurementFillsPayment && <RequiredMark />}
-              </label>
-              <input
-                className={inputClass}
-                placeholder={
-                  procurementFillsPayment ? "Procurement will fill" : "Type to search or enter a new supplier"
-                }
-                autoComplete="off"
-                value={supplierName}
-                onChange={(e) => {
-                  setSupplierName(e.target.value);
-                  setSupplierOpen(true);
-                }}
-                onFocus={() => setSupplierOpen(true)}
-                onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
-              />
-              {supplierOpen && filteredSuppliers.length > 0 && (
-                <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-brand-border bg-white shadow-lg">
-                  {filteredSuppliers.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          handleSupplierChange(s.name);
-                          setSupplierOpen(false);
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-[#F9F8F6]"
-                      >
-                        {s.name}
-                      </button>
-                    </li>
+            {!hideSupplierPaymentMethodAccountFields && (
+              <div className="relative">
+                <label className={labelClass}>
+                  Supplier/Payee{!procurementFillsPayment && <RequiredMark />}
+                </label>
+                <input
+                  className={inputClass}
+                  placeholder={
+                    procurementFillsPayment ? "Procurement will fill" : "Type to search or enter a new supplier"
+                  }
+                  autoComplete="off"
+                  value={supplierName}
+                  onChange={(e) => {
+                    setSupplierName(e.target.value);
+                    setSupplierOpen(true);
+                  }}
+                  onFocus={() => setSupplierOpen(true)}
+                  onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
+                />
+                {supplierOpen && filteredSuppliers.length > 0 && (
+                  <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-brand-border bg-white shadow-lg">
+                    {filteredSuppliers.map((s) => (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            handleSupplierChange(s.name);
+                            setSupplierOpen(false);
+                          }}
+                          className="block w-full px-3 py-2 text-left text-sm hover:bg-[#F9F8F6]"
+                        >
+                          {s.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {!hideSupplierPaymentMethodAccountFields && (
+              <div>
+                <label className={labelClass}>
+                  Payment Method{!procurementFillsPayment && <RequiredMark />}
+                </label>
+                <select className={inputClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                  <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
                   ))}
-                </ul>
-              )}
-            </div>
-            <div>
-              <label className={labelClass}>
-                Payment Method{!procurementFillsPayment && <RequiredMark />}
-              </label>
-              <select className={inputClass} value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                <option value="">{procurementFillsPayment ? "Procurement will fill" : "-"}</option>
-                {PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
+                </select>
+              </div>
+            )}
 
-            {!expenseConfig?.hideBankFields && showBankName && (
+            {!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields && showBankName && (
               <div>
                 <label className={labelClass}>
                   Bank Name{!procurementFillsPayment && <RequiredMark />}
@@ -1491,7 +1592,7 @@ export default function RequestForm({
                 </select>
               </div>
             )}
-            {!expenseConfig?.hideBankFields && showCardType && (
+            {!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields && showCardType && (
               <div>
                 <label className={labelClass}>Card Type</label>
                 <select className={inputClass} value={cardType} onChange={(e) => setCardType(e.target.value)}>
@@ -1503,7 +1604,7 @@ export default function RequestForm({
               </div>
             )}
 
-            {!expenseConfig?.hideBankFields && (
+            {!expenseConfig?.hideBankFields && !hideSupplierPaymentMethodAccountFields && (
               <div>
                 <label className={labelClass}>
                   Account No / Card No{!procurementFillsPayment && <RequiredMark />}
@@ -1596,6 +1697,7 @@ export default function RequestForm({
           return (
             <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
               <p className="mb-1 font-medium text-brand-dark">Travel documents (per item, by Travel by)</p>
+              <p className="mb-1 text-brand-subtle">รวมรูปภาพเป็นไฟล์ pdf ก่อน upload</p>
               <ul className="space-y-0.5">
                 {travelByValues.flatMap((travelBy) =>
                   (TRAVEL_REQUIRED_DOCS[travelBy as keyof typeof TRAVEL_REQUIRED_DOCS] ?? []).map((docLabel) => {
@@ -1686,7 +1788,7 @@ export default function RequestForm({
                   e.preventDefault();
                   openStoredFile(file);
                 }}
-                className="flex-1 truncate text-brand-brown hover:underline"
+                className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
               >
                 {file.name}
               </a>
@@ -1715,7 +1817,7 @@ export default function RequestForm({
                   <option key={dt} value={dt}>{dt}</option>
                 ))}
               </select>
-              <span className="flex-1 truncate text-brand-dark">{pending.file.name}</span>
+              <span className="min-w-0 flex-1 truncate text-brand-dark">{pending.file.name}</span>
               <span className="text-xs text-brand-subtle">{formatBytes(pending.file.size)} · will upload on submit</span>
               <button
                 type="button"

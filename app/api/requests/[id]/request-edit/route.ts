@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { isSuperadmin } from "@/lib/permissions";
+import { boScopeMatchesRequest, isSuperadmin } from "@/lib/permissions";
 import { canRequestEdit } from "@/lib/status";
 import { getRequestOrThrow, updateRequest, ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { departmentWebhookUrl, postToWebhook } from "@/lib/discord";
+import { notifyUsers } from "@/lib/notifications";
+import type { RoleRow } from "@/types/database";
 
 // Postgrest's "column does not exist" code — thrown if
 // supabase/migrations/009_edit_request.sql isn't applied yet. See
@@ -76,6 +78,24 @@ export async function PATCH(
     const message = `✏️ Edit requested for **${existing.request_id}** by ${existing.requester_name}\nApprover: ${approverLabel}\nReason: ${body.reason}`;
     const deptUrl = departmentWebhookUrl(existing.department);
     if (deptUrl) await postToWebhook(deptUrl, message);
+
+    // In-app bell notification for whichever role approves at this stage —
+    // BO is scope-matched (same as everywhere else BO recipients are
+    // computed), CEO/Accounting are role-wide.
+    const { data: roleRows } = await admin.from("roles").select("*");
+    const roles = (roleRows ?? []) as RoleRow[];
+    const recipients =
+      existing.status === "BO_APPROVED"
+        ? roles.filter((r) => r.role === "BO" && boScopeMatchesRequest(r, existing)).map((r) => r.email)
+        : existing.status === "CEO_APPROVED"
+          ? roles.filter((r) => r.role === "CEO").map((r) => r.email)
+          : ACCOUNTING_NOTIFY_EMAILS;
+    await notifyUsers(
+      recipients,
+      existing.request_id,
+      "EDIT_REQUESTED",
+      `${existing.requester_name} requested to edit ${existing.request_id}: ${body.reason}`,
+    );
 
     return NextResponse.json({ request: updated });
   } catch (err) {
