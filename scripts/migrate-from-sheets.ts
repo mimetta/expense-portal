@@ -106,9 +106,6 @@ const DEPARTMENT_NAME_MAP: Record<string, string> = {
   // Was Factory: "Factory". Retargeted to COG 2026-08-25 when Factory was
   // removed from lib/constants.ts#DEPARTMENTS — mapping a legacy "Factory"
   // to itself would now normalize to a department that no longer exists.
-  // This map is also imported by scripts/import-budget.ts, so a budget CSV
-  // row labelled Factory now lands on COG rather than tripping that script's
-  // "not in DEPARTMENTS" warning.
   Factory: "COG",
   "R&D": "R&D",
   Retail: "Retail",
@@ -116,10 +113,10 @@ const DEPARTMENT_NAME_MAP: Record<string, string> = {
   OEM: "OEM",
 };
 
-// Exported so scripts/import-budget.ts applies the same map rather than
-// keeping a second, drifting copy of it. See that script's own header for
-// the "(ABBREV)" suffix correction it layers on top.
-export function normalizeDepartment(dept: string | null, unmatched: Set<string>): string | null {
+// Note scripts/import-expensedb-requests.ts deliberately keeps its OWN copy
+// of this map with corrected, unsuffixed targets — see the comment above
+// DEPARTMENT_NAME_MAP. These two are not meant to be shared.
+function normalizeDepartment(dept: string | null, unmatched: Set<string>): string | null {
   if (!dept) return dept;
   const trimmed = dept.trim();
   if (trimmed in DEPARTMENT_NAME_MAP) return DEPARTMENT_NAME_MAP[trimmed];
@@ -152,8 +149,7 @@ const CATEGORY_NAME_MAP: Record<string, string> = {
   "EMPLOYEE BENEFITS & WELFARE (Company-Wide)": "EMPLOYEE BENEFITS & WELFARE (Company-Wide)",
 };
 
-// Exported for scripts/import-budget.ts — see normalizeDepartment above.
-export function normalizeCategory(cat: string | null, unmatched: Set<string>): string | null {
+function normalizeCategory(cat: string | null, unmatched: Set<string>): string | null {
   if (!cat) return cat;
   const trimmed = cat.trim();
   if (trimmed in CATEGORY_NAME_MAP) return CATEGORY_NAME_MAP[trimmed];
@@ -405,11 +401,12 @@ async function main(): Promise<void> {
   }
 }
 
-// Only run the migration when this file is the script being executed.
-// scripts/import-budget.ts imports normalizeDepartment/normalizeCategory from
-// here (rather than duplicating the two maps), and a bare top-level main()
-// call would fire the whole migration pass — hitting the database and
-// printing its report — merely as a side effect of that import.
+// Only run the migration when this file is the script being executed, not if
+// it is ever imported — a bare top-level main() call would fire the whole
+// migration pass, hitting the database and printing its report, as a side
+// effect of the import. Nothing imports it today (scripts/import-budget.ts,
+// which did, was deleted with the budgets table it targeted), but the guard
+// is cheap and the failure it prevents is not obvious.
 if (process.argv[1]?.includes("migrate-from-sheets")) {
   main().catch((err) => {
     console.error(err);

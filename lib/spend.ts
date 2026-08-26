@@ -355,10 +355,16 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
     return q;
   };
 
-  // ---- Query 2: budgets for the selected fiscal year.
+  // ---- Query 2: the live approved budget for the selected fiscal year.
+  // v_budget_current, not a flat budgets table: the live approved figure per
+  // line, resolved by migration 028's DISTINCT ON. A revision belongs to a
+  // budget OWNER whose scope cross-cuts departments, so one segment's budget
+  // is assembled from several owners' revisions and the winner has to be
+  // decided per line rather than per revision. Only APPROVED revisions appear
+  // in the view, so a draft can never move the report.
   const buildBudgetQuery = () => {
     let q = supabase
-      .from("budgets")
+      .from("v_budget_current")
       .select("bu, department, cat_l1, cat_l2, fiscal_year, month, amount")
       .eq("fiscal_year", fiscalYear);
     if (bu) q = q.eq("bu", bu);

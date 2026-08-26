@@ -1222,8 +1222,12 @@ the shipped page as the reference; the mockup is.
 
 ### Known gaps
 
-`budgets` is **empty**. Until `npm run import:budget -- --file=<csv> --year=<YYYY>` is run,
-every segment shows the "no budget set" chip and an em-dash secondary line. Separately, 41
+The budget is empty until owners enter one in the portal. Migration 028 replaced the
+`budgets` table with `budget_revisions`/`budget_lines` and the `v_budget_current` view, which
+the report now reads; only APPROVED revisions appear there, so a draft never moves the report.
+Until the first revision is approved every segment shows the "no budget set" chip and an
+em-dash secondary line. (`scripts/import-budget.ts` was deleted with the table it targeted —
+budget is entered in the portal, not imported from a sheet.) Separately, 41
 `(bu, department, cat_l1)` combinations carrying ~ThB 6.5M of FY2026 spend do not exist in
 `categories` at all, so they cannot be budgeted against; and 2 category lines (SV Merchandise
 NPD / Replenishing) have no BO in scope.
