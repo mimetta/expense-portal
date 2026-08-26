@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget entry & approval — Mockup v2 (BO-scoped)</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2B; --terracotta:#BD5A2E; --cream:#FAF8F4; --sand:#D8CBB0;
+    --ink:#1B1B18; --muted:#6B6B60; --white:#fff;
+    --ok:#2E7D52; --warn:#C99A2E; --over:#B23A2F; --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1320px;margin:0 auto;padding:24px 20px 64px}
+  .num{font-family:'DM Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+  .screens{display:flex;margin-bottom:22px;border:1px dashed var(--sand);border-radius:var(--radius);overflow:hidden;background:#FFFDF7}
+  .screens button{flex:1;border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:11px 14px;cursor:pointer;border-left:1px dashed var(--sand)}
+  .screens button:first-child{border-left:0}
+  .screens button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .screens-hint{font-size:11px;color:var(--muted);padding:6px 12px 0;letter-spacing:.04em;text-transform:uppercase}
+
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  h1{font-size:21px;font-weight:700;margin:0 0 5px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0}
+  .actions{display:flex;gap:9px;align-items:center}
+  .btn{border:1px solid var(--sand);background:var(--white);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer}
+  .btn:hover{border-color:var(--forest)}
+  .btn-primary{background:var(--forest);border-color:var(--forest);color:#fff}
+  .btn-danger{border-color:#E4C4BE;color:var(--over)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btn:focus-visible{outline:2px solid var(--forest);outline-offset:2px}
+
+  .status{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:500;padding:4px 11px;border-radius:99px;border:1px solid var(--sand);color:var(--muted)}
+  .status i{width:7px;height:7px;border-radius:99px;background:currentColor}
+  .status.draft{background:#F6F3EC;color:var(--muted)}
+  .status.submitted{background:#FBF2EC;color:var(--terracotta);border-color:#EBD3C4}
+  .status.approved{background:#F1F7F2;color:var(--forest);border-color:#C6D8CB}
+
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  select{font:inherit;padding:8px 12px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);color:var(--ink)}
+  .spacer{flex:1}
+
+  .banner{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;line-height:1.55}
+  .banner b{font-weight:500}
+  .banner.info{background:#F6F3EC;border:1px solid var(--sand);color:var(--ink)}
+  .banner.warn{background:#FBF2EC;border:1px solid #EBD3C4;color:#7A3A18}
+  .banner.block{background:#FBF0EE;border:1px solid #E4C4BE;color:#8E2A21}
+  .banner .ico{font-size:15px;line-height:1.3;flex:none}
+
+  .tbl-scroll{overflow-x:auto;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:right;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 8px;border-bottom:1px solid var(--sand);background:#FDFCFA;white-space:nowrap}
+  th.l{text-align:left}
+  td{padding:0;border-bottom:1px solid #EFEAE0;white-space:nowrap}
+  td.pad{padding:8px 10px}
+  .namecol{position:sticky;left:0;z-index:2;background:var(--white);min-width:250px;max-width:250px;text-align:left}
+  thead .namecol{background:#FDFCFA}
+  .totcol{border-left:1px solid var(--sand);text-align:right;padding:8px 12px;font-weight:500}
+
+  tr.dept td{background:#F1EDE3;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--forest)}
+  tr.dept .namecol{background:#F1EDE3}
+  tr.l1 td{background:#F8F6F0;font-weight:500;font-size:12.5px}
+  tr.l1 .namecol{background:#F8F6F0;padding-left:22px}
+  .l2name{padding-left:40px}
+  tfoot td{background:#FDFCFA;font-weight:700;border-top:1px solid var(--sand)}
+  tfoot .namecol{background:#FDFCFA}
+
+  input.cell{width:100%;border:0;background:transparent;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:13px;text-align:right;padding:8px;color:var(--ink)}
+  input.cell:hover{background:#FBF9F5}
+  input.cell:focus{outline:2px solid var(--forest);outline-offset:-2px;background:#fff}
+  input.cell.changed{background:rgba(189,90,46,.09);color:#8E3F1B;font-weight:500}
+  td.mo{width:74px}
+  .ro{padding:8px;text-align:right;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:13px}
+  .ro.changed{background:rgba(189,90,46,.09);color:#8E3F1B;font-weight:500}
+  .delta{display:block;font-size:10.5px;font-weight:400;margin-top:1px}
+  .delta.up{color:var(--over)} .delta.down{color:var(--ok)}
+  .rowtools{display:flex;gap:2px;padding-left:6px}
+  .rowtools button{border:1px solid transparent;background:transparent;color:#B9B4A7;cursor:pointer;font-size:11px;padding:1px 4px;border-radius:4px;font-family:'DM Mono',monospace}
+  tr:hover .rowtools button{color:var(--muted);border-color:var(--sand);background:#fff}
+  .rowtools button:hover{color:var(--forest);border-color:var(--forest)}
+
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .card{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:14px 16px}
+  .card .label{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:8px}
+  .card .val{font-size:22px;font-weight:500;letter-spacing:-.02em}
+  .card .foot{margin-top:6px;font-size:12px;color:var(--muted)}
+
+  .hint{font-size:12.5px;color:var(--muted);margin:9px 0 0}
+  kbd{font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--sand);border-bottom-width:2px;border-radius:4px;padding:1px 5px;background:#fff;color:var(--ink)}
+
+  .hist{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden}
+  .hrow{display:flex;gap:14px;align-items:center;padding:13px 16px;border-bottom:1px solid #EFEAE0}
+  .hrow:last-child{border-bottom:0}
+  .hrow .when{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);width:112px;flex:none}
+  .hrow .who{width:180px;flex:none;font-size:13px}
+  .hrow .what{flex:1;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+  .hrow .amt{font-family:'DM Mono',monospace;font-weight:500;font-size:13px}
+  .comment{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);resize:vertical;min-height:70px;margin-top:4px}
+
+  .note{margin-top:32px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)}
+  .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+  .new{color:var(--terracotta);font-weight:500}
+  .screen{display:none} .screen.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div>
+    <div class="screens-hint">Mockup only — switch between the three states</div>
+    <div class="screens" role="group">
+      <button data-s="bo" aria-pressed="true">BO · edit draft</button>
+      <button data-s="ceo" aria-pressed="false">CEO · review revision</button>
+      <button data-s="hist" aria-pressed="false">History</button>
+    </div>
+  </div>
+
+  <!-- ══════════ BO EDITOR ══════════ -->
+  <div class="screen on" id="s-bo">
+    <div class="page-head">
+      <div>
+        <h1>My budget · FY2026</h1>
+        <p class="sub">wacharanan.j · HR Salary across 6 departments · revision 3
+          <span class="status draft"><i></i>Draft</span></p>
+      </div>
+      <div class="actions">
+        <button class="btn">Discard changes</button>
+        <button class="btn">Save draft</button>
+        <button class="btn btn-primary">Submit for CEO approval</button>
+      </div>
+    </div>
+
+    <div class="bar">
+      <select><option>FY2026</option><option>FY2027</option></select>
+      <select><option>All my departments (6)</option><option>COG</option><option>Marketing</option><option>Operations/Fulfillment</option><option>People (HR)</option><option>R&amp;D</option><option>Retail</option></select>
+      <select><option>Both BUs</option><option>ONEST</option><option>SV</option></select>
+      <div class="spacer"></div>
+      <span class="hint">Showing 9 of 96 lines in your scope</span>
+    </div>
+
+    <div class="banner info">
+      <span class="ico">◆</span>
+      <div><b>This revision covers only the lines you own.</b> Your scope is HR Salary across COG,
+      Marketing, Operations/Fulfillment, People (HR), R&amp;D and Retail — so one revision spans several
+      segments. Other budget owners raise their own revisions for the rest of those segments.</div>
+    </div>
+
+    <div class="tbl-scroll"><table id="boTable"></table></div>
+    <p class="hint">
+      Paste 12 values from Sheets into any row · <kbd>→</kbd> fills the rest of the year ·
+      <kbd>↑↓←→</kbd> moves between cells · <kbd>C</kbd> copies FY2025 actual into the row
+    </p>
+
+    <div class="summary" id="boSummary"></div>
+  </div>
+
+  <!-- ══════════ CEO REVIEW ══════════ -->
+  <div class="screen" id="s-ceo">
+    <div class="page-head">
+      <div>
+        <h1>Budget revision · wacharanan.j</h1>
+        <p class="sub">FY2026 · revision 3 · 9 lines across 6 departments
+          <span class="status submitted"><i></i>Awaiting your approval</span></p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-danger">Request changes</button>
+        <button class="btn btn-primary">Approve revision</button>
+      </div>
+    </div>
+
+    <div class="banner warn">
+      <span class="ico">◆</span>
+      <div><b>Submitted by wacharanan.j on 20 Aug 2026, 11:04.</b> This is a partial view of each segment —
+      it covers this owner's HR Salary lines only. COG's remaining lines belong to siriwan.b, Marketing's to
+      chawanphat.b. Approving publishes these 9 lines and nothing else.</div>
+    </div>
+
+    <div class="banner block">
+      <span class="ico">✕</span>
+      <div><b>You cannot approve a revision you submitted.</b> Shown for the case where one person holds both
+      BO and CEO — the Approve button is disabled and another CEO must act.
+      <i>(Mockup: this banner appears only in that situation.)</i></div>
+    </div>
+
+    <div class="summary" id="ceoSummary"></div>
+    <div class="tbl-scroll"><table id="ceoTable"></table></div>
+    <p class="hint">Changed figures highlighted with the difference beneath. Unchanged months shown for context.</p>
+
+    <div style="margin-top:18px">
+      <label style="font-size:12.5px;color:var(--muted);font-weight:500">Note to wacharanan.j
+        <span style="font-weight:400">(required when requesting changes)</span></label>
+      <textarea class="comment" placeholder="e.g. Factory headcount uplift in Q4 needs to align with the revised production plan — please rework Oct–Dec."></textarea>
+    </div>
+  </div>
+
+  <!-- ══════════ HISTORY ══════════ -->
+  <div class="screen" id="s-hist">
+    <div class="page-head">
+      <div>
+        <h1>Budget history · FY2026</h1>
+        <p class="sub">Every revision by every owner, with who submitted and who approved</p>
+      </div>
+      <div class="actions"><button class="btn">Export audit trail</button></div>
+    </div>
+
+    <div class="hist">
+      <div class="hrow"><span class="when">20 Aug 11:04</span><span class="who">wacharanan.j</span>
+        <span class="what">Revision 3 — HR Salary, 6 departments, 14 figures changed</span>
+        <span class="status submitted"><i></i>Awaiting CEO</span><span class="amt">฿8,640,000</span></div>
+      <div class="hrow"><span class="when">18 Aug 15:20</span><span class="who">siriwan.b</span>
+        <span class="what">COG revision 2 approved by mitdanai.s</span>
+        <span class="status approved"><i></i>Live</span><span class="amt">฿12,400,000</span></div>
+      <div class="hrow"><span class="when">12 Aug 09:41</span><span class="who">chawanphat.b</span>
+        <span class="what">ONEST Marketing revision 1 approved by thita.s</span>
+        <span class="status approved"><i></i>Live</span><span class="amt">฿8,400,000</span></div>
+      <div class="hrow"><span class="when">04 Aug 16:08</span><span class="who">wacharanan.j</span>
+        <span class="what">Revision 2 rejected — "R&amp;D headcount doesn't match the hiring plan"</span>
+        <span class="status draft"><i></i>Rejected</span><span class="amt">฿8,760,000</span></div>
+      <div class="hrow"><span class="when">14 Jan 11:30</span><span class="who">wacharanan.j</span>
+        <span class="what">Opening budget approved by mitdanai.s</span>
+        <span class="status approved"><i></i>Superseded</span><span class="amt">฿8,160,000</span></div>
+    </div>
+    <p class="hint">Every approved revision is retained. The spend report resolves each budget cell to the most
+    recently approved revision containing that cell — so a segment's budget is assembled from several owners'
+    revisions, each approved at a different time.</p>
+  </div>
+
+  <div class="note">
+    <b>What changed from v1 — the revision is now keyed to the owner, not the segment:</b>
+    <ol>
+      <li class="new">The editor shows <b>your lines</b>, grouped department → cat_l1 → cat_l2, spanning every
+      department in your scope. The department dropdown is a filter, not the revision's identity.</li>
+      <li class="new">One draft per BO per fiscal year — not one per segment. The unique index changes accordingly.</li>
+      <li class="new">The CEO approves a cross-segment revision, and the banner says plainly that it is a partial
+      view of each segment touched.</li>
+      <li class="new">The spend report must resolve budget <b>per cell</b>, to the latest approved revision
+      containing that cell — no longer a clean per-segment lookup.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Carried over from v1, still binding:</b>
+    <ol>
+      <li>Approved figures stay live while a draft is edited — the report never reads a draft.</li>
+      <li>Every revision retained, never overwritten.</li>
+      <li>No self-approval, enforced at the database level.</li>
+      <li>Rejection requires a note and returns the revision to draft with figures intact.</li>
+      <li>Lines come from the categories table, so budget can only be set where requests can be filed.</li>
+      <li>Entry ergonomics carry the feature — paste-a-row, fill-right, copy-last-year, arrow keys.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Open question this design surfaces:</b>
+    <ol>
+      <li>If two owners' scopes ever overlap on one cell, two revisions could claim it and the last approved
+      would silently win. The state machine must refuse at draft creation and again at approval rather than
+      resolve it — a database constraint can't express this.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const K=1000;
+// dept → cat_l1 → cat_l2 lines, all within one BO's scope
+const ROWS=[
+  {dept:'COG', bu:'ONEST', l1:'HR Salary', l2:'Factory Management',
+   approved:[220,220,220,220,220,220,220,220,220,220,220,220], proposed:[220,220,220,220,220,220,250,250,250,250,250,250]},
+  {dept:'COG', bu:'ONEST', l1:'HR Salary', l2:'Factory เบี้ยขยัน',
+   approved:[45,45,45,45,45,45,45,45,45,45,45,45], proposed:[45,45,45,45,45,45,45,45,45,45,45,45]},
+  {dept:'COG', bu:'SV', l1:'HR Salary', l2:'Factory Management',
+   approved:[180,180,180,180,180,180,180,180,180,180,180,180], proposed:[180,180,180,180,180,180,180,180,180,180,180,180]},
+  {dept:'Marketing', bu:'ONEST', l1:'HR Salary', l2:'Marketing Team',
+   approved:[160,160,160,160,160,160,160,160,160,160,160,160], proposed:[160,160,160,160,160,160,160,160,160,190,190,190]},
+  {dept:'Operations/Fulfillment', bu:'ONEST', l1:'HR Salary', l2:'Warehouse Team',
+   approved:[140,140,140,140,140,140,140,140,140,140,140,140], proposed:[140,140,140,140,140,140,140,140,140,140,140,140]},
+  {dept:'People (HR)', bu:'*', l1:'HR Salary', l2:'HR Team',
+   approved:[95,95,95,95,95,95,95,95,95,95,95,95], proposed:[95,95,95,95,95,95,95,95,95,95,95,95]},
+  {dept:'R&D', bu:'ONEST', l1:'HR Salary', l2:'R&D Team',
+   approved:[130,130,130,130,130,130,130,130,130,130,130,130], proposed:[130,130,130,130,130,130,145,145,145,145,145,145]},
+  {dept:'R&D', bu:'SV', l1:'HR Salary', l2:'R&D Team',
+   approved:[85,85,85,85,85,85,85,85,85,85,85,85], proposed:[85,85,85,85,85,85,85,85,85,85,85,85]},
+  {dept:'Retail', bu:'ONEST', l1:'HR Salary', l2:'Store Staff',
+   approved:[210,210,210,210,210,210,210,210,210,210,210,210], proposed:[210,210,210,210,210,210,210,210,210,210,210,210]}
+];
+
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+const rowSum=a=>a.reduce((s,v)=>s+v,0);
+const totalOf=k=>ROWS.reduce((s,r)=>s+rowSum(r[k]),0)*K;
+
+function grouped(){
+  const out=[]; let dept=null,l1=null;
+  ROWS.forEach((r,i)=>{
+    if(r.dept!==dept){ out.push({deptHead:r.dept}); dept=r.dept; l1=null; }
+    if(r.l1!==l1){ out.push({l1Head:r.l1}); l1=r.l1; }
+    out.push({row:r,i});
+  });
+  return out;
+}
+function header(extra){
+  let h='<thead><tr><th class="namecol l">Line</th>';
+  MONTHS.forEach(m=> h+='<th>'+m+'</th>');
+  h+='<th class="totcol">FY total</th>';
+  if(extra) h+='<th class="totcol">Change</th>';
+  return h+'</tr></thead>';
+}
+
+function renderBO(){
+  let b='';
+  grouped().forEach(it=>{
+    if(it.deptHead){ b+='<tr class="dept"><td class="namecol pad" colspan="14">'+it.deptHead+'</td></tr>'; return; }
+    if(it.l1Head){ b+='<tr class="l1"><td class="namecol pad" colspan="14">'+it.l1Head+'</td></tr>'; return; }
+    const r=it.row;
+    b+='<tr><td class="namecol pad"><div style="display:flex;align-items:center;justify-content:space-between">'
+     +'<span class="l2name">'+r.l2+' <span style="color:#B9B4A7;font-size:11px">'+(r.bu==='*'?'both':r.bu)+'</span></span>'
+     +'<span class="rowtools"><button title="Copy FY2025 actual">C</button><button title="Clear row">×</button></span></div></td>';
+    r.proposed.forEach((v,m)=>{
+      const ch=v!==r.approved[m];
+      b+='<td class="mo"><input class="cell'+(ch?' changed':'')+'" data-i="'+it.i+'" data-m="'+m+'" value="'+fmt(v*K)+'"></td>';
+    });
+    b+='<td class="totcol num">'+fmt(rowSum(r.proposed)*K)+'</td></tr>';
+  });
+  let f='<tfoot><tr><td class="namecol pad">Total — my lines</td>';
+  MONTHS.forEach((_,m)=> f+='<td class="mo"><div class="ro">'+fmt(ROWS.reduce((s,r)=>s+r.proposed[m],0)*K)+'</div></td>');
+  f+='<td class="totcol num">'+fmt(totalOf('proposed'))+'</td></tr></tfoot>';
+  document.getElementById('boTable').innerHTML=header(false)+'<tbody>'+b+'</tbody>'+f;
+
+  const ap=totalOf('approved'), pr=totalOf('proposed'), d=pr-ap;
+  let changed=0; ROWS.forEach(r=>r.proposed.forEach((v,m)=>{ if(v!==r.approved[m]) changed++; }));
+  document.getElementById('boSummary').innerHTML=`
+    <div class="card"><div class="label">Approved (live)</div><div class="val num">฿${fmt(ap)}</div><div class="foot">revision 2 · 14 Jan</div></div>
+    <div class="card"><div class="label">This draft</div><div class="val num">฿${fmt(pr)}</div><div class="foot">${changed} of 108 figures changed</div></div>
+    <div class="card"><div class="label">Change</div><div class="val num" style="color:${d>0?'var(--over)':'var(--ok)'}">${d>0?'+':'−'}฿${fmt(Math.abs(d))}</div><div class="foot">${(d/ap*100).toFixed(1)}% vs approved</div></div>
+    <div class="card"><div class="label">Actual Jan–Aug</div><div class="val num">฿5,940,000</div><div class="foot">on my lines only</div></div>`;
+
+  document.querySelectorAll('#boTable input.cell').forEach(inp=>{
+    inp.addEventListener('focus',()=>inp.select());
+    inp.addEventListener('change',()=>{
+      const i=+inp.dataset.i,m=+inp.dataset.m;
+      ROWS[i].proposed[m]=Math.round((parseFloat(inp.value.replace(/[^0-9.-]/g,''))||0)/K);
+      renderBO();
+    });
+    inp.addEventListener('keydown',e=>{
+      const i=+inp.dataset.i,m=+inp.dataset.m; let t=null;
+      if(e.key==='ArrowRight'&&inp.selectionStart===inp.value.length) t=[i,m+1];
+      if(e.key==='ArrowLeft'&&inp.selectionStart===0) t=[i,m-1];
+      if(e.key==='ArrowDown') t=[i+1,m];
+      if(e.key==='ArrowUp') t=[i-1,m];
+      if(t){ e.preventDefault(); const el=document.querySelector('input.cell[data-i="'+t[0]+'"][data-m="'+t[1]+'"]'); if(el) el.focus(); }
+    });
+    inp.addEventListener('paste',e=>{
+      const txt=(e.clipboardData||window.clipboardData).getData('text');
+      const vals=txt.trim().split(/[\t,;]|\s{2,}/).map(s=>parseFloat(s.replace(/[^0-9.-]/g,''))).filter(v=>!isNaN(v));
+      if(vals.length<2) return;
+      e.preventDefault();
+      const i=+inp.dataset.i; let m=+inp.dataset.m;
+      vals.forEach(v=>{ if(m<12) ROWS[i].proposed[m++]=Math.round(v/K); });
+      renderBO();
+    });
+  });
+}
+
+function renderCEO(){
+  let b='';
+  grouped().forEach(it=>{
+    if(it.deptHead){ b+='<tr class="dept"><td class="namecol pad" colspan="15">'+it.deptHead+'</td></tr>'; return; }
+    if(it.l1Head){ b+='<tr class="l1"><td class="namecol pad" colspan="15">'+it.l1Head+'</td></tr>'; return; }
+    const r=it.row;
+    b+='<tr><td class="namecol pad"><span class="l2name">'+r.l2+'</span></td>';
+    r.proposed.forEach((v,m)=>{
+      const a=r.approved[m], ch=v!==a, d=v-a;
+      b+='<td class="mo"><div class="ro'+(ch?' changed':'')+'">'+fmt(v*K)
+       +(ch?'<span class="delta '+(d>0?'up':'down')+'">'+(d>0?'+':'−')+fmt(Math.abs(d)*K)+'</span>':'')+'</div></td>';
+    });
+    const rd=rowSum(r.proposed)-rowSum(r.approved);
+    b+='<td class="totcol num">'+fmt(rowSum(r.proposed)*K)+'</td>'
+     +'<td class="totcol num" style="color:'+(rd>0?'var(--over)':rd<0?'var(--ok)':'var(--muted)')+'">'
+     +(rd===0?'—':(rd>0?'+':'−')+fmt(Math.abs(rd)*K))+'</td></tr>';
+  });
+  let f='<tfoot><tr><td class="namecol pad">Total</td>';
+  MONTHS.forEach((_,m)=>{
+    const p=ROWS.reduce((s,r)=>s+r.proposed[m],0), a=ROWS.reduce((s,r)=>s+r.approved[m],0);
+    f+='<td class="mo"><div class="ro'+(p!==a?' changed':'')+'">'+fmt(p*K)+'</div></td>';
+  });
+  const td=totalOf('proposed')-totalOf('approved');
+  f+='<td class="totcol num">'+fmt(totalOf('proposed'))+'</td><td class="totcol num" style="color:var(--over)">+'+fmt(td)+'</td></tr></tfoot>';
+  document.getElementById('ceoTable').innerHTML=header(true)+'<tbody>'+b+'</tbody>'+f;
+
+  const ap=totalOf('approved'), pr=totalOf('proposed'), d=pr-ap;
+  document.getElementById('ceoSummary').innerHTML=`
+    <div class="card"><div class="label">Currently approved</div><div class="val num">฿${fmt(ap)}</div><div class="foot">these 9 lines only</div></div>
+    <div class="card"><div class="label">Proposed</div><div class="val num">฿${fmt(pr)}</div><div class="foot">3 of 9 lines touched</div></div>
+    <div class="card"><div class="label">Change</div><div class="val num" style="color:var(--over)">+฿${fmt(d)}</div><div class="foot">+${(d/ap*100).toFixed(1)}% · mostly H2</div></div>
+    <div class="card"><div class="label">Departments touched</div><div class="val num">3<span style="font-size:14px;color:var(--muted)"> of 6</span></div><div class="foot">COG, Marketing, R&amp;D</div></div>`;
+}
+
+document.querySelectorAll('.screens button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.screens button').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+    document.getElementById('s-'+b.dataset.s).classList.add('on');
+  });
+});
+renderBO(); renderCEO();
+</script>
+</body>
+</html>
