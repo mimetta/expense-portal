@@ -10,7 +10,7 @@ interface UpdateCompanyBody {
   address?: string;
 }
 
-// SUPERADMIN-only by default (see supabase/migrations/016_settings_tab_permissions.sql's
+// SUPERADMIN-only by default (see supabase/migrations/024_settings_tab_permissions.sql's
 // seed data), configurable via Settings > Permissions like the other 7
 // managed tabs. No POST/DELETE — SV and ONEST are the only two rows,
 // seeded by an earlier migration, and this tab only ever edits their

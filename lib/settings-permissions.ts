@@ -11,7 +11,7 @@ import {
 } from "@/lib/permissions";
 
 // PostgREST's code for "this table isn't in my schema cache" — what you get
-// when supabase/migrations/016_settings_tab_permissions.sql hasn't been
+// when supabase/migrations/024_settings_tab_permissions.sql hasn't been
 // applied yet. Same graceful-degradation convention as
 // announcements/calendar_events/companies elsewhere in this app: fall back
 // to the OLD hardcoded SETTINGS_TAB_ROLES values (DEFAULT_SETTINGS_TAB_ROLES)

@@ -1154,6 +1154,194 @@ to everyone who can see the request.
 
 ---
 
+## Spend vs Budget by Segment report (built)
+
+Spend by Segment (department) and by Month against budget. **Shipped** — the earlier revision
+of this section described it as "approved design, not yet built" and specified a
+`/spend-report` route; both are stale. What exists:
+
+**Visual spec:** `docs/spend-report-mockup-v2.html`. The page was actually built from a written
+spec before that file was committed to the repo (it was added later, in `b3fd636`), so the two
+are close but not identical — see "Known divergences from the mockup" below.
+
+- **Route**: `/reports/spend` — `app/reports/spend/page.tsx` (server guard) +
+  `spendClient.tsx` (client), the same split every other gated page uses. Note this is
+  **not** `/spend-report`, which was the working name and was never used.
+- **Access**: `"spend-report"` in the `Page` union and `canAccessPage()` — SUPERADMIN / CEO /
+  ACCOUNTING / **BO**. BO was added beyond the old Dashboard rule because a budget owner is
+  exactly who needs spend-vs-budget for their own segments; BO viewers are scoped down inside
+  `lib/spend.ts` so granting the page does not grant the data.
+- **Nav**: `{ page: "spend-report", href: "/reports/spend", label: "Spend report" }` in
+  `components/Nav.tsx`. A page is only reachable if its key is *also* in the exhaustive
+  `PAGES` list — see "Nav gating" below.
+- **Data layer**: `lib/spend.ts#getSpendReport({ bu, fiscalYear, months, basis,
+  departmentFilter, viewer })`. Two business decisions are pinned at the top of that file as
+  the single source of truth — `SPEND_AMOUNT_FIELD` (`'total'`, flip to `'amount_net'` for
+  pre-VAT budgets) and `SPEND_PERIOD_FIELD` (`'budget_period'`, flip to `'created_at'`) — plus
+  `ACTUAL_APPROVED` / `ACTUAL_PAID` / `PENDING_STATUS`. **Nothing else in the feature may
+  hardcode a status or amount field.**
+- **API**: `GET /api/spend-report?year=&bu=&months=&basis=&department=`.
+- **Drill-down**: Segment -> Category L1 -> Category L2. Deeper than the `budget_2026`-era
+  design allowed, because the report reads the `budgets` table (migration 016), which carries
+  a figure at `bu + department + cat_l1 + cat_l2 + fiscal_year + month`.
+- **Columns**: per-month columns (0 in Month view, 3 in Quarter, 12 in Year) followed by an
+  identical metric block in all three views — Budget | Actual | Pending — rendered from the
+  `METRIC_COLUMNS` array in `SpendTable.tsx`. Variance and budget-utilisation are **not**
+  columns; they are a ~11px secondary line inside the Actual cell.
+- **Filters**: BU tabs (default **ONEST**; "All" is written to the URL as `bu=all` so it
+  round-trips), granularity tabs, period select, segment select, and an approved/paid basis
+  toggle. All state lives in the query string.
+
+### Schema and reconciliation
+
+`supabase/migrations/016_budgets.sql` adds the `budgets` table plus `v_request_spend` (one row
+per request line item) and two pre-aggregated views. Corrections made to the drafted view after
+checking the live schema, all of which still apply:
+
+- `requests` has no `id` column — the PK is `request_id`.
+- `budget_period` is usable (991/991 rows valid `YYYY-MM`) but is **TEXT**, so it is parsed
+  with `to_date()`, not `extract()`.
+- The period fallback is `requests."timestamp"`, **not** `created_at` — `created_at` is the row
+  insert time and is 2026-07-21 for every legacy imported row.
+- Items carry **no `total` key**; item gross is derived as `amount_net + VAT - WHT`. Where the
+  item sum diverges from `requests.total` by more than 1 THB (8 of 991 requests) the header
+  total is allocated proportionally, and the last line of every request absorbs the rounding
+  residual so `sum(amount)` per request is exactly `requests.total`.
+- There is no `DRAFT` status in this schema.
+
+Reconciled against live data: year-view total actual equals the raw `v_request_spend` sum, and
+the 12 footer month cells sum to the year total, for every BU x basis combination.
+
+### Known divergences from the mockup
+
+Deliberate: Variance and Used are secondary text inside the Actual cell rather than two
+standalone columns, and the metric block is identical across all three granularities (which
+adds a Pending column to Year view, where the mockup has none). Both were explicitly requested
+after the mockup was drawn. Everything else that differs is unreviewed drift — do not treat
+the shipped page as the reference; the mockup is.
+
+### Known gaps
+
+`budgets` is **empty**. Until `npm run import:budget -- --file=<csv> --year=<YYYY>` is run,
+every segment shows the "no budget set" chip and an em-dash secondary line. Separately, 41
+`(bu, department, cat_l1)` combinations carrying ~ThB 6.5M of FY2026 spend do not exist in
+`categories` at all, so they cannot be budgeted against; and 2 category lines (SV Merchandise
+NPD / Replenishing) have no BO in scope.
+
+---
+
+## Migration numbering is deliberately out of order (015, 024, 025)
+
+`supabase/migrations/` is NOT in applied order, and this is intentional — do
+not "correct" it.
+
+Two lines of work ran in parallel against the same database: main's feature
+stream (supplier email, DB-backed settings permissions, saved signatures,
+petty cash sign-off, notifications) and the spend-report/categories
+reconciliation stream (016-023). Both picked numbers from the same pool, so
+on merging, four numbers collided with entirely different content — and the
+reconciliation set 016-023 was ALREADY APPLIED and recorded in the remote
+`supabase_migrations` table, so renumbering it would have desynchronised a
+history that had just been repaired.
+
+Resolution, applied 2026-08-26:
+
+| file | applied? | note |
+| --- | --- | --- |
+| `015_supplier_email.sql` | yes | main's; number was free (the reconciliation 015 is parked in `supabase/pending/`), so it kept it |
+| `016_budgets.sql` … `023_spend_view_by_item_segment.sql` | yes | reconciliation stream, numbering untouched |
+| `024_settings_tab_permissions.sql` | yes | **was main's 016.** Renumbered to clear the collision, then `migration repair --status applied` — its objects already existed (`settings_tab_permissions`, 8 rows). DDL was NOT re-run. |
+| `025_saved_signatures.sql` | yes | **was main's 017.** Same treatment (`saved_signatures`, 3 rows already present). |
+| `026_petty_cash_signoff.sql` | **no** | was main's 018. Genuinely unapplied — `requests.petty_cash_signed_off_at` does not exist. |
+| `027_notifications.sql` | **no** | was main's 019. Genuinely unapplied — the `notifications` table does not exist. |
+
+So 015, 024 and 025 sit out of numeric order in the history: they were
+applied long before 016-023 but are recorded after them. That is a faithful
+record of a repair, not a mistake.
+
+The applied-but-renumbered files (024, 025) had to sort AFTER the
+reconciliation set rather than before it: `supabase db push` refuses to run
+at all when a local file that is not in the remote history sorts before the
+last remote entry ("Found local migration files to be inserted before the
+last migration on remote database"). Numbering them 024/025 and repairing
+them keeps push able to proceed.
+
+Any code comment referencing a migration by filename was updated with it —
+`lib/settings-permissions.ts`, `app/api/settings-permissions/route.ts`,
+`app/api/companies/[id]/route.ts`, `app/api/signatures/me/route.ts`,
+`components/shared/PDFSigner.tsx`, `app/api/notifications/route.ts`.
+
+---
+
+## Verification
+
+Rules for claiming something works. Each of these was learned by getting it wrong in this
+repo.
+
+- **A passing build is not evidence a deployment works.** `npm run build` compiles the working
+  tree on this machine. It says nothing about whether the deployed page loads, whether the
+  route is reachable, or whether the data behind it exists. Verify against a loaded page.
+- **"I could not verify X" is not "X is broken" — say which one you mean.** They call for
+  different actions from the reader, and blurring them wastes a debugging cycle. If a check
+  was blocked (no session, no data, no access), say it was blocked and why.
+- **Check HEAD in a clean worktree, not the working tree, before claiming a branch compiles.**
+  `next build` and `tsc` read uncommitted files. A branch whose fixes exist only as unstaged
+  edits will build locally and fail for everyone else. `git worktree add <tmp> HEAD` then
+  `npx tsc --noEmit` is the check that actually answers the question — this exact gap shipped a
+  branch whose committed tree failed with three `TS2741` errors while the local build was
+  green.
+
+### Nav gating
+
+`components/Nav.tsx` filters its links on `data.access?.[link.page]`, where `access` comes from
+`GET /api/roles/me` iterating `PAGES`. `PAGES` is exported from `lib/permissions.ts` and derived
+from an exhaustive `Record<Page, true>`, so omitting a page is a **compile error**. It used to
+be a hand-maintained literal, and `"budget"` was silently missing from it — present in `LINKS`
+and in `canAccessPage`, absent from the access map, so the tab never rendered for anyone, with
+no error anywhere. Do not reintroduce a second hand-kept list.
+
+---
+
+## supabase/pending/
+
+Migrations that are written but **not applied**, parked outside `supabase/migrations/` on
+purpose. `supabase db push` reads the directory, not git, so an unapplied file left in
+`migrations/` means push can never be a clean no-op — and if it sorts before an applied
+migration, the CLI refuses to run at all without `--include-all`. Moving a parked migration
+here keeps it in the working tree and out of push's path. Nothing here is applied by any
+tooling; moving a file back into `migrations/` is what schedules it.
+
+Currently holds `015_budget_cashflow.sql` (the ONEST P&L port). It is **partially applied**:
+its `roles_role_check` statement was run by hand, so `DEPT_HEAD` is live, while none of its
+five `cashflow_*` tables or the `cashflow_actuals` view exist. See that directory's README.
+
+---
+
+## DEPT_HEAD and BO are separate, and stay separate
+
+Two scoped roles that both use the same `dept_scope` mechanism on `roles`, for different
+things. They are **not** being consolidated:
+
+- **DEPT_HEAD owns product management.** `lib/permissions.ts#canManageProducts` grants
+  Product/SKU management to a DEPT_HEAD scoped to R&D, so R&D manages its own SKU list without
+  going through Procurement. Also gates the Budget page via `canViewBudgetDept`.
+- **BO owns budget.** The budget editor is BO-scoped. `canViewBudgetDept` is *not* the right
+  helper for it.
+
+Scope lives in three comma-separated columns on `roles` — `bu_scope` / `dept_scope` /
+`cat_l1_scope`, `'*'` for unrestricted — matched by `boScopeMatchesRequest`. **A user may hold
+several BO rows and they are OR-ed** (`canBoActOnRequest` -> `rolesOf(user, "BO").some(...)`;
+`lib/auth.ts#selectRolesByEmail` loads every row with no `.single()`/`.limit()`).
+`siriwan.b@mimetta.co` is the first such user (BO/COG + BO/Factory Investment, migration 017).
+
+**A scope on a non-BO row is invisible to BO logic.** `rolesOf(user, "BO")` filters to
+`role = 'BO'` only, so a `dept_scope` sitting on a PETTY_CASH_CUSTODIAN row does nothing for
+approvals, `?scope=bo`, or the spend report. That was the cause of 14 category lines having no
+budget owner and of `EXP-2026-08-000110` being stuck at `SUBMITTED` with no eligible approver;
+migration 017 fixed it by granting real BO rows rather than by widening any existing row.
+
+---
+
 ## Notifications (Discord Webhooks)
 
 Env vars: `DISCORD_WEBHOOK_FACTORY`, `DISCORD_WEBHOOK_MARKETING`, `DISCORD_WEBHOOK_RD`,

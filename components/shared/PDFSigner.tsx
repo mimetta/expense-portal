@@ -121,7 +121,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Reusable signature (see supabase/migrations/017_saved_signatures.sql +
+  // Reusable signature (see supabase/migrations/025_saved_signatures.sql +
   // app/api/signatures/me/route.ts) — lets the signer skip redrawing on the
   // trackpad every time, either by reusing whatever they saved before or by
   // uploading an image file instead of drawing at all.

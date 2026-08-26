@@ -120,6 +120,19 @@ body {
     background-color: #fafaf7;
   }
 
+  /* The nav's link strip is overflow-x-auto purely as an overflow guard —
+     at 1280/1440/1920 it does not actually overflow (see components/Nav.tsx).
+     A visible scrollbar inside a 56px bar would be worse than the overflow
+     it guards against, so it is hidden; the strip stays scrollable by
+     wheel/trackpad/keyboard. */
+  .mm-nav-links {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .mm-nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
   .mm-tabs {
     @apply flex gap-1 border-b border-brand-border;
   }

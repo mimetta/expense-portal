@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  ILLUSTRATION — NOT A SPECIFICATION
+  ============================================================================
+
+  This page shows what /reports/spend looks like once budget data exists. It
+  is a picture of the destination, produced to make the populated state
+  discussable before the budget import has run.
+
+  It is NOT authoritative for anything.
+
+    · docs/spend-report-mockup-v2.html is the authoritative visual spec.
+      Where this file and that one disagree, that one wins. If you are about
+      to change the page's layout, columns, colours or interaction, read that
+      file, not this one.
+
+    · The per-line figures here are INVENTED. No budget of any kind existed in
+      the database when this was written — the `budgets` table was empty — so
+      every budget number, and therefore every variance and Used %, is
+      fabricated to demonstrate the visual states (under, near, over,
+      unbudgeted).
+
+    · Only the TOTALS are anchored to reality. The actual-spend totals are
+      taken from the reconciled figures verified against the live database
+      (FY2026, approved basis: ONEST ThB 4,782,365.77, SV ThB 4,615,815.19,
+      All ThB 9,398,180.96). Individual segment and category actuals are
+      plausible but not literal.
+
+  So: trust the SHAPE, and the grand totals. Do not trust any individual
+  budget figure, variance, or percentage on this page, and do not use it to
+  reconcile anything.
+
+  See docs/categories-reconciliation.md for how the real spend figures were
+  arrived at, and supabase/migrations/016-023 for the data work behind them.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spend report — with budget data</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2B; --terracotta:#BD5A2E; --cream:#FAF8F4; --sand:#D8CBB0;
+    --ink:#1B1B18; --muted:#6B6B60; --white:#fff;
+    --ok:#2E7D52; --warn:#C99A2E; --over:#B23A2F;
+    --ok-t:#1E5537; --warn-t:#7A5A0F; --over-t:#8E2A21;
+    --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1320px;margin:0 auto;padding:26px 20px 64px}
+  .num{font-family:'DM Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0}
+  .btn{border:1px solid var(--sand);background:var(--white);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer}
+  .btn:hover{border-color:var(--forest)}
+
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+  .seg{display:inline-flex;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden}
+  .seg button{border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:8px 15px;cursor:pointer}
+  .seg button+button{border-left:1px solid var(--sand)}
+  .seg button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  select{font:inherit;padding:8px 12px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);color:var(--ink)}
+  .spacer{flex:1}
+  .basis{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:22px}
+  .card{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:15px 17px}
+  .card .label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:9px}
+  .card .val{font-size:25px;font-weight:500;letter-spacing:-.02em}
+  .card .val small{font-size:14px;color:var(--muted);font-weight:400;margin-left:1px}
+  .card .foot{margin-top:7px;font-size:12.5px;color:var(--muted)}
+  .up{color:var(--over);font-weight:500} .down{color:var(--ok);font-weight:500}
+
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-wrap:wrap}
+  h2{font-size:15px;font-weight:700;margin:0}
+  .hint{font-size:12.5px;color:var(--muted)}
+  .heat-legend{display:flex;gap:13px;align-items:center;font-size:12px;color:var(--muted)}
+  .heat-legend i{width:20px;height:11px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px}
+
+  .tbl-scroll{overflow-x:auto;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:right;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 9px;border-bottom:1px solid var(--sand);background:#FDFCFA;white-space:nowrap}
+  th.l{text-align:left}
+  td{padding:8px 9px;border-bottom:1px solid #EFEAE0;white-space:nowrap;text-align:right}
+  tr:last-child td{border-bottom:0}
+  .namecol{position:sticky;left:0;z-index:2;background:var(--white);min-width:260px;max-width:260px;text-align:left;overflow:hidden;text-overflow:ellipsis}
+  thead .namecol{background:#FDFCFA}
+  th.mo,td.mo{width:66px}
+  th.now,td.now{background:#F5F2EC}
+  th.sumcol,td.sumcol{border-left:1px solid var(--sand)}
+  .lvl1 td{background:#FCFBF9;font-size:13px}
+  .lvl1 .namecol{background:#FCFBF9;padding-left:30px}
+  .lvl2 td{background:#FCFBF9;font-size:13px}
+  .lvl2 .namecol{background:#FCFBF9;padding-left:48px;color:var(--muted)}
+  .kid{display:none} .kid.show{display:table-row}
+  .twist{border:0;background:transparent;cursor:pointer;color:var(--muted);font:inherit;padding:0 5px 0 0;width:17px}
+  .name{font-weight:500}
+  .lvl1 .name,.lvl2 .name{font-weight:400}
+
+  .cell-ok{background:rgba(46,125,82,.10);color:var(--ok-t)}
+  .cell-warn{background:rgba(201,154,46,.14);color:var(--warn-t)}
+  .cell-over{background:rgba(178,58,47,.12);color:var(--over-t);font-weight:500}
+  .cell-none{color:#C0BBAE}
+
+  .actual{font-weight:500}
+  .second{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:1px;letter-spacing:-.01em}
+  .second .v-up{color:var(--over)} .second .v-down{color:var(--ok)}
+  .bar{display:inline-block;width:32px;height:4px;background:#EDE7DA;border-radius:99px;overflow:hidden;vertical-align:1px;margin-right:5px}
+  .bar i{display:block;height:100%}
+  .pend{color:var(--terracotta)}
+  .chip{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--sand);color:var(--muted);margin-left:7px}
+  tfoot td{background:#F9F8F6;font-weight:600;border-top:1px solid var(--sand)}
+  tfoot .namecol{background:#F9F8F6}
+
+  .note{margin-top:30px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)} .note ul{margin:8px 0 0;padding-left:19px} .note li{margin:5px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="page-head">
+    <div>
+      <h1>Spend report</h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <button class="btn">Export CSV</button>
+  </div>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Business unit">
+      <button aria-pressed="false">SV</button>
+      <button aria-pressed="true">ONEST</button>
+      <button aria-pressed="false">All</button>
+    </div>
+    <div class="seg" id="viewSeg" role="group" aria-label="View by">
+      <button data-v="month" aria-pressed="false">Month</button>
+      <button data-v="quarter" aria-pressed="true">Quarter</button>
+      <button data-v="year" aria-pressed="false">Year</button>
+    </div>
+    <select id="periodSel" aria-label="Period"></select>
+    <select aria-label="Segment"><option>All segments</option></select>
+    <div class="spacer"></div>
+    <div class="basis">Actual counts
+      <div class="seg" role="group" aria-label="Basis">
+        <button aria-pressed="true">Approved</button>
+        <button aria-pressed="false">Paid only</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="sec-head">
+    <h2 id="tblTitle">Spend by segment</h2>
+    <div class="heat-legend" id="legend">
+      <span><i class="cell-ok"></i>under 80%</span>
+      <span><i class="cell-warn"></i>80–100%</span>
+      <span><i class="cell-over"></i>over budget</span>
+    </div>
+  </div>
+  <div class="tbl-scroll"><table id="tbl"></table></div>
+  <p class="hint" style="margin-top:8px">Click a segment for categories, then a category for sub-categories. Month cells show actual, tinted by that month's budget use.</p>
+
+  <div class="note">
+    <b>Mock data, real shape.</b> ONEST FY2026 with budgets populated — eleven segments as they stand after the categories reconciliation, with Factory spend folded into COG.
+    <ul>
+      <li>Actual totals are anchored to the real reconciled figure (฿4,524,963 ONEST / approved basis). Budget figures are invented — there is no budget data yet.</li>
+      <li>August is partial (25 of 31 days), so its cells read low against a full month's budget. This is what the live report will look like mid-month, and it's worth deciding whether the current month should be tinted at all or left neutral.</li>
+      <li>Uncategorised carries the ฿125,210 the reconciliation leaves unresolved — it appears as unbudgeted, which is the honest rendering until those 7 rows get a decision.</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const NOW=7, DAY=25, DIM=[31,28,31,30,31,30,31,31,30,31,30,31];
+
+// deterministic pseudo-random so the mock is stable
+let _s=42; const rnd=()=>{_s=(_s*1103515245+12345)&0x7fffffff; return _s/0x7fffffff;};
+
+// leaf(name, monthlyBudget, bias) — bias>1 runs hot
+function L(name,b,bias,pending){
+  const m=[];
+  for(let i=0;i<12;i++){
+    if(i>NOW){ m.push(0); continue; }
+    let v=bias*(0.86+rnd()*0.28);
+    if(i===NOW) v*= DAY/DIM[i];          // partial current month
+    m.push(v);
+  }
+  return {name,b,m,pending:pending||0};
+}
+const G=(name,children)=>({name,children});
+
+const DATA=[
+  G('COG',[
+    G('Direct Material - COG',[L('Packaging',86000,1.04),L('Raw Materials',132000,1.09,84000)]),
+    G('Factory Operation (OH) - COG',[L('Utilities',31000,0.94),L('Maintenance',24000,1.12,26400)]),
+    G('Factory Consumable',[L('Consumables',11000,0.88)]),
+    G('HR Salary',[L('Factory Management',18000,1.00),L('Factory เบี้ยขยัน',4200,0.96)])
+  ]),
+  G('Marketing',[
+    G('Marketing Influencer/KOLs',[L('Influencer / KOL',44000,1.18,40000)]),
+    G('Content Production',[L('Content production',18000,1.02),L('Photo & video',7000,0.92)]),
+    G('Brand Building',[L('Campaign',12000,0.86)]),
+    G('E-Commerce',[L('Platform fees',5200,1.06)])
+  ]),
+  G('General Administrative',[
+    G('Office expenses',[L('Rent & utilities',22000,0.98),L('Supplies',6000,0.90)]),
+    G('Software & Tools',[L('SaaS subscriptions',9800,1.14,12000)]),
+    G('Accounting & tax',[L('Audit & filing',8500,0.94)])
+  ]),
+  G('People (HR)',[
+    G('HR Operation',[L('Recruitment',12000,1.08),L('Training',5200,0.78)]),
+    G('HR Benefits',[L('Welfare',14000,0.96,18000)]),
+    G('HRD',[L('Development',4000,0.82)])
+  ]),
+  G('Operations/Fulfillment',[
+    G('Logistic Staff (pick/pack/delivery)',[L('Staff cost',19000,1.02)]),
+    G('Software & Tools',[L('WMS & tools',6200,0.88)]),
+    G('Packing materials',[L('Cartons & fillers',11000,1.16,9800)])
+  ]),
+  G('Retail',[
+    G('Store Fixed cost',[L('Rent',16000,1.00),L('Utilities',5400,1.09)]),
+    G('In-Store Consumables & Supplies',[L('Supplies',4300,0.86)]),
+    G('HR Salary',[L('Store staff',9200,0.98)])
+  ]),
+  G('R&D',[
+    G('ค่าพัฒนาสูตร',[L('Formulation',17000,0.74),L('Pilot batch',8000,0.68,22400)]),
+    G('Lab Instrument Investment',[L('Instruments',9000,0.62)]),
+    G('Regulatory Compliance',[L('Filings & testing',4200,0.90)])
+  ]),
+  G('New Store Investment',[
+    G('Store Design & Construction',[L('Fit-out',14000,0.92,31000)]),
+    G('Store Equipment',[L('Fixtures',5000,0.78)])
+  ]),
+  G('Factory Investment',[
+    G('Production Equipment',[L('Machinery',6800,0.64)]),
+    G('Logistic & Warehouse',[L('Racking & handling',3200,0.58,16776)])
+  ]),
+  G('OEM',[
+    G('OEM Service fee',[L('Service fee',4200,0.86)]),
+    G('NPD',[L('Packaging',2100,0.74),L('Raw Materials',1800,0.80)])
+  ]),
+  G('Merchandise',[
+    G('Replenishing',[L('Stock replenishment',2600,0.82)])
+  ]),
+  // unbudgeted — the reconciliation's unresolved rows
+  {name:'Uncategorised',unbudgeted:true,children:[
+    G('(no category)',[{name:'Unassigned spend',b:0,m:[0,0,0,0,0,0,0,0,0,0,0,0],
+      a:[9200,0,14800,7400,0,22600,41300,29910,0,0,0,0],pending:0}])
+  ]}
+];
+
+const isLeaf=n=>!n.children;
+const bud=(n,i)=> isLeaf(n)? (n.b||0) : n.children.reduce((s,c)=>s+bud(c,i),0);
+const act=(n,i)=> isLeaf(n)? (n.a? n.a[i] : Math.round((n.b||0)*(n.m?n.m[i]:0))) : n.children.reduce((s,c)=>s+act(c,i),0);
+const pen=(n,i)=> i!==NOW?0 : (isLeaf(n)? (n.pending||0) : n.children.reduce((s,c)=>s+pen(c,i),0));
+const sum=(n,f,ms)=>ms.reduce((s,i)=>s+f(n,i),0);
+
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+const MINUS='\u2212';
+const signed=n=> (n<0?MINUS:'+')+fmt(Math.abs(n));
+const fmtK=n=>{ if(!n) return '—';
+  if(Math.abs(n)>=1000000) return (n/1000000).toFixed(1)+'M';
+  if(Math.abs(n)>=1000) return Math.round(n/1000)+'k'; return fmt(n); };
+const band=p=> p===null?null : p>100?'over' : p>=80?'warn':'ok';
+
+const VIEWS={
+  month:{ms:[NOW],label:'Aug 2026'},
+  quarter:{ms:[6,7,8],label:'Q3 2026'},
+  year:{ms:[0,1,2,3,4,5,6,7,8,9,10,11],label:'FY2026'}
+};
+let view='quarter';
+
+function elapsed(ms){
+  let tot=0,el=0;
+  ms.forEach(i=>{ tot+=DIM[i]; el+= i<NOW?DIM[i] : i===NOW?DAY : 0; });
+  return el/tot*100;
+}
+
+function moCells(n,ms,show){
+  if(!show) return '';
+  return ms.map(i=>{
+    const a=act(n,i), b=bud(n,i);
+    if(i>NOW) return '<td class="mo cell-none num">—</td>';
+    const p=b>0? a/b*100 : null;
+    const cls = a===0 ? 'cell-none' : (p===null?'cell-none':'cell-'+band(p));
+    return '<td class="mo num '+cls+(i===NOW?' now':'')+'">'+fmtK(a)+'</td>';
+  }).join('');
+}
+
+function metricCells(n,ms){
+  const B=sum(n,bud,ms), A=sum(n,act,ms), P=sum(n,pen,ms);
+  const pct = B>0? A/B*100 : null;
+  let out='<td class="sumcol num'+(B===0?' cell-none':'')+'">'+(B===0?'—':fmt(B))+'</td>';
+  out+='<td class="num"><span class="actual">'+fmt(A)+'</span>';
+  if(pct===null){ out+='<span class="second">—</span>'; }
+  else{
+    const v=B-A, b=band(pct);
+    out+='<span class="second"><span class="bar"><i style="width:'+Math.min(pct,100)+'%;background:var(--'+b+')"></i></span>'
+       + '<span class="'+(v<0?'v-up':'v-down')+'">'+signed(v)+'</span> · '+Math.round(pct)+'%</span>';
+  }
+  out+='</td>';
+  out+='<td class="num'+(P?' pend':' cell-none')+'">'+(P?fmt(P):'—')+'</td>';
+  return out;
+}
+
+let gid=0;
+function render(){
+  const V=VIEWS[view], ms=V.ms, show=view!=='month';
+  document.getElementById('legend').style.display=show?'flex':'none';
+  document.getElementById('tblTitle').textContent= show? 'Spend by segment — '+V.label+', month by month' : 'Spend by segment — '+V.label;
+  document.getElementById('subtitle').textContent='Spend vs budget by segment — '+V.label+' · ONEST · approved + paid';
+  document.getElementById('periodSel').innerHTML =
+    view==='month' ? '<option>Aug 2026</option><option>Jul 2026</option>'
+  : view==='quarter' ? '<option>Q3 2026 (Jul–Sep)</option><option>Q2 2026</option>'
+  : '<option>FY2026</option><option>FY2025</option>';
+
+  let h='<thead><tr><th class="namecol l">Segment</th>';
+  if(show) ms.forEach(i=> h+='<th class="mo'+(i===NOW?' now':'')+'">'+MONTHS[i]+'</th>');
+  h+='<th class="sumcol">Budget</th><th>Actual</th><th>Pending</th></tr></thead>';
+
+  // sort: budgeted by actual desc, unbudgeted last
+  const rows=[...DATA].sort((a,b)=>{
+    if(!!a.unbudgeted!==!!b.unbudgeted) return a.unbudgeted?1:-1;
+    return sum(b,act,ms)-sum(a,act,ms);
+  });
+
+  gid=0; let body='';
+  const emit=(node,level,parent)=>{
+    const g='g'+(gid++), kids=!isLeaf(node);
+    const cls=level===0?'':'kid lvl'+level;
+    const of=level>0?' data-of="'+parent+'"':'';
+    let nm='';
+    if(kids) nm+='<button class="twist" data-g="'+g+'" aria-expanded="false">▸</button>';
+    else nm+='<span style="display:inline-block;width:22px"></span>';
+    nm+='<span class="name">'+node.name+'</span>';
+    if(node.unbudgeted) nm+='<span class="chip">no budget set</span>';
+    body+='<tr class="'+cls+'"'+of+'><td class="namecol">'+nm+'</td>'+moCells(node,ms,show)+metricCells(node,ms)+'</tr>';
+    if(kids) node.children.forEach(c=> emit(c,level+1,g));
+  };
+  rows.forEach(s=> emit(s,0,null));
+
+  const TOT={name:'Total',children:DATA};
+  let foot='<tfoot><tr><td class="namecol">Total</td>'+moCells(TOT,ms,show)+metricCells(TOT,ms)+'</tr></tfoot>';
+  document.getElementById('tbl').innerHTML=h+'<tbody>'+body+'</tbody>'+foot;
+
+  document.querySelectorAll('.twist').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const g=btn.dataset.g, open=btn.getAttribute('aria-expanded')==='true';
+      btn.setAttribute('aria-expanded',String(!open));
+      btn.textContent=open?'▸':'▾';
+      document.querySelectorAll('.kid[data-of="'+g+'"]').forEach(r=>{
+        r.classList.toggle('show',!open);
+        if(open){ // collapse descendants recursively
+          const t=r.querySelector('.twist');
+          if(t && t.getAttribute('aria-expanded')==='true'){ t.click(); }
+        }
+      });
+    });
+  });
+  kpis(ms);
+}
+
+function kpis(ms){
+  const TOT={children:DATA};
+  const A=sum(TOT,act,ms), B=sum(TOT,bud,ms), P=sum(TOT,pen,ms);
+  const prev=ms.map(i=>i-ms.length).filter(i=>i>=0);
+  const pA=prev.length?sum(TOT,act,prev):0;
+  const d=pA? (A-pA)/pA*100 : null;
+  const used=B?A/B*100:0, proj=B?(A+P)/B*100:0, el=elapsed(ms);
+  const pn=view==='month'?'Jul 2026':view==='quarter'?'Q2 2026':'FY2025';
+  document.getElementById('kpis').innerHTML=`
+    <div class="card"><div class="label">Actual spend</div><div class="val num">฿${fmt(A)}</div>
+      <div class="foot">${d===null?'no prior period':`<span class="${d>0?'up':'down'}">${d>0?'▲':'▼'} ${Math.abs(d).toFixed(1)}%</span> vs ${pn}`}</div></div>
+    <div class="card"><div class="label">Budget</div><div class="val num">฿${fmt(B)}</div>
+      <div class="foot">${B-A>=0?`฿${fmt(B-A)} remaining`:`<span class="up">฿${fmt(A-B)} over</span>`}</div></div>
+    <div class="card"><div class="label">Budget used</div><div class="val num">${Math.round(used)}<small>%</small></div>
+      <div class="foot">Elapsed ${Math.round(el)}% · ${used>el+4?'running ahead':used<el-4?'under pace':'on pace'}</div></div>
+    <div class="card"><div class="label">Pending approval</div><div class="val num pend">฿${fmt(P)}</div>
+      <div class="foot">Would take used to <b>${Math.round(proj)}%</b></div></div>`;
+}
+
+document.querySelectorAll('#viewSeg button').forEach(b=>{
+  b.addEventListener('click',()=>{ view=b.dataset.v; render(); });
+});
+document.querySelectorAll('.seg').forEach(gr=>{
+  gr.querySelectorAll('button').forEach(b=> b.addEventListener('click',()=>{
+    gr.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+  }));
+});
+render();
+</script>
+</body>
+</html>

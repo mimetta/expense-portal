@@ -13,10 +13,12 @@ const COLORS: Record<ExpenseRequest["status"], { background: string; color: stri
   PAID: { background: "#9CAE8C", color: "#1F3A2B" },
   REJECTED: { background: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
   EDIT_REQUESTED: { background: "#FEF3C7", color: "#92400E", border: "#FCD34D" },
-  // Historical only (imported legacy rows) — muted grey, distinct from the
-  // active SUBMITTED grey via a visible border, since nothing currently
-  // produces this status going forward. See lib/constants.ts#STATUSES.
-  EXPIRED: { background: "#F3F4F6", color: "#6B7280", border: "#D1D5DB" },
+  // Historical only (imported legacy rows) — a warm muted neutral on
+  // brand.border (#D8CBB0), rather than the generic Tailwind greys the
+  // other neutral badges use, so it reads as inert history and does not
+  // share SUBMITTED's exact background. Nothing currently produces this
+  // status going forward. See lib/constants.ts#STATUSES.
+  EXPIRED: { background: "#F4F1EC", color: "#6B6B60", border: "#D8CBB0" },
 };
 
 export default function StatusBadge({ status }: { status: ExpenseRequest["status"] }) {

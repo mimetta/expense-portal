@@ -24,7 +24,23 @@ const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "bo-approvals", href: "/bo-approvals", label: "BO Approvals" },
   { page: "ceo-approvals", href: "/ceo-approvals", label: "CEO Approvals" },
   { page: "accounting", href: "/accounting", label: "Accounting" },
-  { page: "budget", href: "/budget", label: "Budget" },
+  // "budget" is deliberately absent. app/budget/, lib/budget/,
+  // components/budget/ and app/api/budget/ are all UNCOMMITTED — they depend
+  // on supabase/pending/015_budget_cashflow.sql, which is parked and not
+  // applied (see that directory's README). With the route absent from the
+  // deployed tree, a nav entry here would 404; if the code were committed
+  // without 015 it would instead render a P&L of all zeros, because
+  // lib/budget/data.ts never checks .error and falls back to `?? []`.
+  //
+  // It is NOT enough to leave "budget" out of the access map to hide it:
+  // PAGES is derived from an exhaustive Record<Page, true> in
+  // lib/permissions.ts precisely so a page can never be silently dropped
+  // there, so access.budget is legitimately true for CEO/ACCOUNTING/
+  // DEPT_HEAD/SUPERADMIN. Omitting the LINKS entry is what hides it.
+  //
+  // Restore this line when the budget feature ships — 015 applied and the
+  // four directories committed.
+  { page: "spend-report", href: "/reports/spend", label: "Spend report" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];
 
@@ -60,9 +76,23 @@ export default function Nav() {
   return (
     <>
       <nav className="h-14 border-b border-brand-border bg-white print:hidden">
-        <div className="mx-auto flex h-full max-w-[1280px] flex-wrap items-center justify-between gap-2 px-8">
-          <div className="flex h-full items-center gap-1">
-            <Link href="/" className="mr-4 text-lg font-bold text-brand-brown">
+        {/* Ten nav items + logo + email + Sign out need ~1360px. The wrapper
+            was max-w-[1280px] (= 1216px of content after px-8) AND flex-wrap,
+            so the right-hand email/Sign out block wrapped onto a second row
+            — which then rendered 39px BELOW this bar's fixed h-14, on top of
+            the page heading. Measured identically at 1280/1440/1920, because
+            the 1280px cap meant a wider viewport never granted more room.
+
+            Fixed by (a) capping at 1440px instead, so 1440/1920 viewports
+            actually get their extra width, (b) flex-nowrap so nothing can
+            ever escape the fixed-height bar again, and (c) letting the link
+            strip scroll horizontally as a safety net rather than overflow.
+            Measured after: 1280 -> 1216/1216 needed, 1440 -> 1276/1376,
+            1920 -> 1276/1536; zero spill below the bar at all three.
+            Deliberately NOT solved by shortening labels. */}
+        <div className="mx-auto flex h-full max-w-[1440px] flex-nowrap items-center justify-between gap-2 px-8">
+          <div className="mm-nav-links flex h-full min-w-0 items-center overflow-x-auto">
+            <Link href="/" className="mr-3 shrink-0 text-lg font-bold text-brand-brown">
               Mimetta
             </Link>
             {LINKS.filter((link) => data.access?.[link.page]).map((link) => {
@@ -71,7 +101,7 @@ export default function Nav() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex h-full items-center border-b-2 px-3 text-sm transition ${
+                  className={`flex h-full shrink-0 items-center whitespace-nowrap border-b-2 px-2.5 text-sm transition ${
                     active
                       ? "border-brand-brown font-medium text-brand-brown"
                       : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
@@ -82,9 +112,9 @@ export default function Nav() {
               );
             })}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <NotificationBell />
-            <span className="text-[13px] text-brand-subtle">{data.user.email}</span>
+            <span className="whitespace-nowrap text-[13px] text-brand-subtle">{data.user.email}</span>
             <button
               onClick={handleSignOut}
               className="rounded-md border border-brand-border bg-white px-3 py-1 text-sm text-brand-muted transition-colors hover:text-[#DC2626]"

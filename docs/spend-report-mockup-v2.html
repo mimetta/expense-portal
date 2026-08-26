@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  Spend Report — visual spec for /reports/spend
+  ============================================================================
+
+  Read this before treating anything here as authoritative.
+
+  This file was committed AFTER the page was built (the page was implemented
+  from a written spec), so the two were reconciled afterwards rather than the
+  page being built from this file. Both sides were changed in that pass. What
+  follows records which side won on each point, so the next person knows which
+  parts of this mockup to trust.
+
+  AUTHORITATIVE — the code was changed to match this file
+    · Budget pro-rating: in the CURRENT month, the cell tint and the Used %
+      measure against monthly_budget x (days elapsed / days in month), at
+      every level including the footer. The Budget and Variance figures stay
+      on the full budget. The current-month header carries a "*" and a
+      footnote. Added to both sides together (2026-08-26); the day-weighting
+      is the same monthElapsedFraction() the KPI "% elapsed" already used.
+      NOTE this file pins TODAY_DOM = 20 for a stable illustration, so its
+      percentages differ from a live page rendered on another day — the RULE
+      is what matches, not the numbers.
+    · Month-cell heat bands: <80% ok, 80–100% warn, >100% over, on
+      #2E7D52 / #C99A2E / #B23A2F, with per-band tint alpha (.10 / .14 / .12)
+      and the darker companion text colours #1E5537 / #7A5A0F / #8E2A21.
+      Only the over band is bolded.
+    · The footer total row is heat-tinted on the same thresholds as body rows.
+    · Positive (under-budget) variance renders green #2E7D52, not uncoloured.
+    · Negative figures use a true minus sign (U+2212), not an ASCII hyphen —
+      the hyphen is not digit-width and breaks tabular-nums alignment.
+    · Pending figures render terracotta #BD5A2E.
+
+  NOT AUTHORITATIVE — this file was changed to match the code
+    · Drill-down is TWO-STAGE: segment → cat_l1, then cat_l1 → cat_l2, each
+      node with its own toggle. This mockup originally revealed both levels
+      from a single level-0 toggle, which is unusable against the real 314
+      category lines.
+    · Elapsed % is day-weighted, not whole-month. On 20 Aug 2026 that puts
+      Q3 at 55% (Jul 31 + Aug 20 = 51 of 92 days); whole-month counting would
+      say 67%. Both sides now agree on the day-weighted rule.
+    · Compact figures keep a millions branch — 1.5M, not 1500k.
+    · Segments sort by total actual desc with unbudgeted last; this mockup
+      previously relied on hand-ordered sample data.
+    · Used % rounds to a whole number.
+
+  DELIBERATELY DIFFERENT — neither side is wrong, both were requested
+    · Variance and Used are NOT standalone columns in the shipped page. They
+      are a ~11px secondary line inside the Actual cell:  ฿1,562 / +38,000 ·
+      91%. This mockup still draws them as columns.
+    · The shipped metric block is identical across all three granularities,
+      which means Year view has a Pending column. This mockup omits Pending
+      from Year view.
+
+  KNOWN-ACCEPTABLE COSMETIC DELTAS — do not "fix" either side
+    · child row background (#FDFCFA here vs #FCFBF9 shipped)
+    · row indent pixel values (34/56 here vs 30/48 shipped)
+    · sticky segment column min-width (190px here vs 260px shipped)
+    · month column sizing (fixed 62px here vs natural width shipped)
+    · footer font weight and background
+    · current-month shade (#F6F3EC here vs #F5F2EC shipped)
+    · the Used slot for an unbudgeted row (the word "unbudgeted" here vs an
+      em dash shipped)
+
+  Sample data below is illustrative only — it is not a snapshot of real
+  figures, and the real `budgets` table is empty until the budget import runs.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spend Report — Mockup v2</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2B; --terracotta:#BD5A2E; --cream:#FAF8F4; --sand:#D8CBB0;
+    --ink:#1B1B18; --muted:#6B6B60; --white:#fff;
+    --ok:#2E7D52; --warn:#C99A2E; --over:#B23A2F;
+    --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 24px 64px}
+  .num{font-family:'DM Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0}
+  .btn{border:1px solid var(--sand);background:var(--white);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer}
+  .btn:hover{border-color:var(--forest)}
+  .btn:focus-visible,.seg button:focus-visible,.twist:focus-visible{outline:2px solid var(--forest);outline-offset:2px}
+
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
+  .seg{display:inline-flex;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden}
+  .seg button{border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:8px 16px;cursor:pointer}
+  .seg button+button{border-left:1px solid var(--sand)}
+  .seg button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  select{font:inherit;padding:8px 12px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);color:var(--ink)}
+  .spacer{flex:1}
+  .basis{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .card{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:16px 18px}
+  .card .label{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:10px}
+  .card .val{font-size:26px;font-weight:500;letter-spacing:-.02em}
+  .card .val small{font-size:14px;color:var(--muted);font-weight:400;margin-left:2px}
+  .card .foot{margin-top:8px;font-size:12.5px;color:var(--muted)}
+  .delta-up{color:var(--over);font-weight:500}
+  .delta-down{color:var(--ok);font-weight:500}
+
+  section{margin-top:26px}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-wrap:wrap}
+  h2{font-size:15px;font-weight:700;margin:0}
+  .hint{font-size:12.5px;color:var(--muted)}
+
+  .tbl-scroll{overflow-x:auto;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse;min-width:100%}
+  th{text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 10px;border-bottom:1px solid var(--sand);background:#FDFCFA;white-space:nowrap}
+  td{padding:9px 10px;border-bottom:1px solid #EFEAE0;white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  th.r,td.r{text-align:right}
+  th.mo,td.mo{text-align:right;width:62px}
+  th.now,td.now{background:#F6F3EC}
+  th.sumcol,td.sumcol{border-left:1px solid var(--sand)}
+  .namecell{position:sticky;left:0;background:var(--white);z-index:1;min-width:190px;white-space:nowrap}
+  thead .namecell{background:#FDFCFA}
+  .twist{border:0;background:transparent;cursor:pointer;color:var(--muted);font:inherit;padding:0 6px 0 0;width:18px}
+  .name{font-weight:500}
+  .lvl1 .namecell{padding-left:34px;font-weight:400}
+  .lvl2 .namecell{padding-left:56px;color:var(--muted)}
+  .lvl1 td,.lvl2 td{background:#FDFCFA;font-size:13px}
+  .lvl1 .namecell,.lvl2 .namecell{background:#FDFCFA}
+  .kid{display:none}
+  .kid.show{display:table-row}
+  .util{display:flex;align-items:center;gap:9px;justify-content:flex-end}
+  .bar{width:74px;height:6px;background:#EDE7DA;border-radius:99px;overflow:hidden;flex:none}
+  .bar i{display:block;height:100%;border-radius:99px}
+  .pct{min-width:42px;text-align:right;font-weight:500}
+  .ok i{background:var(--ok)} .warn i{background:var(--warn)} .over i{background:var(--over)}
+  .ok .pct{color:var(--ok)} .warn .pct{color:var(--warn)} .over .pct{color:var(--over)}
+  .cell-ok{background:rgba(46,125,82,.10);color:#1E5537}
+  .cell-warn{background:rgba(201,154,46,.14);color:#7A5A0F}
+  .cell-over{background:rgba(178,58,47,.12);color:#8E2A21;font-weight:500}
+  .cell-none{color:#B9B4A7}
+  .cell-future{color:#C8C3B6}
+  tfoot td{background:#FDFCFA;font-weight:700;border-top:1px solid var(--sand)}
+  tfoot .namecell{background:#FDFCFA}
+  .pend{color:var(--terracotta)}
+  .chip{font-size:10.5px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--sand);color:var(--muted);margin-left:6px}
+  .heat-legend{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted)}
+  .heat-legend i{width:22px;height:11px;border-radius:3px;display:inline-block;vertical-align:-1px;margin-right:5px}
+
+  .chart{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:18px}
+  .legend{display:flex;gap:18px;font-size:12.5px;color:var(--muted);margin-bottom:6px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:11px;height:11px;border-radius:2px;display:inline-block}
+
+  .pending-list{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:4px 0}
+  .prow{display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid #EFEAE0}
+  .prow:last-child{border-bottom:0}
+  .prow .id{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--muted);width:158px}
+  .prow .desc{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tag{font-size:11px;font-weight:500;padding:3px 8px;border-radius:99px;border:1px solid var(--sand);color:var(--muted);white-space:nowrap}
+  .tag.bo{border-color:#C6D8CB;background:#F1F7F2;color:var(--forest)}
+  .tag.ceo{border-color:#EBD3C4;background:#FBF2EC;color:var(--terracotta)}
+
+  .note{margin-top:34px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)}
+  .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:5px 0}
+  .new{color:var(--terracotta);font-weight:500}
+
+  @media (max-width:860px){ .kpis{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="page-head">
+    <div>
+      <h1>Spend report</h1>
+      <p class="sub">Budget vs actual spend · updated a few seconds ago</p>
+    </div>
+    <button class="btn">Export CSV</button>
+  </div>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Business unit">
+      <button aria-pressed="true">SV</button>
+      <button aria-pressed="false">ONEST</button>
+      <button aria-pressed="false">All</button>
+    </div>
+    <div class="seg" id="periodSeg" role="group" aria-label="Period">
+      <button data-view="month" aria-pressed="false">Month</button>
+      <button data-view="quarter" aria-pressed="true">Quarter</button>
+      <button data-view="year" aria-pressed="false">Year</button>
+    </div>
+    <select id="periodVal" aria-label="Period value"></select>
+    <select aria-label="Segment"><option>All segments</option><option>Marketing</option><option>R&amp;D</option><option>Factory</option></select>
+    <div class="spacer"></div>
+    <div class="basis">
+      Actual counts
+      <div class="seg" role="group" aria-label="Actual basis">
+        <button aria-pressed="true">Approved</button>
+        <button aria-pressed="false">Paid only</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <section>
+    <div class="sec-head">
+      <h2 id="tblTitle">Budget vs actual by segment</h2>
+      <div class="heat-legend" id="heatLegend">
+        <span><i class="cell-ok"></i>under 80%</span>
+        <span><i class="cell-warn"></i>80–100%</span>
+        <span><i class="cell-over"></i>over budget</span>
+        <span class="hint">· month cells show actual, coloured by that month's budget use</span>
+      </div>
+      <!-- Rendered whenever the selected period contains the current month —
+           including Month view, where the heat legend above is hidden. -->
+      <p class="hint" id="proRataNote" style="margin:0 0 12px"></p>
+    </div>
+    <div class="tbl-scroll"><table id="tbl"></table></div>
+    <p class="hint" style="margin:8px 0 0">Click a segment to drill into category L1 → L2. Every level keeps the same month columns.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Company trend — 2026</h2>
+      <span class="hint">Bars = actual · terracotta = pending · dashed line = budget</span>
+    </div>
+    <div class="chart">
+      <div class="legend">
+        <span><i class="sw" style="background:#1F3A2B"></i> Actual</span>
+        <span><i class="sw" style="background:#BD5A2E"></i> Pending</span>
+        <span><i class="sw" style="background:#6B6B60;height:2px;border-radius:0"></i> Budget</span>
+      </div>
+      <svg viewBox="0 0 1080 250" width="100%" role="img" aria-label="Monthly actual spend against budget for 2026">
+        <g stroke="#EFEAE0" stroke-width="1">
+          <line x1="46" y1="30" x2="1060" y2="30"/><line x1="46" y1="78" x2="1060" y2="78"/>
+          <line x1="46" y1="126" x2="1060" y2="126"/><line x1="46" y1="174" x2="1060" y2="174"/>
+          <line x1="46" y1="212" x2="1060" y2="212"/>
+        </g>
+        <g fill="#6B6B60" font-family="DM Mono, monospace" font-size="10" text-anchor="end">
+          <text x="38" y="34">1.0M</text><text x="38" y="82">750k</text>
+          <text x="38" y="130">500k</text><text x="38" y="178">250k</text>
+        </g>
+        <g id="trendBars"></g>
+        <polyline id="trendLine" fill="none" stroke="#6B6B60" stroke-width="2" stroke-dasharray="5 4"></polyline>
+        <g id="trendLabels" fill="#6B6B60" font-family="DM Sans, sans-serif" font-size="11" text-anchor="middle"></g>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Pending approval — <span id="pendTotal" class="num"></span></h2>
+      <span class="hint">Not yet committed; shown separately from actual</span>
+    </div>
+    <div class="pending-list">
+      <div class="prow"><span class="id">EXP-2026-08-000241</span><span class="desc">Content production — Aug campaign shoot</span><span class="tag bo">Waiting BO</span><span class="num" style="font-weight:500">40,000</span></div>
+      <div class="prow"><span class="id">EXP-2026-08-000238</span><span class="desc">ซ่อมบำรุงเครื่องบรรจุ line 2</span><span class="tag ceo">Waiting CEO</span><span class="num" style="font-weight:500">62,400</span></div>
+      <div class="prow"><span class="id">EXP-2026-08-000236</span><span class="desc">Booth fabrication — Central Rama 9</span><span class="tag bo">Waiting BO</span><span class="num" style="font-weight:500">46,000</span></div>
+      <div class="prow"><span class="id">EXP-2026-08-000230</span><span class="desc">ค่าพัฒนาสูตร — serum v3 pilot batch</span><span class="tag ceo">Waiting CEO</span><span class="num" style="font-weight:500">54,720</span></div>
+      <div class="prow"><span class="id">EXP-2026-08-000229</span><span class="desc">Legal retainer — trademark filing</span><span class="tag ceo">Waiting CEO</span><span class="num" style="font-weight:500">68,000</span></div>
+    </div>
+  </section>
+
+  <div class="note">
+    <b>What changed in v2:</b>
+    <ol>
+      <li class="new">Quarter view shows its 3 months as columns; Year view shows all 12. Month view stays single-column. Summary columns (Budget / Actual / Used) always sit on the right of the months.</li>
+      <li class="new">Month cells are a heatmap: the number is that month's actual, the tint is that month's budget use — so a single overspent month inside a healthy quarter is still visible.</li>
+      <li class="new">Segment name column is sticky on horizontal scroll, and the current month is shaded.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Still open from v1 — confirm before I revise the prompt:</b>
+    <ol>
+      <li><b>Actual = CEO_APPROVED + PAID</b>; "Paid only" counts PAID. Pending = SUBMITTED + BO_APPROVED.</li>
+      <li><b>Amount basis = <code>total</code></b> (net + VAT − WHT). Switch to <code>amount_net</code> if budgets are pre-VAT.</li>
+      <li><b>Period attribution = <code>budget_period</code></b> when set, else <code>created_at</code>. Not <code>paid_at</code>.</li>
+      <li><b>Multi-item requests split by item</b> for accurate category drill-down.</li>
+      <li><b>Unbudgeted segments</b> sort last with a "no budget set" chip.</li>
+      <li><b>BO scoping:</b> BO sees only scoped segments; CEO / ACCOUNTING / SUPERADMIN see all.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const NOW = 7; // Aug 2026 (0-indexed)
+const TODAY_DOM = 20; // day of month, for the pro-rating illustration
+
+// BUDGET PRO-RATING (matches components/spend/format.ts#monthElapsedFraction).
+// In the current month a full month's budget would otherwise be compared
+// against a partial month's spend, so every in-progress month tints
+// favourably for reasons that have nothing to do with control. Utilisation —
+// the cell tint and the Used % — measures against the share of the budget the
+// elapsed days represent. The Budget COLUMN still shows the full figure.
+const daysIn = i => new Date(2026, i + 1, 0).getDate();
+const monthElapsed = i => i < NOW ? 1 : i > NOW ? 0 : Math.min(1, TODAY_DOM / daysIn(i));
+const budgetToDate = (n, i) => budgetOf(n, i) * monthElapsed(i);
+const budgetToDateSum = (n, ms) => ms.reduce((s, i) => s + budgetToDate(n, i), 0);
+
+// leaf: b = monthly budget, m = actual multiplier per month, a = absolute actual override, p = pending (Aug)
+const DATA = [
+  { name:'Marketing', children:[
+    { name:'Content', children:[
+      { name:'Content production', b:60000, m:[1.02,0.94,1.15,0.90,1.24,1.08,1.31,1.26,0,0,0,0], p:40000 },
+      { name:'Influencer / KOL',    b:40000, m:[0.88,1.10,0.96,1.05,1.02,0.98,1.12,1.05,0,0,0,0] }
+    ]},
+    { name:'Events', children:[
+      { name:'Booth & fabrication', b:50000, m:[0.72,0.95,1.08,0.84,1.12,0.96,0.98,0.92,0,0,0,0], p:46000 },
+      { name:'Offline campaign',    b:36667, m:[0.90,0.82,1.02,0.94,1.06,1.00,0.94,0.96,0,0,0,0] }
+    ]},
+    { name:'Affiliate', b:53333, m:[1.06,1.14,1.22,1.08,1.18,1.26,1.20,1.24,0,0,0,0] }
+  ]},
+  { name:'Factory', children:[
+    { name:'Maintenance', b:100000, m:[0.82,0.94,1.06,0.88,1.02,0.96,0.98,0.96,0,0,0,0], p:62400 },
+    { name:'Consumables', b:113333, m:[0.76,0.88,0.92,0.80,0.86,0.84,0.82,0.81,0,0,0,0], p:50000 }
+  ]},
+  { name:'R&D', children:[
+    { name:'ค่าพัฒนาสูตร',  b:93333, m:[0.62,0.74,0.80,0.68,0.72,0.70,0.74,0.71,0,0,0,0], p:54720 },
+    { name:'Lab instrument', b:66667, m:[0.55,0.68,0.72,0.60,0.66,0.64,0.70,0.67,0,0,0,0], p:20000 }
+  ]},
+  { name:'G&A', children:[
+    { name:'Office expenses',  b:73333, m:[0.88,0.92,0.96,0.90,0.94,0.92,0.90,0.92,0,0,0,0] },
+    { name:'Accounting & tax', b:53333, m:[0.86,0.90,0.94,0.88,0.92,0.90,0.92,0.91,0,0,0,0] }
+  ]},
+  { name:'Legal & Compliance', unbudgeted:true, children:[
+    { name:'Retainer & filings', b:0, m:[0,0,0,0,0,0,0,0,0,0,0,0], a:[18000,0,22000,0,26000,0,34000,50000,0,0,0,0], p:68000 }
+  ]}
+];
+
+const isLeaf = n => !n.children;
+function budgetOf(n,i){ return isLeaf(n) ? (n.b||0) : n.children.reduce((s,c)=>s+budgetOf(c,i),0); }
+function actualOf(n,i){
+  if(isLeaf(n)) return n.a ? n.a[i] : Math.round((n.b||0)*(n.m?n.m[i]:0));
+  return n.children.reduce((s,c)=>s+actualOf(c,i),0);
+}
+function pendingOf(n,i){
+  if(i!==NOW) return 0;
+  if(isLeaf(n)) return n.p||0;
+  return n.children.reduce((s,c)=>s+pendingOf(c,i),0);
+}
+const sum = (n,fn,ms) => ms.reduce((s,i)=>s+fn(n,i),0);
+
+const fmt  = n => n.toLocaleString('en-US',{maximumFractionDigits:0});
+// Matches components/spend/format.ts#compact — keeps a millions branch so a
+// 12-month row does not render 1,500,000 as "1500k".
+const fmtK = n => {
+  if(n===0) return '—';
+  const abs = Math.abs(n), sign = n<0 ? '\u2212' : '';
+  if(abs>=1e6){ const m = abs/1e6; return sign + (m>=10 ? Math.round(m) : m.toFixed(1)) + 'M'; }
+  if(abs>=1000) return sign + Math.round(abs/1000) + 'k';
+  return sign + Math.round(abs);
+};
+const band = p => p===null ? 'none' : (p>100 ? 'over' : (p>=80 ? 'warn' : 'ok'));
+
+const VIEWS = {
+  month:   { months:[NOW],        cols:['Budget','Actual','Pending','Variance','Used'], label:()=>'Aug 2026' },
+  quarter: { months:[6,7,8],      cols:['Budget','Actual','Pending','Used'],            label:()=>'Q3 2026' },
+  year:    { months:[0,1,2,3,4,5,6,7,8,9,10,11], cols:['Budget','Actual','Used'],       label:()=>'FY 2026' }
+};
+let view = 'quarter';
+
+function usedCell(pct){
+  if(pct===null) return '<td class="r sumcol"><span class="hint">unbudgeted</span></td>';
+  const b = band(pct);
+  return '<td class="r sumcol"><div class="util '+b+'"><div class="bar"><i style="width:'+Math.min(pct,100)+'%"></i></div>'
+       + '<span class="pct num">'+Math.round(pct)+'%</span></div></td>';
+}
+
+function monthCells(node, ms, showMonths){
+  if(!showMonths) return '';
+  return ms.map(i=>{
+    const a = actualOf(node,i), b = budgetOf(node,i);
+    const future = i>NOW;
+    if(future) return '<td class="mo cell-future num">—</td>';
+    const bToDate = b * monthElapsed(i);
+    const pct = bToDate>0 ? a/bToDate*100 : null;
+    const cls = a===0 ? 'cell-none' : 'cell-'+band(pct);
+    return '<td class="mo num '+cls+(i===NOW?' now':'')+'">'+fmtK(a)+'</td>';
+  }).join('');
+}
+
+function summaryCells(node, ms, cols){
+  const B = sum(node,budgetOf,ms), A = sum(node,actualOf,ms), P = sum(node,pendingOf,ms);
+  // Full months elapsed + a day-weighted slice of the current one. Used only
+  // for the Used %; the Budget cell below still prints the full B.
+  const Btd = budgetToDateSum(node, ms);
+  const pct = Btd>0 ? A/Btd*100 : null;
+  let out = '';
+  cols.forEach(c=>{
+    if(c==='Budget')   out += '<td class="r sumcol num'+(B===0?' cell-none':'')+'">'+(B===0?'—':fmt(B))+'</td>';
+    if(c==='Actual')   out += '<td class="r num" style="font-weight:500">'+fmt(A)+'</td>';
+    if(c==='Pending')  out += '<td class="r num'+(P?' pend':' cell-none')+'">'+(P?fmt(P):'—')+'</td>';
+    if(c==='Variance'){
+      const v = B-A;
+      out += '<td class="r num" style="color:'+(B===0?'var(--muted)':(v<0?'var(--over)':'var(--ok)'))+'">'
+           + (B===0?'—':(v<0?'−':'+')+fmt(Math.abs(v)))+'</td>';
+    }
+    if(c==='Used') out += usedCell(pct);
+  });
+  return out;
+}
+
+function render(){
+  const V = VIEWS[view], ms = V.months, showMonths = view!=='month';
+  document.getElementById('heatLegend').style.display = showMonths ? 'flex' : 'none';
+  const noteEl = document.getElementById('proRataNote');
+  if (ms.includes(NOW)) {
+    const share = Math.round(monthElapsed(NOW) * 100);
+    noteEl.innerHTML = '<strong>* Budget pro-rated to date.</strong> ' + MONTHS[NOW]
+      + ' is ' + share + '% elapsed, so its shading and the Used % compare spend against '
+      + share + '% of its monthly budget rather than the whole of it. The Budget and Variance '
+      + 'figures are the full period as always.';
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
+  }
+  document.getElementById('tblTitle').textContent =
+    showMonths ? 'Budget vs actual by segment — '+V.label()+', month by month'
+               : 'Budget vs actual by segment — '+V.label();
+
+  // header
+  let h = '<thead><tr><th class="namecell">Segment</th>';
+  if(showMonths) ms.forEach(i=> h += '<th class="mo'+(i===NOW?' now':'')+'"'
+    + (i===NOW ? ' title="Budget pro-rated to date — this month is measured against '
+        + Math.round(monthElapsed(i)*100) + '% of its budget, the share of the month elapsed."' : '')
+    + '>'+MONTHS[i]+(i===NOW?'<span class="hint">*</span>':'')+'</th>');
+  V.cols.forEach(c=> h += '<th class="r'+(c==='Budget'||c==='Used'?' sumcol':'')+'">'+c+'</th>');
+  h += '</tr></thead>';
+
+  // body
+  let body = '', gid = 0;
+  // TWO-STAGE drill-down, matching the shipped page: every node with children
+  // carries its own toggle, and each row is tied to its IMMEDIATE parent. So
+  // segment -> cat_l1 is one click and cat_l1 -> cat_l2 is another. This
+  // mockup originally put the toggle only on level 0 and tied every
+  // descendant to it, revealing cat_l1 and cat_l2 together — unusable against
+  // the real 314 category lines, which is why the code did not follow it.
+  const rowFor = (node, level, parentGid) => {
+    const g = 'g'+(gid++);
+    const kids = !isLeaf(node);
+    const cls = ['lvl'+level, level>0?'kid':''].join(' ');
+    const of  = level>0 ? ' data-of="'+parentGid+'"' : '';
+    let nameHtml = kids
+      ? '<button class="twist" data-group="'+g+'" aria-expanded="false">▸</button>'
+      : '<span style="display:inline-block;width:24px"></span>';
+    nameHtml += '<span class="name">'+node.name+'</span>';
+    if(node.unbudgeted) nameHtml += '<span class="chip">no budget set</span>';
+    body += '<tr class="'+cls+'"'+of+' data-self="'+g+'"><td class="namecell">'+nameHtml+'</td>'
+          + monthCells(node, ms, showMonths) + summaryCells(node, ms, V.cols) + '</tr>';
+    if(kids) sortNodes(node.children).forEach(c=> rowFor(c, level+1, g));
+    return g;
+  };
+  // Matches the shipped page: budgeted segments by total actual desc,
+  // unbudgeted last. The mockup previously relied on hand-ordered DATA.
+  const sortNodes = ns => [...ns].sort((a,b)=>{
+    const au = !!a.unbudgeted, bu = !!b.unbudgeted;
+    if(au !== bu) return au ? 1 : -1;
+    const d = sum(b,actualOf,ms) - sum(a,actualOf,ms);
+    return d !== 0 ? d : a.name.localeCompare(b.name);
+  });
+  sortNodes(DATA).forEach(seg=> rowFor(seg,0,null));
+
+  // total row
+  const TOT = { name:'Total', children:DATA };
+  let foot = '<tfoot><tr><td class="namecell">Total</td>'
+           + monthCells(TOT, ms, showMonths) + summaryCells(TOT, ms, V.cols) + '</tr></tfoot>';
+
+  document.getElementById('tbl').innerHTML = h + '<tbody>'+body+'</tbody>' + foot;
+
+  // Collapsing a node must also collapse everything beneath it, otherwise a
+  // re-expand would pop grandchildren back into view still expanded.
+  const collapseTree = g => {
+    document.querySelectorAll('.kid[data-of="'+g+'"]').forEach(r=>{
+      r.classList.remove('show');
+      const t = r.querySelector('.twist');
+      if(t){ t.setAttribute('aria-expanded','false'); t.textContent='▸'; collapseTree(t.dataset.group); }
+    });
+  };
+  document.querySelectorAll('.twist').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const g = btn.dataset.group, open = btn.getAttribute('aria-expanded')==='true';
+      btn.setAttribute('aria-expanded', String(!open));
+      btn.textContent = open ? '▸' : '▾';
+      if(open) collapseTree(g);
+      else document.querySelectorAll('.kid[data-of="'+g+'"]').forEach(r=> r.classList.add('show'));
+    });
+  });
+
+  renderKpis(ms);
+  document.getElementById('periodVal').innerHTML =
+    view==='month' ? '<option>Aug 2026</option><option>Jul 2026</option><option>Jun 2026</option>'
+  : view==='quarter' ? '<option>Q3 2026 (Jul–Sep)</option><option>Q2 2026</option><option>Q1 2026</option>'
+  : '<option>FY 2026</option><option>FY 2025</option>';
+}
+
+function renderKpis(ms){
+  const TOT = {name:'t',children:DATA};
+  const A = sum(TOT,actualOf,ms), B = sum(TOT,budgetOf,ms), P = sum(TOT,pendingOf,ms);
+  const prevMs = ms.map(i=>i-ms.length).filter(i=>i>=0);
+  const prevA = prevMs.length ? sum(TOT,actualOf,prevMs) : 0;
+  const delta = prevA ? (A-prevA)/prevA*100 : null;
+  const used = B ? A/B*100 : 0, proj = B ? (A+P)/B*100 : 0;
+  // Day-weighted, matching components/spend/format.ts#elapsedFraction.
+// On 20 Aug 2026, Q3 = (Jul 31 + Aug 20) / (31+31+30) = 51/92 = 55%.
+// Whole-month counting would say 67%.
+const TODAY = 20; // 20 Aug 2026
+const daysIn = i => new Date(2026, i+1, 0).getDate();
+let eD = 0, tD = 0;
+ms.forEach(i => { tD += daysIn(i); if(i < NOW) eD += daysIn(i); else if(i === NOW) eD += TODAY; });
+const elapsed = tD ? Math.min(100, eD/tD*100) : 0;
+  const periodName = view==='month'?'Jul 2026':view==='quarter'?'Q2 2026':'FY 2025';
+  document.getElementById('kpis').innerHTML = `
+    <div class="card"><div class="label">Actual spend</div><div class="val num">฿${fmt(A)}</div>
+      <div class="foot">${delta===null?'no prior period':`<span class="${delta>0?'delta-up':'delta-down'}">${delta>0?'▲':'▼'} ${Math.abs(delta).toFixed(1)}%</span> vs ${periodName}`}</div></div>
+    <div class="card"><div class="label">Budget</div><div class="val num">฿${fmt(B)}</div>
+      <div class="foot">${B-A>=0?`฿${fmt(B-A)} remaining`:`<span class="delta-up">฿${fmt(A-B)} over</span>`}</div></div>
+    <div class="card"><div class="label">Budget used</div><div class="val num">${Math.round(used)}<small>%</small></div>
+      <div class="foot">Elapsed: ${Math.round(elapsed)}% · ${used>elapsed+3?'running ahead':'on pace'}</div></div>
+    <div class="card"><div class="label">Pending approval</div><div class="val num pend">฿${fmt(P)}</div>
+      <div class="foot">Would push used to <b>${Math.round(proj)}%</b></div></div>`;
+  document.getElementById('pendTotal').textContent = '฿'+fmt(sum({name:'t',children:DATA},pendingOf,[NOW]));
+}
+
+function renderTrend(){
+  const TOT = {name:'t',children:DATA};
+  const x = i => 60 + i*84, w = 42, y0 = 212, scale = 182/1000000;
+  let bars='', labels='', pts=[];
+  for(let i=0;i<12;i++){
+    const a = actualOf(TOT,i), p = pendingOf(TOT,i), b = budgetOf(TOT,i);
+    const ah = a*scale, ph = p*scale;
+    if(a>0){
+      bars += `<rect x="${x(i)}" y="${y0-ah}" width="${w}" height="${ah}" rx="2" fill="#1F3A2B"/>`;
+      if(p>0) bars += `<rect x="${x(i)}" y="${y0-ah-ph}" width="${w}" height="${ph}" rx="2" fill="#BD5A2E"/>`;
+    } else {
+      bars += `<rect x="${x(i)}" y="${y0-22}" width="${w}" height="22" rx="2" fill="#EDE7DA"/>`;
+    }
+    pts.push((x(i)+w/2)+','+(y0-b*scale));
+    labels += `<text x="${x(i)+w/2}" y="234"${i===NOW?' fill="#1F3A2B" font-weight="700"':''}>${MONTHS[i]}</text>`;
+  }
+  document.getElementById('trendBars').innerHTML = bars;
+  document.getElementById('trendLine').setAttribute('points', pts.join(' '));
+  document.getElementById('trendLabels').innerHTML = labels;
+}
+
+document.querySelectorAll('#periodSeg button').forEach(b=>{
+  b.addEventListener('click', ()=>{ view = b.dataset.view; render(); });
+});
+document.querySelectorAll('.seg').forEach(group=>{
+  group.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      group.querySelectorAll('button').forEach(x=> x.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true');
+    });
+  });
+});
+render();
+renderTrend();
+</script>
+</body>
+</html>

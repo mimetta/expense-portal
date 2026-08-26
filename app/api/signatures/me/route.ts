@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 
-// One saved signature per user (supabase/migrations/017_saved_signatures.sql),
+// One saved signature per user (supabase/migrations/025_saved_signatures.sql),
 // reused across PDF-signing sessions (components/shared/PDFSigner.tsx) so a
 // BO/CEO/etc. doesn't have to redraw on the trackpad every single time.
 // `url` points into the existing "signatures" Storage bucket — the actual

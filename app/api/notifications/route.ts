@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import type { NotificationRow } from "@/types/database";
 
-// Postgres "undefined_table" — thrown if supabase/migrations/019_notifications.sql
+// Postgres "undefined_table" — thrown if supabase/migrations/027_notifications.sql
 // isn't applied yet. Degrade to an empty bell rather than a broken Nav for
 // every user in the meantime (same convention as the UNDEFINED_COLUMN
 // handling elsewhere in this app for not-yet-applied migrations).

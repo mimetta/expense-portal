@@ -7,7 +7,7 @@ import { getSettingsTabPermissions } from "@/lib/settings-permissions";
 import { ROLES, type Role } from "@/lib/constants";
 
 // PostgREST's code for "this table isn't in my schema cache" — what you get
-// before supabase/migrations/016_settings_tab_permissions.sql has been
+// before supabase/migrations/024_settings_tab_permissions.sql has been
 // applied. Same code every other not-yet-applied-migration route in this
 // app checks (announcements/calendar_events/companies).
 const TABLE_NOT_FOUND = "PGRST205";
@@ -67,7 +67,7 @@ export async function PATCH(request: Request) {
     if (error) {
       if (error.code === TABLE_NOT_FOUND) {
         return NextResponse.json(
-          { error: "Migration 016_settings_tab_permissions.sql hasn't been applied yet" },
+          { error: "Migration 024_settings_tab_permissions.sql hasn't been applied yet" },
           { status: 503 },
         );
       }
