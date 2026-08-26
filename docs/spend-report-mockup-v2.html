@@ -13,6 +13,15 @@
   parts of this mockup to trust.
 
   AUTHORITATIVE — the code was changed to match this file
+    · Budget pro-rating: in the CURRENT month, the cell tint and the Used %
+      measure against monthly_budget x (days elapsed / days in month), at
+      every level including the footer. The Budget and Variance figures stay
+      on the full budget. The current-month header carries a "*" and a
+      footnote. Added to both sides together (2026-08-26); the day-weighting
+      is the same monthElapsedFraction() the KPI "% elapsed" already used.
+      NOTE this file pins TODAY_DOM = 20 for a stable illustration, so its
+      percentages differ from a live page rendered on another day — the RULE
+      is what matches, not the numbers.
     · Month-cell heat bands: <80% ok, 80–100% warn, >100% over, on
       #2E7D52 / #C99A2E / #B23A2F, with per-band tint alpha (.10 / .14 / .12)
       and the darker companion text colours #1E5537 / #7A5A0F / #8E2A21.
@@ -209,6 +218,9 @@
         <span><i class="cell-over"></i>over budget</span>
         <span class="hint">· month cells show actual, coloured by that month's budget use</span>
       </div>
+      <!-- Rendered whenever the selected period contains the current month —
+           including Month view, where the heat legend above is hidden. -->
+      <p class="hint" id="proRataNote" style="margin:0 0 12px"></p>
     </div>
     <div class="tbl-scroll"><table id="tbl"></table></div>
     <p class="hint" style="margin:8px 0 0">Click a segment to drill into category L1 → L2. Every level keeps the same month columns.</p>
@@ -279,6 +291,18 @@
 <script>
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const NOW = 7; // Aug 2026 (0-indexed)
+const TODAY_DOM = 20; // day of month, for the pro-rating illustration
+
+// BUDGET PRO-RATING (matches components/spend/format.ts#monthElapsedFraction).
+// In the current month a full month's budget would otherwise be compared
+// against a partial month's spend, so every in-progress month tints
+// favourably for reasons that have nothing to do with control. Utilisation —
+// the cell tint and the Used % — measures against the share of the budget the
+// elapsed days represent. The Budget COLUMN still shows the full figure.
+const daysIn = i => new Date(2026, i + 1, 0).getDate();
+const monthElapsed = i => i < NOW ? 1 : i > NOW ? 0 : Math.min(1, TODAY_DOM / daysIn(i));
+const budgetToDate = (n, i) => budgetOf(n, i) * monthElapsed(i);
+const budgetToDateSum = (n, ms) => ms.reduce((s, i) => s + budgetToDate(n, i), 0);
 
 // leaf: b = monthly budget, m = actual multiplier per month, a = absolute actual override, p = pending (Aug)
 const DATA = [
@@ -355,7 +379,8 @@ function monthCells(node, ms, showMonths){
     const a = actualOf(node,i), b = budgetOf(node,i);
     const future = i>NOW;
     if(future) return '<td class="mo cell-future num">—</td>';
-    const pct = b>0 ? a/b*100 : null;
+    const bToDate = b * monthElapsed(i);
+    const pct = bToDate>0 ? a/bToDate*100 : null;
     const cls = a===0 ? 'cell-none' : 'cell-'+band(pct);
     return '<td class="mo num '+cls+(i===NOW?' now':'')+'">'+fmtK(a)+'</td>';
   }).join('');
@@ -363,7 +388,10 @@ function monthCells(node, ms, showMonths){
 
 function summaryCells(node, ms, cols){
   const B = sum(node,budgetOf,ms), A = sum(node,actualOf,ms), P = sum(node,pendingOf,ms);
-  const pct = B>0 ? A/B*100 : null;
+  // Full months elapsed + a day-weighted slice of the current one. Used only
+  // for the Used %; the Budget cell below still prints the full B.
+  const Btd = budgetToDateSum(node, ms);
+  const pct = Btd>0 ? A/Btd*100 : null;
   let out = '';
   cols.forEach(c=>{
     if(c==='Budget')   out += '<td class="r sumcol num'+(B===0?' cell-none':'')+'">'+(B===0?'—':fmt(B))+'</td>';
@@ -382,13 +410,27 @@ function summaryCells(node, ms, cols){
 function render(){
   const V = VIEWS[view], ms = V.months, showMonths = view!=='month';
   document.getElementById('heatLegend').style.display = showMonths ? 'flex' : 'none';
+  const noteEl = document.getElementById('proRataNote');
+  if (ms.includes(NOW)) {
+    const share = Math.round(monthElapsed(NOW) * 100);
+    noteEl.innerHTML = '<strong>* Budget pro-rated to date.</strong> ' + MONTHS[NOW]
+      + ' is ' + share + '% elapsed, so its shading and the Used % compare spend against '
+      + share + '% of its monthly budget rather than the whole of it. The Budget and Variance '
+      + 'figures are the full period as always.';
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
+  }
   document.getElementById('tblTitle').textContent =
     showMonths ? 'Budget vs actual by segment — '+V.label()+', month by month'
                : 'Budget vs actual by segment — '+V.label();
 
   // header
   let h = '<thead><tr><th class="namecell">Segment</th>';
-  if(showMonths) ms.forEach(i=> h += '<th class="mo'+(i===NOW?' now':'')+'">'+MONTHS[i]+'</th>');
+  if(showMonths) ms.forEach(i=> h += '<th class="mo'+(i===NOW?' now':'')+'"'
+    + (i===NOW ? ' title="Budget pro-rated to date — this month is measured against '
+        + Math.round(monthElapsed(i)*100) + '% of its budget, the share of the month elapsed."' : '')
+    + '>'+MONTHS[i]+(i===NOW?'<span class="hint">*</span>':'')+'</th>');
   V.cols.forEach(c=> h += '<th class="r'+(c==='Budget'||c==='Used'?' sumcol':'')+'">'+c+'</th>');
   h += '</tr></thead>';
 

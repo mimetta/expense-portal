@@ -2,6 +2,8 @@
 
 import {
   EM_DASH,
+  budgetToDate,
+  monthElapsedFraction,
   HEAT_NEAR,
   HEAT_OVER,
   HEAT_UNDER,
@@ -64,7 +66,11 @@ function MonthCell({
     );
   }
 
-  const heat = heatFor(cell.actual, cell.budget);
+  // Utilisation measures against the budget that SHOULD have been spent by
+  // today, not the whole month's — otherwise the current month always tints
+  // favourably simply because it is not over yet. Past months are unaffected
+  // (fraction 1); future months already returned an em dash above.
+  const heat = heatFor(cell.actual, budgetToDate(cell.budget, fiscalYear, month));
   // Only the over band carries weight of its own; the footer adds its own
   // emphasis on top so the total row still reads as a total.
   const style: React.CSSProperties = heat
@@ -76,10 +82,15 @@ function MonthCell({
       }
     : { ...base, fontWeight: emphasis ? 600 : undefined };
 
+  const prorated = budgetToDate(cell.budget, fiscalYear, month);
+  const isCurrent = isCurrentMonth(fiscalYear, month);
   const title = heat
-    ? `${MONTH_NAMES[month - 1]}: ${thb(cell.actual)} of ${thb(cell.budget)} (${pct(
-        (cell.actual / cell.budget) * 100,
-      )})`
+    ? `${MONTH_NAMES[month - 1]}: ${thb(cell.actual)} of ${thb(prorated)} (${pct(
+        (cell.actual / prorated) * 100,
+      )})` +
+      (isCurrent
+        ? ` — budget pro-rated to date; full month ${thb(cell.budget)}`
+        : "")
     : `${MONTH_NAMES[month - 1]}: ${thb(cell.actual)} — no budget set`;
 
   return (
@@ -102,8 +113,27 @@ function MonthCell({
 interface MetricColumn {
   key: string;
   label: string;
-  /** `emphasis` is set for the sticky footer total row. */
-  cell: (total: SpendCell, emphasis: boolean) => React.ReactNode;
+  /**
+   * `emphasis` is set for the sticky footer total row. `budgetToDate` is the
+   * period budget pro-rated to today (full months elapsed + a day-weighted
+   * slice of the current one) — used for the Used %, never displayed as the
+   * Budget figure.
+   */
+  cell: (total: SpendCell, emphasis: boolean, budgetToDateTotal: number) => React.ReactNode;
+}
+
+/**
+ * A node's budget for the selected months, pro-rated to today. Summed from
+ * the per-month cells rather than from total.budget, because only the
+ * per-month breakdown knows which month is the current one.
+ */
+function proRatedBudget(node: SpendNode, months: number[], fiscalYear: number): number {
+  let sum = 0;
+  for (const m of months) {
+    const cell = node.byMonth[m];
+    if (cell) sum += budgetToDate(cell.budget, fiscalYear, m);
+  }
+  return sum;
 }
 
 function Money({
@@ -136,8 +166,19 @@ function Money({
  * negative variance in the over-budget red, utilisation on the same
  * <80 / 80-100 / >100 thresholds via utilisationColor().
  */
-function ActualMetric({ total, emphasis }: { total: SpendCell; emphasis: boolean }) {
-  const used = usedPct(total.actual, total.budget);
+function ActualMetric({
+  total,
+  emphasis,
+  budgetToDateTotal,
+}: {
+  total: SpendCell;
+  emphasis: boolean;
+  budgetToDateTotal: number;
+}) {
+  // Used % measures against the pro-rated budget; variance stays on the FULL
+  // budget, matching the Budget column beside it. Mixing the two bases in one
+  // line would make the pair impossible to reconcile by hand.
+  const used = usedPct(total.actual, budgetToDateTotal);
   const variance = total.budget - total.actual;
 
   return (
@@ -170,7 +211,15 @@ function ActualMetric({ total, emphasis }: { total: SpendCell; emphasis: boolean
               style={{ width: `${Math.min(100, used)}%`, background: utilisationColor(used) }}
             />
           </span>
-          <span className="tabular-nums" style={{ color: utilisationColor(used) }}>
+          <span
+            className="tabular-nums"
+            style={{ color: utilisationColor(used) }}
+            title={`${thb(total.actual)} of ${thb(budgetToDateTotal)}${
+              Math.abs(budgetToDateTotal - total.budget) >= 1
+                ? ` (budget pro-rated to date; full period ${thb(total.budget)})`
+                : ""
+            }`}
+          >
             {pct(used)}
           </span>
         </span>
@@ -188,7 +237,9 @@ const METRIC_COLUMNS: MetricColumn[] = [
   {
     key: "actual",
     label: "Actual",
-    cell: (t, emphasis) => <ActualMetric total={t} emphasis={emphasis} />,
+    cell: (t, emphasis, budgetToDateTotal) => (
+      <ActualMetric total={t} emphasis={emphasis} budgetToDateTotal={budgetToDateTotal} />
+    ),
   },
   {
     key: "pending",
@@ -270,7 +321,7 @@ function Row({
 
         {METRIC_COLUMNS.map((col) => (
           <td key={col.key} className="px-3 py-2 text-right align-top">
-            {col.cell(node.total, false)}
+            {col.cell(node.total, false, proRatedBudget(node, months, fiscalYear))}
           </td>
         ))}
       </tr>
@@ -320,6 +371,28 @@ function HeatLegend() {
         Current month
       </span>
     </div>
+  );
+}
+
+/**
+ * Shown whenever the selected period contains the current month — in Month
+ * view too, where there is no heat legend to hang it off. Someone checking
+ * the Used % by hand against the Budget column will otherwise conclude the
+ * percentage is wrong, because it is deliberately measured against a
+ * different denominator.
+ */
+function ProRataNote({ fiscalYear, months }: { fiscalYear: number; months: number[] }) {
+  const current = months.find((m) => isCurrentMonth(fiscalYear, m));
+  if (current === undefined) return null;
+  const share = pct(monthElapsedFraction(fiscalYear, current) * 100);
+  return (
+    <p className="mb-3 text-[11px] text-brand-subtle">
+      <span aria-hidden>* </span>
+      <strong className="font-medium">Budget pro-rated to date.</strong> {MONTH_NAMES[current - 1]}{" "}
+      is {share} elapsed, so its shading and the Used % compare spend against {share} of its
+      monthly budget rather than the whole of it. The Budget and Variance figures are the full
+      period as always.
+    </p>
   );
 }
 
@@ -402,6 +475,8 @@ export default function SpendTable({
         </div>
       )}
 
+      <ProRataNote fiscalYear={fiscalYear} months={months} />
+
       {/* The table scrolls horizontally in its own container; the segment
           column is position:sticky so the row label never scrolls away. The
           font is NOT reduced to make twelve month columns fit. */}
@@ -416,17 +491,28 @@ export default function SpendTable({
                 Segment
               </th>
               {showMonths &&
-                months.map((m) => (
-                  <th
-                    key={m}
-                    className="text-right"
-                    style={
-                      isCurrentMonth(fiscalYear, m) ? { background: CURRENT_MONTH_BG } : undefined
-                    }
-                  >
-                    {MONTH_NAMES[m - 1]}
-                  </th>
-                ))}
+                months.map((m) => {
+                  const current = isCurrentMonth(fiscalYear, m);
+                  return (
+                    <th
+                      key={m}
+                      className="text-right"
+                      style={current ? { background: CURRENT_MONTH_BG } : undefined}
+                      title={
+                        current
+                          ? `Budget pro-rated to date — this month's shading and Used % compare spend against ${pct(monthElapsedFraction(fiscalYear, m) * 100)} of the monthly budget, the share of the month elapsed. The Budget column still shows the full month.`
+                          : undefined
+                      }
+                    >
+                      {MONTH_NAMES[m - 1]}
+                      {current && (
+                        <span className="ml-0.5 font-normal text-brand-subtle" aria-hidden>
+                          *
+                        </span>
+                      )}
+                    </th>
+                  );
+                })}
               {METRIC_COLUMNS.map((col) => (
                 <th key={col.key} className="text-right">
                   {col.label}
@@ -474,7 +560,7 @@ export default function SpendTable({
                 ))}
               {METRIC_COLUMNS.map((col) => (
                 <td key={col.key} className="px-3 py-2 text-right align-top">
-                  {col.cell(footerNode.total, true)}
+                  {col.cell(footerNode.total, true, proRatedBudget(footerNode, months, fiscalYear))}
                 </td>
               ))}
             </tr>

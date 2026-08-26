@@ -147,20 +147,62 @@ export function isCurrentMonth(fiscalYear: number, month: number, now = new Date
   return fiscalYear === now.getFullYear() && month === now.getMonth() + 1;
 }
 
+export function daysInMonth(fiscalYear: number, month: number): number {
+  return new Date(fiscalYear, month, 0).getDate();
+}
+
+/**
+ * How much of ONE month has elapsed, 0–1: 0 for a future month, 1 for a past
+ * month, and days-so-far / days-in-month for the current one.
+ *
+ * The single source of the day-weighting used in two places — the KPI card's
+ * "% of the period elapsed" (via elapsedFraction below) and the pro-rated
+ * budget the month-cell tint and the Used % measure against. Those must agree
+ * or the pace indicator and the utilisation colour would tell different
+ * stories about the same month.
+ */
+export function monthElapsedFraction(fiscalYear: number, month: number, now = new Date()): number {
+  if (isFutureMonth(fiscalYear, month, now)) return 0;
+  if (!isCurrentMonth(fiscalYear, month, now)) return 1;
+  return Math.min(1, now.getDate() / daysInMonth(fiscalYear, month));
+}
+
+/**
+ * The slice of a month's budget that "should" have been spent by today —
+ * the full figure for an elapsed month, nothing for a future one, and a
+ * day-weighted share of the current one.
+ *
+ * Used ONLY for utilisation (the month-cell tint and the Used %). The Budget
+ * figure shown in the metric column is always the full budget: displaying a
+ * pro-rated number in a column headed "Budget" would misstate what was
+ * budgeted. Without this, on the 3rd of the month a segment spending exactly
+ * to plan reads as 10% used and tints green — a favourable colour earned by
+ * the calendar rather than by control.
+ */
+export function budgetToDate(
+  budget: number,
+  fiscalYear: number,
+  month: number,
+  now = new Date(),
+): number {
+  return budget * monthElapsedFraction(fiscalYear, month, now);
+}
+
 /**
  * How much of the selected window has actually elapsed, 0–1. Makes pace
- * legible: mid-August in a Jul–Sep view is ~61% elapsed, so 61% of budget
+ * legible: mid-August in a Jul–Sep view is ~55% elapsed, so 55% of budget
  * used is on track, not alarming.
+ *
+ * Day-weighted, so a 28-day February counts for less than a 31-day January.
  */
 export function elapsedFraction(fiscalYear: number, months: number[], now = new Date()): number {
   if (months.length === 0) return 0;
   let elapsedDays = 0;
   let totalDays = 0;
   for (const m of months) {
-    const daysInMonth = new Date(fiscalYear, m, 0).getDate();
-    totalDays += daysInMonth;
-    if (isFutureMonth(fiscalYear, m, now)) continue;
-    elapsedDays += isCurrentMonth(fiscalYear, m, now) ? now.getDate() : daysInMonth;
+    const dim = daysInMonth(fiscalYear, m);
+    totalDays += dim;
+    elapsedDays += dim * monthElapsedFraction(fiscalYear, m, now);
   }
   return totalDays === 0 ? 0 : Math.min(1, elapsedDays / totalDays);
 }

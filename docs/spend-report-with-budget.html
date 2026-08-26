@@ -1,4 +1,39 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  ILLUSTRATION — NOT A SPECIFICATION
+  ============================================================================
+
+  This page shows what /reports/spend looks like once budget data exists. It
+  is a picture of the destination, produced to make the populated state
+  discussable before the budget import has run.
+
+  It is NOT authoritative for anything.
+
+    · docs/spend-report-mockup-v2.html is the authoritative visual spec.
+      Where this file and that one disagree, that one wins. If you are about
+      to change the page's layout, columns, colours or interaction, read that
+      file, not this one.
+
+    · The per-line figures here are INVENTED. No budget of any kind existed in
+      the database when this was written — the `budgets` table was empty — so
+      every budget number, and therefore every variance and Used %, is
+      fabricated to demonstrate the visual states (under, near, over,
+      unbudgeted).
+
+    · Only the TOTALS are anchored to reality. The actual-spend totals are
+      taken from the reconciled figures verified against the live database
+      (FY2026, approved basis: ONEST ThB 4,782,365.77, SV ThB 4,615,815.19,
+      All ThB 9,398,180.96). Individual segment and category actuals are
+      plausible but not literal.
+
+  So: trust the SHAPE, and the grand totals. Do not trust any individual
+  budget figure, variance, or percentage on this page, and do not use it to
+  reconcile anything.
+
+  See docs/categories-reconciliation.md for how the real spend figures were
+  arrived at, and supabase/migrations/016-023 for the data work behind them.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
