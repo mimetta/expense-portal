@@ -24,22 +24,7 @@ const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "bo-approvals", href: "/bo-approvals", label: "BO Approvals" },
   { page: "ceo-approvals", href: "/ceo-approvals", label: "CEO Approvals" },
   { page: "accounting", href: "/accounting", label: "Accounting" },
-  // "budget" is deliberately absent. app/budget/, lib/budget/,
-  // components/budget/ and app/api/budget/ are all UNCOMMITTED — they depend
-  // on supabase/pending/015_budget_cashflow.sql, which is parked and not
-  // applied (see that directory's README). With the route absent from the
-  // deployed tree, a nav entry here would 404; if the code were committed
-  // without 015 it would instead render a P&L of all zeros, because
-  // lib/budget/data.ts never checks .error and falls back to `?? []`.
-  //
-  // It is NOT enough to leave "budget" out of the access map to hide it:
-  // PAGES is derived from an exhaustive Record<Page, true> in
-  // lib/permissions.ts precisely so a page can never be silently dropped
-  // there, so access.budget is legitimately true for CEO/ACCOUNTING/
-  // DEPT_HEAD/SUPERADMIN. Omitting the LINKS entry is what hides it.
-  //
-  // Restore this line when the budget feature ships — 015 applied and the
-  // four directories committed.
+  { page: "budget", href: "/budget", label: "Budget" },
   { page: "spend-report", href: "/reports/spend", label: "Spend report" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];

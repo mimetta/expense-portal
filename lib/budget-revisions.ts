@@ -221,7 +221,7 @@ export async function createDraft(
       bu: c.bu as string,
       department: c.department as string,
       cat_l1: c.cat_l1 as string,
-      cat_l2: (c.cat_l2 as string | null) ?? null,
+      cat_l2: (c.cat_l2 as string | null) ?? "",
     }));
   if (dims.length === 0) {
     throw new ConflictError(
@@ -273,7 +273,7 @@ export async function createDraft(
       bu: d.bu,
       department: d.department,
       cat_l1: d.cat_l1,
-      cat_l2: d.cat_l2,
+      cat_l2: d.cat_l2 ?? "",
       month: m,
       amount: carried.get(lineKey({ ...d, month: m })) ?? 0,
     })),
@@ -328,7 +328,10 @@ export async function saveDraft(
       bu: l.bu,
       department: l.department,
       cat_l1: l.cat_l1,
-      cat_l2: l.cat_l2,
+      // cat_l2 is NOT NULL DEFAULT '' since migration 029 (a nullable
+      // column cannot arbitrate ON CONFLICT). Normalise here so callers may
+      // still pass null.
+      cat_l2: l.cat_l2 ?? "",
       month: l.month,
       amount: l.amount,
     }));
