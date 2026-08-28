@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { thb, EM_DASH } from "@/components/spend/format";
 import type { HistoryRow } from "@/lib/budget-editor";
@@ -65,6 +65,16 @@ export default function HistoryClient({
 
   const pendingCount = useMemo(() => rows.filter((r) => r.status === "SUBMITTED").length, [rows]);
 
+  // ?tab=pending — what the nav badge and the editor's banner link to, so the
+  // queue opens already filtered rather than as the full history. Read after
+  // mount from the History API rather than useSearchParams, which would need a
+  // Suspense boundary; same approach /settings uses for its ?tab=.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "pending") {
+      setStatus("SUBMITTED");
+    }
+  }, []);
+
   const visible = useMemo(
     () =>
       rows
@@ -109,9 +119,17 @@ export default function HistoryClient({
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mm-page-title">Budget history</h1>
+          <h1 className="mm-page-title">
+            Budget history{canApprove ? " & approval queue" : ""}
+          </h1>
           <p className="mm-page-subtitle">
             Every revision by every owner, with who submitted and who approved
+          </p>
+          <p className="mt-1 text-[12px] text-brand-muted">
+            <Link href="/budget" className="text-brand-brown underline hover:text-brand-accent">
+              ← Budget editor
+            </Link>
+            {" — enter or amend a budget."}
           </p>
         </div>
         <button className="mm-btn-secondary" onClick={exportCsv} disabled={visible.length === 0}>
@@ -127,7 +145,16 @@ export default function HistoryClient({
           <strong>
             {pendingCount} budget revision{pendingCount === 1 ? "" : "s"} waiting for your approval
           </strong>{" "}
-          — listed first below. There is no separate approvals page for budget; this is the queue.
+          — highlighted and listed first below, each with a <strong>Review</strong> button. There is
+          no separate approvals page for budget; this is the queue.
+          {status === "SUBMITTED" && (
+            <>
+              {" "}
+              <button onClick={() => setStatus("")} className="underline">
+                Show all revisions
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -179,8 +206,18 @@ export default function HistoryClient({
               {visible.map((r) => {
                 const pill = PILL[r.status] ?? PILL.DRAFT;
                 const w = when(r);
+                // Waiting on this viewer: tinted amber with a left accent, so
+                // the queue is findable by eye and not only by reading pills.
+                const awaitingMe = canApprove && r.status === "SUBMITTED";
                 return (
-                  <tr key={r.id}>
+                  <tr
+                    key={r.id}
+                    style={
+                      awaitingMe
+                        ? { background: "#FFFBEB", boxShadow: "inset 3px 0 0 #BD5A2E" }
+                        : undefined
+                    }
+                  >
                     <td className="whitespace-nowrap px-3 py-2 text-[13px] text-brand-muted">
                       {w ? new Date(w).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : EM_DASH}
                     </td>
@@ -224,9 +261,21 @@ export default function HistoryClient({
                     <td className="px-3 py-2 text-right tabular-nums text-brand-dark">{thb(r.fy_total)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right">
                       {canOpenDetail ? (
-                        <Link href={`/budget/review/${r.id}`} className="text-[13px] text-brand-brown underline hover:text-brand-accent">
-                          {r.status === "SUBMITTED" ? "Review" : "View"}
-                        </Link>
+                        awaitingMe ? (
+                          // A real button, not a text link: this is the action
+                          // the badge in the nav is counting.
+                          <Link
+                            href={`/budget/review/${r.id}`}
+                            className="inline-block whitespace-nowrap rounded-[6px] px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
+                            style={{ background: "#BD5A2E" }}
+                          >
+                            Review →
+                          </Link>
+                        ) : (
+                          <Link href={`/budget/review/${r.id}`} className="text-[13px] text-brand-brown underline hover:text-brand-accent">
+                            {r.status === "SUBMITTED" ? "Review" : "View"}
+                          </Link>
+                        )
                       ) : (
                         <span className="text-[11px] text-brand-subtle" title="Cell-level figures are visible to the owner and CEO only">
                           summary only

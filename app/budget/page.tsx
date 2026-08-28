@@ -5,6 +5,7 @@ import {
   viewerHasBudgetScope,
   listBudgetOwnerOptions,
   listAdminContacts,
+  pendingBudgetApprovals,
 } from "@/lib/budget-editor";
 import BudgetEditorClient from "./budgetClient";
 
@@ -26,9 +27,11 @@ export default async function BudgetPage() {
   // budget owner" is the wrong answer for them — they pick an owner instead
   // and act on that owner's behalf.
   const isAdmin = isSuperadmin(user);
-  const [owners, adminContacts] = await Promise.all([
+  const canReview = isAdmin || hasRole(user, "CEO");
+  const [owners, adminContacts, pendingApprovals] = await Promise.all([
     isAdmin ? listBudgetOwnerOptions() : Promise.resolve([]),
     isAdmin || hasScope ? Promise.resolve([]) : listAdminContacts(),
+    pendingBudgetApprovals(user),
   ]);
 
   return (
@@ -40,7 +43,8 @@ export default async function BudgetPage() {
       isAdmin={isAdmin}
       owners={owners}
       adminContacts={adminContacts}
-      canReview={isAdmin || hasRole(user, "CEO")}
+      canReview={canReview}
+      pendingApprovals={pendingApprovals}
     />
   );
 }

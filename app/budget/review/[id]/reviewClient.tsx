@@ -73,6 +73,17 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          {/* Breadcrumb: this page used to be reachable only by pasting a
+              UUID, so it says where it sits and how to get back. */}
+          <p className="mb-1 text-[12px] text-brand-muted">
+            <Link href="/budget/history" className="text-brand-brown underline hover:text-brand-accent">
+              Budget history
+            </Link>
+            {" / "}
+            <Link href="/budget" className="text-brand-brown underline hover:text-brand-accent">
+              Budget editor
+            </Link>
+          </p>
           <h1 className="mm-page-title">Budget revision · {rev.owner_email}</h1>
           <p className="mm-page-subtitle">
             FY{rev.fiscal_year} · revision {rev.revision_no} · {data.rows.length} lines across{" "}

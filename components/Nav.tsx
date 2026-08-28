@@ -18,7 +18,11 @@ interface RoleMeResponse {
 // "dashboard" deliberately omitted — the homepage (/) now serves as the
 // dashboard; the /dashboard route itself still exists (redirects to /) in
 // case anything still links there directly. See CLAUDE.md "Homepage".
-const LINKS: { page: Page; href: string; label: string }[] = [
+// badgeHref: where the COUNT goes, when it differs from where the label goes.
+// Budget's badge counts revisions awaiting approval, which live on
+// /budget/history — sending it to /budget (the editor) would show a number and
+// then hide what it counts.
+const LINKS: { page: Page; href: string; label: string; badgeHref?: string }[] = [
   { page: "submit", href: "/submit", label: "Submit" },
   { page: "my", href: "/my", label: "My Requests" },
   { page: "petty-cash", href: "/petty-cash", label: "Petty Cash" },
@@ -26,7 +30,7 @@ const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "bo-approvals", href: "/bo-approvals", label: "BO Approvals" },
   { page: "ceo-approvals", href: "/ceo-approvals", label: "CEO Approvals" },
   { page: "accounting", href: "/accounting", label: "Accounting" },
-  { page: "budget", href: "/budget", label: "Budget" },
+  { page: "budget", href: "/budget", label: "Budget", badgeHref: "/budget/history?tab=pending" },
   { page: "spend-report", href: "/reports/spend", label: "Spend report" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];
@@ -85,26 +89,39 @@ export default function Nav() {
             {LINKS.filter((link) => data.access?.[link.page]).map((link) => {
               const active = pathname.startsWith(link.href);
               const badge = data.badges?.[link.page] ?? 0;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`flex h-full shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 text-sm transition ${
-                    active
-                      ? "border-brand-brown font-medium text-brand-brown"
-                      : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
-                  }`}
-                >
-                  {link.label}
-                  {badge > 0 && (
-                    <span
-                      title={`${badge} waiting for your approval`}
-                      className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white"
-                      style={{ background: "#BD5A2E" }}
+              const labelClass = `flex h-full shrink-0 items-center whitespace-nowrap border-b-2 text-sm transition ${
+                active
+                  ? "border-brand-brown font-medium text-brand-brown"
+                  : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
+              }`;
+              // The badge is a SIBLING link, not nested inside the label's —
+              // an <a> inside an <a> is invalid HTML and the inner one would
+              // not reliably receive the click. Both sit in one flex cell so
+              // they still read as a single nav item.
+              if (badge > 0 && link.badgeHref) {
+                return (
+                  <span key={link.href} className="flex h-full shrink-0 items-center">
+                    <Link href={link.href} className={`${labelClass} pl-2.5 pr-1.5`}>
+                      {link.label}
+                    </Link>
+                    <Link
+                      href={link.badgeHref}
+                      title={`${badge} budget revision${badge === 1 ? "" : "s"} waiting for your approval — open the queue`}
+                      className={`${labelClass} pr-2.5`}
                     >
-                      {badge > 99 ? "99+" : badge}
-                    </span>
-                  )}
+                      <span
+                        className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white transition-opacity hover:opacity-80"
+                        style={{ background: "#BD5A2E" }}
+                      >
+                        {badge > 99 ? "99+" : badge}
+                      </span>
+                    </Link>
+                  </span>
+                );
+              }
+              return (
+                <Link key={link.href} href={link.href} className={`${labelClass} px-2.5`}>
+                  {link.label}
                 </Link>
               );
             })}

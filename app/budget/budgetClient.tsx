@@ -17,6 +17,48 @@ interface Props {
   /** Who a scopeless reader should contact — empty unless that is the case. */
   adminContacts: string[];
   canReview: boolean;
+  /** Revisions waiting on this viewer. 0 for anyone who cannot approve. */
+  pendingApprovals: number;
+}
+
+/**
+ * The one link every budget page carries to the other two. Before this, the
+ * only route to a submitted revision was typing its UUID.
+ */
+function BudgetNavLinks({ canReview }: { canReview: boolean }) {
+  return (
+    <p className="text-[12px] text-brand-muted">
+      <Link href="/budget/history" className="text-brand-brown underline hover:text-brand-accent">
+        {canReview ? "Budget history & approval queue" : "Budget history"}
+      </Link>
+      {" — every revision by every owner, with who submitted and who approved."}
+    </p>
+  );
+}
+
+/** Banner on the editor pointing an approver at the queue. */
+function PendingApprovalBanner({ count }: { count: number }) {
+  if (count < 1) return null;
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] px-4 py-3 text-[13px]"
+      style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+    >
+      <span>
+        <strong>
+          {count} budget revision{count === 1 ? "" : "s"} waiting for your approval.
+        </strong>{" "}
+        This page is the editor — approvals happen in the history queue.
+      </span>
+      <Link
+        href="/budget/history?tab=pending"
+        className="shrink-0 rounded-[6px] px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
+        style={{ background: "#BD5A2E" }}
+      >
+        Review {count === 1 ? "it" : "them"} →
+      </Link>
+    </div>
+  );
 }
 
 type SaveState =
@@ -46,6 +88,7 @@ export default function BudgetEditorClient({
   owners,
   adminContacts,
   canReview,
+  pendingApprovals,
 }: Props) {
   const [data, setData] = useState<EditorData | null>(null);
   const [rows, setRows] = useState<EditorRow[]>([]);
@@ -256,18 +299,23 @@ export default function BudgetEditorClient({
   // --- empty / error states -------------------------------------------------
   // An admin is never sent down these branches: they hold no BO row of their
   // own, but that is not the same as having nothing to do here.
+  // A CEO typically lands here from the nav and owns no budget themselves —
+  // for them this page is a signpost to the queue, not a dead end.
   if (!isOwner && !isAdmin) {
     return (
-      <div className="mm-card">
-        <h1 className="mm-page-title">Budget</h1>
-        <p className="mt-2 text-[13px] text-brand-muted">
-          Only a budget owner can enter a budget. You can still review{" "}
-          <Link href="/budget/history" className="text-brand-brown underline">
-            budget history
-          </Link>
-          {canReview ? " and approve submitted revisions." : "."}
-        </p>
-        <ContactLine contacts={adminContacts} />
+      <div className="space-y-3">
+        <PendingApprovalBanner count={pendingApprovals} />
+        <div className="mm-card">
+          <h1 className="mm-page-title">Budget</h1>
+          <p className="mt-2 text-[13px] text-brand-muted">
+            Only a budget owner can enter a budget
+            {canReview ? ", but approving them is yours" : ""}.
+          </p>
+          <div className="mt-3">
+            <BudgetNavLinks canReview={canReview} />
+          </div>
+          <ContactLine contacts={adminContacts} />
+        </div>
       </div>
     );
   }
@@ -281,6 +329,9 @@ export default function BudgetEditorClient({
           only an admin can reach. Once it is set, your lines appear here.
         </p>
         <ContactLine contacts={adminContacts} />
+        <div className="mt-3">
+          <BudgetNavLinks canReview={canReview} />
+        </div>
       </div>
     );
   }
@@ -296,6 +347,8 @@ export default function BudgetEditorClient({
 
   return (
     <div className="space-y-3">
+      <PendingApprovalBanner count={pendingApprovals} />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="mm-page-title">{title}</h1>
@@ -304,6 +357,9 @@ export default function BudgetEditorClient({
             {data?.revision ? ` · revision ${data.revision.revision_no}` : ""}
             {data ? ` · ${data.scope.lineCount} lines across ${data.scope.departments.length} segment${data.scope.departments.length === 1 ? "" : "s"}` : ""}
           </p>
+          <div className="mt-1">
+            <BudgetNavLinks canReview={canReview} />
+          </div>
         </div>
         {/* No owner chosen yet means nothing to save or submit — an admin
             should not see live-looking controls over an empty page. */}
