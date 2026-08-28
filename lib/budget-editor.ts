@@ -3,6 +3,7 @@ import { ForbiddenError } from "@/lib/auth";
 import { hasRole, isSuperadmin } from "@/lib/permissions";
 import {
   MONTHS,
+  fetchAllRows,
   getRevision,
   listRevisions,
   type BudgetLine,
@@ -107,12 +108,14 @@ export async function getEditorData(
     (l) => Number(l.amount),
   );
 
-  const { data: cur, error: curErr } = await admin
-    .from("v_budget_current")
-    .select("bu, department, cat_l1, cat_l2, month, amount")
-    .eq("fiscal_year", revision.fiscal_year);
-  if (curErr) throw curErr;
-  const approved = foldMonths((cur ?? []) as never, (r: never) => Number((r as { amount: number }).amount));
+  const cur = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    admin
+      .from("v_budget_current")
+      .select("bu, department, cat_l1, cat_l2, month, amount")
+      .eq("fiscal_year", revision.fiscal_year)
+      .range(from, to),
+  );
+  const approved = foldMonths(cur as never, (r: never) => Number((r as { amount: number }).amount));
 
   const priorFiscalYear = revision.fiscal_year - 1;
   const prior = await priorYearActuals(priorFiscalYear);
@@ -204,6 +207,75 @@ export async function findDraft(
   return (data as BudgetRevision) ?? null;
 }
 
+export interface BudgetOwnerOption {
+  email: string;
+  /** Human scope summary, e.g. "Marketing, R&D · ค่าโฆษณา · both BUs". */
+  summary: string;
+  /** How many BO rows this owner holds — several rows are OR-ed. */
+  rowCount: number;
+}
+
+const scopeTokens = (raw: unknown): string[] =>
+  String(raw ?? "*")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+function summariseScope(rows: { bu_scope: unknown; dept_scope: unknown; cat_l1_scope: unknown }[]): string {
+  const collect = (pick: (r: (typeof rows)[number]) => unknown, all: string) => {
+    const vals = new Set<string>();
+    for (const r of rows) {
+      for (const t of scopeTokens(pick(r))) {
+        if (t === "*") return all;
+        vals.add(t);
+      }
+    }
+    return vals.size === 0 ? all : Array.from(vals).sort().join(", ");
+  };
+  return [
+    collect((r) => r.dept_scope, "all segments"),
+    collect((r) => r.cat_l1_scope, "all categories"),
+    collect((r) => r.bu_scope, "both BUs"),
+  ].join(" · ");
+}
+
+/**
+ * Every distinct BO owner, with a readable scope summary — the SUPERADMIN
+ * owner selector on /budget. Summarised from the raw scope columns rather than
+ * by expanding against `categories`, so an owner whose scope currently matches
+ * no category still appears (and then fails loudly at createDraft) instead of
+ * silently vanishing from the list.
+ */
+export async function listBudgetOwnerOptions(): Promise<BudgetOwnerOption[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("roles")
+    .select("email, bu_scope, dept_scope, cat_l1_scope")
+    .eq("role", "BO");
+  if (error) throw error;
+
+  const byEmail = new Map<string, { bu_scope: unknown; dept_scope: unknown; cat_l1_scope: unknown }[]>();
+  for (const r of data ?? []) {
+    const e = r.email as string;
+    byEmail.set(e, [...(byEmail.get(e) ?? []), r]);
+  }
+  return Array.from(byEmail.entries())
+    .map(([email, rows]) => ({ email, summary: summariseScope(rows), rowCount: rows.length }))
+    .sort((a, b) => a.email.localeCompare(b.email));
+}
+
+/**
+ * Who a scopeless reader should actually contact. Read live rather than
+ * hardcoded — an empty state that names a person who has left is worse than
+ * one that names none.
+ */
+export async function listAdminContacts(): Promise<string[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("roles").select("email").eq("role", "SUPERADMIN");
+  if (error) throw error;
+  return Array.from(new Set((data ?? []).map((r) => r.email as string))).sort();
+}
+
 /** Does this viewer hold any BO scope covering at least one category line? */
 export async function viewerHasBudgetScope(viewer: CurrentUser): Promise<boolean> {
   const admin = createAdminClient();
@@ -240,13 +312,25 @@ export async function listHistory(
   const admin = createAdminClient();
   const ids = filtered.map((r) => r.id);
   const lines: BudgetLine[] = [];
-  for (let i = 0; i < ids.length; i += 50) {
-    const { data, error } = await admin
-      .from("budget_lines")
-      .select("revision_id, bu, department, cat_l1, cat_l2, month, amount")
-      .in("revision_id", ids.slice(i, i + 50));
-    if (error) throw error;
-    lines.push(...((data ?? []) as BudgetLine[]));
+  // Chunked by revision AND paged within each chunk: one revision alone is
+  // 1200 rows for a 100-line owner, well past PostgREST's 1000-row cap, which
+  // silently truncated the FY total and department list before this.
+  for (let i = 0; i < ids.length; i += 10) {
+    const slice = ids.slice(i, i + 10);
+    lines.push(
+      ...(await fetchAllRows<BudgetLine>((from, to) =>
+        admin
+          .from("budget_lines")
+          .select("revision_id, bu, department, cat_l1, cat_l2, month, amount")
+          .in("revision_id", slice)
+          .order("revision_id")
+          .order("bu")
+          .order("department")
+          .order("cat_l1")
+          .order("month")
+          .range(from, to),
+      )),
+    );
   }
 
   const byRev = new Map<string, BudgetLine[]>();

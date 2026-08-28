@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessPage, hasRole, isSuperadmin } from "@/lib/permissions";
-import { viewerHasBudgetScope } from "@/lib/budget-editor";
+import {
+  viewerHasBudgetScope,
+  listBudgetOwnerOptions,
+  listAdminContacts,
+} from "@/lib/budget-editor";
 import BudgetEditorClient from "./budgetClient";
 
 // The BO's own draft editor for the current fiscal year.
@@ -18,13 +22,25 @@ export default async function BudgetPage() {
   const isOwner = hasRole(user, "BO");
   const hasScope = isOwner ? await viewerHasBudgetScope(user) : false;
 
+  // A SUPERADMIN typically holds no BO row of their own, so "you are not a
+  // budget owner" is the wrong answer for them — they pick an owner instead
+  // and act on that owner's behalf.
+  const isAdmin = isSuperadmin(user);
+  const [owners, adminContacts] = await Promise.all([
+    isAdmin ? listBudgetOwnerOptions() : Promise.resolve([]),
+    isAdmin || hasScope ? Promise.resolve([]) : listAdminContacts(),
+  ]);
+
   return (
     <BudgetEditorClient
       fiscalYear={new Date().getFullYear()}
       viewerEmail={user.email}
       isOwner={isOwner}
       hasScope={hasScope}
-      canReview={isSuperadmin(user) || hasRole(user, "CEO")}
+      isAdmin={isAdmin}
+      owners={owners}
+      adminContacts={adminContacts}
+      canReview={isAdmin || hasRole(user, "CEO")}
     />
   );
 }

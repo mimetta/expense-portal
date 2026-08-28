@@ -159,7 +159,19 @@ export default function HistoryClient({ rows, owners, viewerEmail, canOpenDetail
                         <span className="ml-1 text-[11px] text-brand-subtle">(you)</span>
                       )}
                     </td>
-                    <td className="max-w-[460px] px-3 py-2 text-[13px] text-brand-muted">{describe(r)}</td>
+                    <td className="max-w-[460px] px-3 py-2 text-[13px] text-brand-muted">
+                      {describe(r)}
+                      {/* An admin may raise a revision for an owner. The owner
+                          column shows whose budget it is; this says who acted. */}
+                      {r.created_by && r.created_by !== r.owner_email && (
+                        <div className="mt-0.5 text-[12px] text-brand-subtle">
+                          Created by {r.created_by} on behalf of {r.owner_email}
+                          {r.submitted_by && r.submitted_by !== r.owner_email
+                            ? `, submitted by ${r.submitted_by}`
+                            : ""}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ background: pill.bg, color: pill.fg }}>
                         {pill.label}

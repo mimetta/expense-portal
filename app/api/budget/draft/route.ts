@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { handleApiError } from "@/lib/api-helpers";
+import { isSuperadmin } from "@/lib/permissions";
 import { createDraft, saveDraft, type BudgetLine } from "@/lib/budget-revisions";
 import { getEditorData, findDraft } from "@/lib/budget-editor";
 
@@ -13,6 +14,15 @@ export async function POST(req: NextRequest) {
     const year = Number(body.fiscalYear);
     if (!Number.isInteger(year)) {
       return NextResponse.json({ error: "fiscalYear is required" }, { status: 400 });
+    }
+
+    // createDraft asserts this too, but findDraft below runs first and would
+    // otherwise hand another owner's draft row to any caller who named them.
+    if (owner !== user.email && !isSuperadmin(user)) {
+      return NextResponse.json(
+        { error: "Only an admin can open a budget draft on another owner's behalf." },
+        { status: 403 },
+      );
     }
 
     // one_draft_per_owner makes a second draft a unique violation; returning

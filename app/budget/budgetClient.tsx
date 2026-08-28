@@ -4,13 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import BudgetGrid from "@/components/budget/BudgetGrid";
 import { thb } from "@/components/spend/format";
-import type { EditorData, EditorRow } from "@/lib/budget-editor";
+import type { BudgetOwnerOption, EditorData, EditorRow } from "@/lib/budget-editor";
 
 interface Props {
   fiscalYear: number;
   viewerEmail: string;
   isOwner: boolean;
   hasScope: boolean;
+  /** SUPERADMIN: picks an owner and acts on their behalf. */
+  isAdmin: boolean;
+  owners: BudgetOwnerOption[];
+  /** Who a scopeless reader should contact — empty unless that is the case. */
+  adminContacts: string[];
   canReview: boolean;
 }
 
@@ -30,29 +35,55 @@ const STATUS_PILL: Record<string, { bg: string; fg: string; label: string }> = {
 };
 
 const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
+const shortName = (email: string) => email.replace("@mimetta.co", "");
 
-export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, hasScope, canReview }: Props) {
+export default function BudgetEditorClient({
+  fiscalYear,
+  viewerEmail,
+  isOwner,
+  hasScope,
+  isAdmin,
+  owners,
+  adminContacts,
+  canReview,
+}: Props) {
   const [data, setData] = useState<EditorData | null>(null);
   const [rows, setRows] = useState<EditorRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Only "loading" if something is actually going to load — an admin who has
+  // not chosen an owner yet is idle, not waiting.
+  const [loading, setLoading] = useState(() => (isAdmin ? hasScope : isOwner && hasScope));
   const [error, setError] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const [deptFilter, setDeptFilter] = useState<string>("");
   const [buFilter, setBuFilter] = useState<string>("");
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [busy, setBusy] = useState(false);
+  // SUPERADMIN only. Defaults to themselves if they happen to hold BO scope,
+  // otherwise nothing is loaded until an owner is chosen — an admin should
+  // never arrive at a populated grid without having said whose it is.
+  const [selectedOwner, setSelectedOwner] = useState(() => (isAdmin && hasScope ? viewerEmail : ""));
 
   const dirtyRef = useRef<Map<string, EditorRow>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
+  const ownerEmail = isAdmin ? selectedOwner : viewerEmail;
+  const onBehalf = !!ownerEmail && ownerEmail !== viewerEmail;
+
+  const load = useCallback(async (owner: string) => {
     setLoading(true);
     setError(null);
+    // Switching owners must not carry the previous owner's unsaved cells into
+    // the next revision — they would be written against the wrong owner.
+    if (timerRef.current) clearTimeout(timerRef.current);
+    dirtyRef.current = new Map();
+    setSave({ kind: "idle" });
+    setData(null);
+    setRows([]);
     try {
       const created = await fetch("/api/budget/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fiscalYear }),
+        body: JSON.stringify({ fiscalYear, ownerEmail: owner }),
       });
       const body = await created.json();
       if (!created.ok) throw new Error(body.error || "Could not open your draft");
@@ -69,9 +100,15 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
   }, [fiscalYear]);
 
   useEffect(() => {
-    if (isOwner && hasScope) void load();
-    else setLoading(false);
-  }, [isOwner, hasScope, load]);
+    if (isAdmin) {
+      if (selectedOwner) void load(selectedOwner);
+      else setLoading(false);
+    } else if (isOwner && hasScope) {
+      void load(viewerEmail);
+    } else {
+      setLoading(false);
+    }
+  }, [isAdmin, selectedOwner, isOwner, hasScope, viewerEmail, load]);
 
   // --- autosave -------------------------------------------------------------
   // Debounced, and the state never claims "saved" until the write returns —
@@ -205,7 +242,7 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || "Failed");
         setConfirmSubmit(false);
-        await load();
+        await load(ownerEmail);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         setConfirmSubmit(false);
@@ -213,11 +250,13 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
         setBusy(false);
       }
     },
-    [data?.revision, flush, load],
+    [data?.revision, flush, load, ownerEmail],
   );
 
   // --- empty / error states -------------------------------------------------
-  if (!isOwner) {
+  // An admin is never sent down these branches: they hold no BO row of their
+  // own, but that is not the same as having nothing to do here.
+  if (!isOwner && !isAdmin) {
     return (
       <div className="mm-card">
         <h1 className="mm-page-title">Budget</h1>
@@ -228,38 +267,47 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
           </Link>
           {canReview ? " and approve submitted revisions." : "."}
         </p>
+        <ContactLine contacts={adminContacts} />
       </div>
     );
   }
-  if (!hasScope) {
+  if (!isAdmin && !hasScope) {
     return (
       <div className="mm-card">
         <h1 className="mm-page-title">My budget · FY{fiscalYear}</h1>
         <p className="mt-2 text-[13px] text-brand-muted">
-          You hold no budget scope yet, so there is nothing to budget. An admin assigns scope in
-          Settings &gt; User Management (a BO row with a segment and category scope). Once that is
-          set, your lines appear here.
+          You hold no budget scope yet, so there is nothing to budget. Scope is a BO row on your
+          account naming a segment and a category — set in Settings &gt; User Management, which
+          only an admin can reach. Once it is set, your lines appear here.
         </p>
+        <ContactLine contacts={adminContacts} />
       </div>
     );
   }
 
   const status = data?.revision?.status ?? "DRAFT";
   const pill = STATUS_PILL[status] ?? STATUS_PILL.DRAFT;
-  const editable = status === "DRAFT";
+  const editable = !!data?.revision && status === "DRAFT";
+  const title = !ownerEmail
+    ? `Budget · FY${fiscalYear}`
+    : onBehalf
+      ? `Editing ${shortName(ownerEmail)}'s budget · FY${fiscalYear}`
+      : `My budget · FY${fiscalYear}`;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mm-page-title">My budget · FY{fiscalYear}</h1>
+          <h1 className="mm-page-title">{title}</h1>
           <p className="mm-page-subtitle">
-            {data?.ownerEmail ?? viewerEmail}
+            {ownerEmail || "no owner selected"}
             {data?.revision ? ` · revision ${data.revision.revision_no}` : ""}
             {data ? ` · ${data.scope.lineCount} lines across ${data.scope.departments.length} segment${data.scope.departments.length === 1 ? "" : "s"}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* No owner chosen yet means nothing to save or submit — an admin
+            should not see live-looking controls over an empty page. */}
+        <div className="flex items-center gap-2" hidden={!ownerEmail}>
           <span
             className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
             style={{ background: pill.bg, color: pill.fg }}
@@ -290,13 +338,75 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
         </div>
       )}
 
+      {isAdmin && (
+        <div className="mm-card">
+          <div className="mm-section-label">Acting as</div>
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+            <label className="block">
+              <span className="mm-label mb-1 block">Budget owner</span>
+              <select
+                className="mm-input w-[420px] max-w-full"
+                value={selectedOwner}
+                onChange={(e) => setSelectedOwner(e.target.value)}
+              >
+                <option value="">Select a budget owner…</option>
+                {owners.map((o) => (
+                  <option key={o.email} value={o.email}>
+                    {o.email} — {o.summary}
+                    {o.rowCount > 1 ? ` (${o.rowCount} scope rows)` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {ownerEmail ? (
+              <p className="text-[12px] text-brand-muted">
+                You are editing{" "}
+                <strong className="text-brand-dark">
+                  {onBehalf ? `${shortName(ownerEmail)}'s budget` : "your own budget"}
+                </strong>
+                . {owners.find((o) => o.email === ownerEmail)?.summary ?? ""}
+              </p>
+            ) : (
+              <p className="text-[12px] text-brand-muted">
+                {owners.length} budget owner{owners.length === 1 ? "" : "s"}. Nothing is loaded until
+                you choose one.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {onBehalf && (
+        <div
+          className="rounded-[10px] px-4 py-3 text-[13px]"
+          style={{ background: "#FDF2EE", borderLeft: "4px solid #BD5A2E", color: "#7C3A1A" }}
+        >
+          <strong>
+            You are acting on behalf of {ownerEmail}, not editing your own budget.
+          </strong>{" "}
+          Anything you save or submit here is recorded against them as the owner and against{" "}
+          <strong>{viewerEmail}</strong> as the person who did it — budget history shows both. You
+          may save and submit; you may <strong>not</strong> then approve what you submitted.
+        </div>
+      )}
+
+      {isAdmin && !ownerEmail && !loading && (
+        <div className="mm-card">
+          <p className="py-10 text-center text-[13px] text-brand-muted">
+            Choose a budget owner above to open their draft.
+          </p>
+        </div>
+      )}
+
       {data && (
         <>
           {/* Scope strip — the mockup's point: a BO must see at a glance that
               they hold ONE cat_l1 across several segments, not several whole
               segments. */}
           <div className="mm-card">
-            <div className="mm-section-label">Your scope</div>
+            <div className="mm-section-label">
+              {onBehalf ? `${shortName(ownerEmail)}'s scope` : "Your scope"}
+            </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {data.scope.catL1s.map((c) => (
                 <span
@@ -319,8 +429,9 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
               ))}
             </div>
             <p className="mt-2 text-[12px] text-brand-muted">
-              This revision covers only the lines you own — one revision spans several segments.
-              Other budget owners raise their own revisions for the rest of those segments.
+              This revision covers only the lines {onBehalf ? `${shortName(ownerEmail)} owns` : "you own"} — one
+              revision spans several segments. Other budget owners raise their own revisions for the
+              rest of those segments.
             </p>
           </div>
 
@@ -329,7 +440,9 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
               <label className="block">
                 <span className="mm-label mb-1 block">Segment (filter)</span>
                 <select className="mm-input w-[240px]" value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
-                  <option value="">All my segments ({data.scope.departments.length})</option>
+                  <option value="">
+                  {onBehalf ? "All their segments" : "All my segments"} ({data.scope.departments.length})
+                </option>
                   {data.scope.departments.map((d) => (
                     <option key={d} value={d}>{d}</option>
                   ))}
@@ -345,8 +458,9 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
                 </select>
               </label>
               <p className="text-[12px] text-brand-muted">
-                Showing {visible.length} of {rows.length} lines in your scope. These are filters over
-                your own lines — never a way to reach another owner&apos;s.
+                Showing {visible.length} of {rows.length} lines in{" "}
+                {onBehalf ? `${shortName(ownerEmail)}'s` : "your"} scope. These are filters over this
+                owner&apos;s lines — never a way to reach another owner&apos;s.
               </p>
             </div>
           </div>
@@ -391,7 +505,11 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
         </>
       )}
 
-      {loading && <p className="text-sm text-brand-muted">Loading your budget…</p>}
+      {loading && (
+        <p className="text-sm text-brand-muted">
+          Loading {onBehalf ? `${shortName(ownerEmail)}'s` : "your"} budget…
+        </p>
+      )}
 
       {confirmSubmit && data?.revision && (
         <div className="mm-modal-overlay" style={{ backdropFilter: "blur(2px)" }} onClick={() => setConfirmSubmit(false)}>
@@ -400,6 +518,15 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
               <h2 className="mm-modal-title">Submit for CEO approval</h2>
             </div>
             <div className="mm-modal-body">
+              {onBehalf && (
+                <p
+                  className="mb-3 rounded-[8px] px-3 py-2 text-[13px]"
+                  style={{ background: "#FDF2EE", color: "#7C3A1A" }}
+                >
+                  This is <strong>{ownerEmail}&apos;s</strong> budget, submitted by you. You will not
+                  be able to approve it afterwards.
+                </p>
+              )}
               <p className="text-[13px] text-brand-dark">
                 You are submitting <strong>{stats.changedFigures}</strong> changed figure
                 {stats.changedFigures === 1 ? "" : "s"} across{" "}
@@ -426,6 +553,28 @@ export default function BudgetEditorClient({ fiscalYear, viewerEmail, isOwner, h
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * A reader who cannot act on an empty state needs to know who can. The admins
+ * are read live from the roles table rather than hardcoded.
+ */
+function ContactLine({ contacts }: { contacts: string[] }) {
+  if (contacts.length === 0) return null;
+  return (
+    <p className="mt-3 text-[13px] text-brand-muted">
+      To get budget scope assigned, contact{" "}
+      {contacts.map((c, i) => (
+        <span key={c}>
+          {i > 0 ? (i === contacts.length - 1 ? " or " : ", ") : ""}
+          <a href={`mailto:${c}`} className="text-brand-brown underline hover:text-brand-accent">
+            {c}
+          </a>
+        </span>
+      ))}
+      .
+    </p>
   );
 }
 

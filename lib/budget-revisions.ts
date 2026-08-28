@@ -54,6 +54,29 @@ export type LineKey = Pick<BudgetLine, "bu" | "department" | "cat_l1" | "cat_l2"
 
 export const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
+/**
+ * PostgREST caps a response at 1000 rows and says nothing about having done
+ * so. A revision holds 12 rows per line, so any owner with more than 83 lines
+ * overflows it — wacharanan.j holds 100, and an unpaged read of that revision
+ * returns 84 lines with no error. Every budget_lines / v_budget_current read
+ * must page. (lib/spend.ts#fetchAllPages is the same guard for the same
+ * reason; this is its budget-side twin, kept here so budget code has one.)
+ */
+export async function fetchAllRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const SIZE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += SIZE) {
+    const { data, error } = await page(from, from + SIZE - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < SIZE) break;
+  }
+  return out;
+}
+
 const lineKey = (l: LineKey) =>
   `${l.bu}|${l.department}|${l.cat_l1}|${l.cat_l2 ?? ""}|${l.month}`;
 const dimKey = (l: { bu: string; department: string; cat_l1: string; cat_l2: string | null }) =>
@@ -235,13 +258,15 @@ export async function createDraft(
   );
 
   // Carry forward the currently-approved figure per line.
-  const { data: current, error: curErr } = await admin
-    .from("v_budget_current")
-    .select("bu, department, cat_l1, cat_l2, month, amount")
-    .eq("fiscal_year", fiscalYear);
-  if (curErr) throw curErr;
+  const current = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    admin
+      .from("v_budget_current")
+      .select("bu, department, cat_l1, cat_l2, month, amount")
+      .eq("fiscal_year", fiscalYear)
+      .range(from, to),
+  );
   const carried = new Map<string, number>();
-  for (const c of current ?? []) carried.set(lineKey(c as never), Number(c.amount));
+  for (const c of current) carried.set(lineKey(c as never), Number(c.amount));
 
   const { data: prior, error: priorErr } = await admin
     .from("budget_revisions")
@@ -411,14 +436,17 @@ export async function approveRevision(
   }
 
   const admin = createAdminClient();
-  const { data: lines, error: lineErr } = await admin
-    .from("budget_lines")
-    .select("bu, department, cat_l1, cat_l2, month")
-    .eq("revision_id", revisionId);
-  if (lineErr) throw lineErr;
+  const lines = await fetchAllRows<LineKey>((from, to) =>
+    admin
+      .from("budget_lines")
+      .select("bu, department, cat_l1, cat_l2, month")
+      .eq("revision_id", revisionId)
+      .range(from, to),
+  );
   // Re-checked here, not only at createDraft: a scope widened in between could
-  // have introduced an overlap since.
-  await assertNoScopeOverlap(revision.owner_email, (lines ?? []) as LineKey[]);
+  // have introduced an overlap since. Paged — an unpaged read would check only
+  // the first 84 lines of a 100-line revision.
+  await assertNoScopeOverlap(revision.owner_email, lines);
 
   const now = new Date().toISOString();
   const { data, error } = await admin
@@ -510,16 +538,18 @@ export async function getRevision(
   if (!mayRead) throw new ForbiddenError("You cannot view this budget revision.");
 
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("budget_lines")
-    .select("id, revision_id, bu, department, cat_l1, cat_l2, month, amount")
-    .eq("revision_id", revisionId)
-    .order("bu")
-    .order("department")
-    .order("cat_l1")
-    .order("month");
-  if (error) throw error;
-  return { revision, lines: (data ?? []) as BudgetLine[] };
+  const lines = await fetchAllRows<BudgetLine>((from, to) =>
+    admin
+      .from("budget_lines")
+      .select("id, revision_id, bu, department, cat_l1, cat_l2, month, amount")
+      .eq("revision_id", revisionId)
+      .order("bu")
+      .order("department")
+      .order("cat_l1")
+      .order("month")
+      .range(from, to),
+  );
+  return { revision, lines };
 }
 
 /** A BO sees only their own; CEO/ACCOUNTING/SUPERADMIN see every owner's. */

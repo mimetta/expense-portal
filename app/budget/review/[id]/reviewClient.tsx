@@ -109,6 +109,9 @@ export default function ReviewClient({ data, viewerEmail, canAct }: Props) {
           the rest of each segment belongs to other owners' revisions. */}
       <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "#DBEAFE", borderLeft: "4px solid #3B82F6", color: "#1E3A8A" }}>
         Submitted by <strong>{rev.submitted_by ?? rev.owner_email}</strong>
+        {rev.submitted_by && rev.submitted_by !== rev.owner_email ? (
+          <> on behalf of <strong>{rev.owner_email}</strong></>
+        ) : null}
         {rev.submitted_at ? ` on ${new Date(rev.submitted_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}.{" "}
         <strong>This is a partial view of each segment</strong> — it covers this owner&apos;s lines
         only. Approving publishes these {data.rows.length} lines and nothing else.
