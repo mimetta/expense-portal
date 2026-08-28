@@ -32,11 +32,18 @@ const CHANGED_BORDER = "#BD5A2E";
 // never overlap the number — it used to sit inside the cell's flex row and
 // take width away from it.
 //
-// The line column shrank 300 -> 240 to pay for this: a name truncates
-// readably (and has a title tooltip), a number does not. Total table width is
-// 1714 (1844 in CEO review), so the grid scrolls horizontally at every
-// viewport — the page content column is capped at 1280px regardless.
-const STICKY_W = 240;
+// The line column is sized from real names, not from what is left over.
+// wacharanan.j's 100 lines run to 34 characters ("Quarterly Factory Worker
+// Gathering", "IT Equipment (laptop for new hire)"), p90 28, and two rows in
+// one group can differ only in their tail — "Logistic Staff
+// (pick/pack/delivery)" vs "Stock Staff (Warehouse)" — so truncating at ~20
+// makes them indistinguishable. 340px fits the p90 outright; every name also
+// carries a title with its full dept > cat_l1 > cat_l2 path.
+//
+// This width comes from the TABLE, never from the month cells: the grid
+// already scrolls horizontally at every viewport, since the page content
+// column is capped at 1280px regardless.
+const STICKY_W = 340;
 const MONTH_W = 112;
 const TOTAL_W = 150;
 const GUTTER_W = 16;
@@ -79,6 +86,22 @@ function group(rows: EditorRow[]): Grouped[] {
   });
   return out;
 }
+
+/**
+ * A line's own name: its cat_l2, falling back to the cat_l1 when the category
+ * has no second level.
+ *
+ * `??` was wrong here. Migration 029 made budget_lines.cat_l2 NOT NULL
+ * DEFAULT '', so a category with no second level arrives as "" rather than
+ * null — and `"" ?? x` is `""`, not `x`. The fallback silently stopped firing
+ * and those rows rendered with a completely blank name: 4 of wacharanan.j's
+ * 100 lines, and 62 of the 352 rows in `categories` have a blank cat_l2.
+ */
+const lineLabel = (r: EditorRow) => (r.cat_l2?.trim() ? r.cat_l2 : r.cat_l1);
+
+/** Full path on hover — the truncated label alone can be ambiguous. */
+const lineTitle = (r: EditorRow) =>
+  [r.department, r.cat_l1, r.cat_l2?.trim() || null].filter(Boolean).join(" › ") + ` · ${r.bu}`;
 
 const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
 const parseNum = (s: string) => {
@@ -244,8 +267,8 @@ export default function BudgetGrid({
                   style={{ width: STICKY_W, minWidth: STICKY_W, background: "#FFFFFF", paddingLeft: 34 }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[13px] text-brand-dark" title={r.cat_l2 ?? r.cat_l1}>
-                      {r.cat_l2 ?? r.cat_l1}
+                    <span className="truncate text-[13px] text-brand-dark" title={lineTitle(r)}>
+                      {lineLabel(r)}
                       <span className="ml-1.5 text-[11px] text-brand-subtle">{r.bu}</span>
                     </span>
                     {!readOnly && (
