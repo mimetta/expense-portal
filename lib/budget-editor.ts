@@ -190,8 +190,18 @@ export async function coOwnersFor(
   return out.sort((a, b) => a.email.localeCompare(b.email));
 }
 
-/** The owner's live draft for a year, if any. */
-export async function findDraft(
+/**
+ * The owner's OPEN revision for a year: their draft, or — if they have
+ * submitted and are waiting on the CEO — the submitted one.
+ *
+ * The editor calls this on every load. Looking only for a DRAFT meant that
+ * the reload immediately after submitting found none and minted a fresh empty
+ * revision, which is what made every KPI card read zero the moment a budget
+ * was submitted (and quietly left an empty revision behind each time).
+ * A submitted revision is still "the thing this owner is currently working
+ * on"; it is read-only, not absent.
+ */
+export async function findOpenRevision(
   ownerEmail: string,
   fiscalYear: number,
 ): Promise<BudgetRevision | null> {
@@ -201,10 +211,14 @@ export async function findDraft(
     .select("*")
     .eq("owner_email", ownerEmail)
     .eq("fiscal_year", fiscalYear)
-    .eq("status", "DRAFT")
-    .maybeSingle();
+    .in("status", ["DRAFT", "SUBMITTED"])
+    // one_draft_per_owner and one_submitted_per_owner cap this at two rows;
+    // DRAFT sorts before SUBMITTED, and an owner editing a new draft while an
+    // older one awaits approval should land in the draft.
+    .order("status", { ascending: true })
+    .limit(1);
   if (error) throw error;
-  return (data as BudgetRevision) ?? null;
+  return ((data ?? [])[0] as BudgetRevision) ?? null;
 }
 
 export interface BudgetOwnerOption {

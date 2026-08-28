@@ -19,7 +19,27 @@ const OVER = "#B23A2F";
 const UNDER = "#2E7D52";
 const CHANGED_BG = "rgba(189, 90, 46, 0.10)";
 const CHANGED_BORDER = "#BD5A2E";
-const STICKY_W = 300;
+
+// Column widths. The number is the thing that must never clip: a realistic
+// figure here is 7 digits with separators ("1,250,000"), ~62px at 13px
+// tabular-nums. MONTH_W is built up from that, not guessed:
+//
+//   112 = 2 (cell pad-left) + 94 (input) + 16 (fill-right gutter)
+//    94 = 8 (input pad-left) + 78 (text) + 8 (input pad-right)
+//
+// leaving ~16px of slack on a 7-digit figure, and still fitting 8 digits.
+// The fill-right arrow lives in the 16px gutter OUTSIDE the input, so it can
+// never overlap the number — it used to sit inside the cell's flex row and
+// take width away from it.
+//
+// The line column shrank 300 -> 240 to pay for this: a name truncates
+// readably (and has a title tooltip), a number does not. Total table width is
+// 1714 (1844 in CEO review), so the grid scrolls horizontally at every
+// viewport — the page content column is capped at 1280px regardless.
+const STICKY_W = 240;
+const MONTH_W = 112;
+const TOTAL_W = 150;
+const GUTTER_W = 16;
 
 export interface GridProps {
   rows: EditorRow[];
@@ -78,6 +98,7 @@ export default function BudgetGrid({
   const gridRef = useRef<HTMLTableElement>(null);
   const readOnly = onChange === null;
   const grouped = useMemo(() => group(rows), [rows]);
+  const totalWidth = STICKY_W + 12 * MONTH_W + TOTAL_W + (showDelta ? TOTAL_W : 0);
 
   const focusCell = useCallback((rowIdx: number, month: number) => {
     const el = gridRef.current?.querySelector<HTMLInputElement>(
@@ -152,7 +173,23 @@ export default function BudgetGrid({
 
   return (
     <div className="mm-table-wrap overflow-x-auto">
-      <table ref={gridRef} className="mm-table" style={{ minWidth: showDelta ? 1420 : 1320 }}>
+      <table
+        ref={gridRef}
+        className="mm-table"
+        // Fixed layout + a colgroup so every month column is exactly MONTH_W
+        // in thead, tbody and tfoot alike. Under auto layout a long line name
+        // or a wide total silently steals width back from the month cells,
+        // which is how they got clipped in the first place.
+        style={{ tableLayout: "fixed", width: totalWidth, minWidth: totalWidth }}
+      >
+        <colgroup>
+          <col style={{ width: STICKY_W }} />
+          {MONTH_NAMES.map((m) => (
+            <col key={m} style={{ width: MONTH_W }} />
+          ))}
+          <col style={{ width: TOTAL_W }} />
+          {showDelta && <col style={{ width: TOTAL_W }} />}
+        </colgroup>
         <thead>
           <tr>
             <th
@@ -262,15 +299,19 @@ export default function BudgetGrid({
                     );
                   }
                   return (
-                    <td key={m} className="px-0.5 py-0.5">
-                      <div className="flex items-center gap-0.5">
+                    <td
+                      key={m}
+                      className="group relative py-0.5"
+                      style={{ paddingLeft: 2, paddingRight: GUTTER_W }}
+                    >
+                      <div>
                         <input
                           data-r={ri}
                           data-m={m}
                           className="mm-input w-full text-right tabular-nums"
                           style={{
                             height: 30,
-                            padding: "0 6px",
+                            padding: "0 8px",
                             fontSize: 13,
                             ...(changed
                               ? { background: CHANGED_BG, borderColor: CHANGED_BORDER }
@@ -287,12 +328,15 @@ export default function BudgetGrid({
                           }}
                           title={changed ? `Approved: ${thb(a)}` : undefined}
                         />
+                        {/* In the gutter to the right of the input, never over
+                            it. Hidden until the cell is hovered or focused. */}
                         <button
                           type="button"
                           tabIndex={-1}
                           onClick={() => onFillRight?.(r.key, m)}
                           title="Fill this value rightward to December"
-                          className="shrink-0 px-0.5 text-[11px] leading-none text-brand-subtle hover:text-brand-accent"
+                          className="absolute inset-y-0.5 right-0 flex items-center justify-center text-[11px] leading-none text-brand-subtle opacity-0 transition-opacity hover:text-brand-accent group-hover:opacity-100 group-focus-within:opacity-100"
+                          style={{ width: GUTTER_W }}
                         >
                           →
                         </button>
@@ -330,12 +374,16 @@ export default function BudgetGrid({
             {monthTotals.map((t, m) => (
               <td
                 key={m}
-                className="px-2 py-2 text-right font-semibold tabular-nums"
-                style={
-                  Math.round(t) !== Math.round(approvedMonthTotals[m])
+                className="py-2 text-right font-semibold tabular-nums"
+                // Same right gutter as the body cells so the footer total sits
+                // under the inputs rather than 14px to their right.
+                style={{
+                  paddingLeft: 2,
+                  paddingRight: GUTTER_W,
+                  ...(Math.round(t) !== Math.round(approvedMonthTotals[m])
                     ? { background: CHANGED_BG }
-                    : undefined
-                }
+                    : {}),
+                }}
               >
                 {t ? thb(t) : EM_DASH}
               </td>
