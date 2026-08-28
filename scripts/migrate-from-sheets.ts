@@ -113,9 +113,9 @@ const DEPARTMENT_NAME_MAP: Record<string, string> = {
   OEM: "OEM",
 };
 
-// Note scripts/import-expensedb-requests.ts deliberately keeps its OWN copy
-// of this map with corrected, unsuffixed targets — see the comment above
-// DEPARTMENT_NAME_MAP. These two are not meant to be shared.
+// The legacy ExpenseDB import script kept its own copy of this map, with
+// corrected unsuffixed targets; it was deleted 2026-08-28 once its import had
+// run. The map below was never corrected — see assertNotReconciled().
 function normalizeDepartment(dept: string | null, unmatched: Set<string>): string | null {
   if (!dept) return dept;
   const trimmed = dept.trim();
@@ -367,6 +367,106 @@ async function migrateAuditLog(): Promise<void> {
   console.log(`audit_log: ${changed} row(s) ${APPLY ? "updated" : "would be updated"} (of ${rows.length})`);
 }
 
+// ---------------------------------------------------------------------------
+// REFUSE-TO-RUN GUARD
+//
+// DEPARTMENT_NAME_MAP above encodes the naming this project used BEFORE the
+// categories reconciliation. Migrations 019-022 moved the canonical names the
+// other way, so several of the map's TARGETS are now exactly the strings those
+// migrations renamed away from:
+//
+//   020: "Store Investment"      -> "New Store Investment"
+//        "People & HR & System"  -> "People (HR)"
+//        "Marketing (MKT)"       -> "Marketing"
+//   019: "Factory"               -> "COG"
+//
+// Running --apply against a reconciled database would rename canonical values
+// back to legacy ones, which then match nothing: dept_config routing, BO
+// dept_scope and the spend report all compare department strings exactly. That
+// is the failure migration 019-022 existed to remove.
+//
+// The migration history itself is NOT readable here: supabase_migrations is
+// not one of the schemas PostgREST exposes (PGRST106, "Only the following
+// schemas are exposed: public, graphql_public"), and this script has only the
+// REST key. So applied-ness is inferred from the data instead — the presence
+// of any name that only exists AFTER those migrations ran.
+const POST_RECONCILIATION_NAMES: Record<string, string> = {
+  "New Store Investment": "020 (was 'Store Investment')",
+  "People (HR)": "020 (was 'People & HR & System')",
+  Marketing: "020 (was 'Marketing (MKT)')",
+  COG: "019 (was 'Factory')",
+};
+
+/** Every department string currently stored, and where. */
+async function currentDepartmentValues(): Promise<Map<string, Set<string>>> {
+  const found = new Map<string, Set<string>>();
+  const note = (value: unknown, where: string) => {
+    const v = String(value ?? "").trim();
+    if (!v || v === "*") return;
+    if (!found.has(v)) found.set(v, new Set());
+    found.get(v)!.add(where);
+  };
+  const { data: cats } = await admin.from("categories").select("department");
+  for (const c of cats ?? []) note(c.department, "categories.department");
+  const { data: dcs } = await admin.from("dept_config").select("dept");
+  for (const d of dcs ?? []) note(d.dept, "dept_config.dept");
+  const { data: roles } = await admin.from("roles").select("dept_scope");
+  for (const r of roles ?? [])
+    for (const t of String(r.dept_scope ?? "").split(",")) note(t, "roles.dept_scope");
+  for (let from = 0; ; from += 1000) {
+    const { data: reqs } = await admin
+      .from("requests")
+      .select("department")
+      .range(from, from + 999);
+    for (const r of reqs ?? []) note(r.department, "requests.department");
+    if ((reqs ?? []).length < 1000) break;
+  }
+  return found;
+}
+
+async function assertNotReconciled(): Promise<void> {
+  const present = await currentDepartmentValues();
+
+  const evidence = Object.keys(POST_RECONCILIATION_NAMES).filter((n) => present.has(n));
+  if (evidence.length === 0) return; // pre-reconciliation database — let it run
+
+  // Name exactly what --apply would undo, so the refusal is actionable rather
+  // than just a wall.
+  const wouldRename: string[] = [];
+  for (const [value, places] of present) {
+    const target = DEPARTMENT_NAME_MAP[value];
+    if (target && target !== value) {
+      wouldRename.push(
+        `    ${JSON.stringify(value)} -> ${JSON.stringify(target)}   [${Array.from(places).sort().join(", ")}]`,
+      );
+    }
+  }
+
+  console.error("REFUSING TO RUN — this database has already been reconciled.\n");
+  console.error("  Post-reconciliation department names found:");
+  for (const n of evidence.sort()) {
+    console.error(`    ${JSON.stringify(n)}  — introduced by migration ${POST_RECONCILIATION_NAMES[n]}`);
+  }
+  console.error(
+    "\n  DEPARTMENT_NAME_MAP in this script predates migrations 019-022 and still" +
+      "\n  targets the legacy spellings. Running it would undo them:",
+  );
+  console.error(wouldRename.length ? wouldRename.sort().join("\n") : "    (no department renames)");
+  console.error(
+    "\n  Those strings are compared exactly by dept_config routing, BO dept_scope" +
+      "\n  and the spend report, so the renamed rows would silently match nothing." +
+      "\n" +
+      "\n  Detected from the data, not from supabase_migrations — PostgREST exposes" +
+      "\n  only the public schema, so the migration history is unreadable from here." +
+      "\n" +
+      "\n  If you genuinely need the @coroand.co -> @mimetta.co email swap (the only" +
+      "\n  part of this script that is still meaningful, and already a no-op: 0 roles" +
+      "\n  rows carry the old domain), run that against the email columns directly." +
+      "\n  Do not 'fix' this by editing the map — see CLAUDE.md.",
+  );
+  process.exit(1);
+}
+
 async function main(): Promise<void> {
   console.log(
     APPLY
@@ -374,6 +474,9 @@ async function main(): Promise<void> {
       : "Running in DRY-RUN mode (default) — no changes will be written. Pass --apply to write.",
   );
   console.log(`Supabase project: ${SUPABASE_URL}`);
+  // Before anything reads or writes, including the dry run: a dry run whose
+  // report says "would rename 60 Marketing rows" reads as a to-do list.
+  await assertNotReconciled();
   console.log("");
 
   const unmatchedDept = new Set<string>();

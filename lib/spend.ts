@@ -21,7 +21,8 @@ export const SPEND_AMOUNT_FIELD = "total" as const;
 // 'created_at' selects the v_spend_by_segment_month_ts view instead, which
 // keys on requests."timestamp" — deliberately NOT requests.created_at, which
 // is the row INSERT time and is 2026-07-21 for every one of the ~825 legacy
-// rows imported by scripts/import-expensedb-requests.ts. Keying on created_at
+// rows imported by the legacy ExpenseDB import (script deleted 2026-08-28,
+// see CLAUDE.md "Legacy one-off scripts"). Keying on created_at
 // literally would pile three quarters of the history into a single month.
 export const SPEND_PERIOD_FIELD = "budget_period" as const;
 
