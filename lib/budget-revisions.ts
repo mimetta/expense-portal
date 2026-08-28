@@ -3,6 +3,11 @@ import { ForbiddenError } from "@/lib/auth";
 import { ConflictError, NotFoundError } from "@/lib/request-repo";
 import { boScopeMatchesRequest, hasRole, isSuperadmin } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import {
+  notifyBudgetApproved,
+  notifyBudgetRejected,
+  notifyBudgetSubmitted,
+} from "@/lib/budget-notify";
 import type { CurrentUser, ExpenseRequest, RoleRow } from "@/types/database";
 
 // Budget revision state machine. SERVER-SIDE ONLY — every function here holds
@@ -33,6 +38,8 @@ export interface BudgetRevision {
   approved_at: string | null;
   rejected_by: string | null;
   rejected_at: string | null;
+  /** approved_by = submitted_by. SUPERADMIN only — see migration 030. */
+  self_approved: boolean;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -207,6 +214,20 @@ async function assertNoScopeOverlap(ownerEmail: string, dims: LineKey[]): Promis
         clashes.slice(0, 5).join("\n") +
         (clashes.length > 5 ? `\n…and ${clashes.length - 5} more` : ""),
     );
+  }
+}
+
+/**
+ * A failed notification must never fail the transition that triggered it — the
+ * revision is already committed by the time these run, so throwing here would
+ * report an error for work that actually succeeded. Same posture as
+ * lib/discord.ts, which logs and returns rather than throwing.
+ */
+async function safeNotify(fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    console.error("[budget] notification failed (transition already committed):", err);
   }
 }
 
@@ -408,6 +429,22 @@ export async function submitForApproval(
     owner_email: revision.owner_email,
     revision_no: revision.revision_no,
   });
+
+  // Nothing else tells a CEO that a revision is waiting: the budget editor has
+  // no per-approver queue the way /ceo-approvals does for requests.
+  const lines = await fetchAllRows<{ amount: number; bu: string; department: string; cat_l1: string; cat_l2: string }>(
+    (from, to) =>
+      admin
+        .from("budget_lines")
+        .select("amount, bu, department, cat_l1, cat_l2")
+        .eq("revision_id", revisionId)
+        .range(from, to),
+  );
+  const fyTotal = lines.reduce((s, l) => s + Number(l.amount), 0);
+  const lineCount = new Set(lines.map((l) => dimKey(l))).size;
+  await safeNotify(() =>
+    notifyBudgetSubmitted(data as BudgetRevision, viewer.email, lineCount, fyTotal),
+  );
   return data as BudgetRevision;
 }
 
@@ -429,7 +466,12 @@ export async function approveRevision(
   if (revision.status !== "SUBMITTED") {
     throw new ConflictError(`Only a SUBMITTED revision can be approved; this one is ${revision.status}.`);
   }
-  if (revision.submitted_by && revision.submitted_by === viewer.email) {
+  // Self-approval: refused for BO and CEO, permitted for SUPERADMIN, and
+  // always recorded as such. The database can no longer tell these apart —
+  // a CHECK cannot look up roles — so this line IS the enforcement. See
+  // migration 030.
+  const selfApproved = !!revision.submitted_by && revision.submitted_by === viewer.email;
+  if (selfApproved && !isSuperadmin(viewer)) {
     throw new ForbiddenError(
       "You submitted this revision, so you cannot approve it. Another CEO must act on it.",
     );
@@ -451,7 +493,13 @@ export async function approveRevision(
   const now = new Date().toISOString();
   const { data, error } = await admin
     .from("budget_revisions")
-    .update({ status: "APPROVED", approved_by: viewer.email, approved_at: now, updated_at: now })
+    .update({
+      status: "APPROVED",
+      approved_by: viewer.email,
+      approved_at: now,
+      self_approved: selfApproved,
+      updated_at: now,
+    })
     .eq("id", revisionId)
     .eq("status", "SUBMITTED")
     .select("*")
@@ -468,12 +516,14 @@ export async function approveRevision(
     .neq("id", revisionId);
   if (supErr) throw supErr;
 
-  await logAudit(viewer.email, null, "BUDGET_APPROVED", {
+  await logAudit(viewer.email, null, selfApproved ? "BUDGET_SELF_APPROVED" : "BUDGET_APPROVED", {
     revision_id: revisionId,
     owner_email: revision.owner_email,
     revision_no: revision.revision_no,
     submitted_by: revision.submitted_by,
+    self_approved: selfApproved,
   });
+  await safeNotify(() => notifyBudgetApproved(data as BudgetRevision, viewer.email, selfApproved));
   return data as BudgetRevision;
 }
 
@@ -520,6 +570,9 @@ export async function rejectRevision(
     revision_no: revision.revision_no,
     note: note.trim(),
   });
+  // `revision`, not `data`: the update above clears submitted_by, and the
+  // person who submitted it is exactly one of the people to tell.
+  await safeNotify(() => notifyBudgetRejected(revision, viewer.email, note.trim()));
   return data as BudgetRevision;
 }
 

@@ -18,6 +18,7 @@ export default async function BudgetHistoryPage() {
       viewerEmail={user.email}
       // ACCOUNTING sees summary rows and the export, not the cell grid.
       canOpenDetail={isSuperadmin(user) || hasRole(user, "CEO") || hasRole(user, "BO")}
+      canApprove={isSuperadmin(user) || hasRole(user, "CEO")}
     />
   );
 }

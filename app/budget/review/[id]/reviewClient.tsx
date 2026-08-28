@@ -11,11 +11,13 @@ interface Props {
   data: EditorData;
   viewerEmail: string;
   canAct: boolean;
+  /** SUPERADMIN: may approve their own submission, with a warning. */
+  canSelfApprove: boolean;
 }
 
 const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
 
-export default function ReviewClient({ data, viewerEmail, canAct }: Props) {
+export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,10 +25,15 @@ export default function ReviewClient({ data, viewerEmail, canAct }: Props) {
   const [note, setNote] = useState("");
 
   const rev = data.revision!;
-  // The database constraint no_self_approval would refuse this anyway, but a
-  // 23514 surfacing as an error toast is not an explanation. The UI states the
-  // rule up front and disables the button.
   const isOwnSubmission = !!rev.submitted_by && rev.submitted_by === viewerEmail;
+  // Two different situations, deliberately shown differently:
+  //  - BO/CEO reviewing their own submission: refused in lib/budget-revisions
+  //    and by the no_unmarked_self_approval constraint. Blocked, button off,
+  //    because a 23514 toast is not an explanation.
+  //  - SUPERADMIN: permitted since migration 030, but it means nobody else
+  //    looked at it, so it gets a warning rather than silence.
+  const blockedSelfApproval = isOwnSubmission && !canSelfApprove;
+  const warnSelfApproval = isOwnSubmission && canSelfApprove;
   const actionable = canAct && rev.status === "SUBMITTED";
 
   const stats = useMemo(() => {
@@ -81,10 +88,10 @@ export default function ReviewClient({ data, viewerEmail, canAct }: Props) {
             <button
               className="mm-btn-primary"
               onClick={() => void act("approve")}
-              disabled={busy || isOwnSubmission}
-              title={isOwnSubmission ? "You submitted this revision" : undefined}
+              disabled={busy || blockedSelfApproval}
+              title={blockedSelfApproval ? "You submitted this revision" : undefined}
             >
-              {busy ? "Approving…" : "Approve revision"}
+              {busy ? "Approving…" : warnSelfApproval ? "Approve own submission" : "Approve revision"}
             </button>
           </div>
         )}
@@ -96,12 +103,21 @@ export default function ReviewClient({ data, viewerEmail, canAct }: Props) {
         </div>
       )}
 
-      {isOwnSubmission && rev.status === "SUBMITTED" && (
+      {blockedSelfApproval && rev.status === "SUBMITTED" && (
         <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B" }}>
           <strong>You cannot approve a revision you submitted.</strong> Approve is disabled and
           another CEO must act on it. This applies when one person holds both BO and CEO, and it is
           enforced in the database as well as here — a direct write would be refused by the
-          <code className="mx-1">no_self_approval</code> constraint.
+          <code className="mx-1">no_unmarked_self_approval</code> constraint.
+        </div>
+      )}
+
+      {warnSelfApproval && rev.status === "SUBMITTED" && (
+        <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}>
+          <strong>You are approving your own submission — no second review.</strong> Admins are
+          allowed to, but nobody else has looked at these figures, and approving publishes them to
+          the spend report immediately. It will be recorded as{" "}
+          <strong>self-approved by {viewerEmail}</strong> and shown that way in budget history.
         </div>
       )}
 

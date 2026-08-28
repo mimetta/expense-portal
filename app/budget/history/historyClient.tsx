@@ -11,6 +11,8 @@ interface Props {
   viewerEmail: string;
   /** ACCOUNTING gets the list and the export, but not the cell grid. */
   canOpenDetail: boolean;
+  /** CEO/SUPERADMIN: float what is waiting on them to the top. */
+  canApprove: boolean;
 }
 
 const PILL: Record<string, { bg: string; fg: string; label: string }> = {
@@ -30,7 +32,9 @@ function describe(r: HistoryRow): string {
     : "no lines";
   switch (r.status) {
     case "APPROVED":
-      return `Revision ${r.revision_no} approved by ${r.approved_by ?? "—"} — ${where}`;
+      return r.self_approved
+        ? `Revision ${r.revision_no} self-approved by ${r.approved_by ?? "—"} — ${where}`
+        : `Revision ${r.revision_no} approved by ${r.approved_by ?? "—"} — ${where}`;
     case "SUBMITTED":
       return `Revision ${r.revision_no} submitted — ${where}`;
     case "SUPERSEDED":
@@ -49,30 +53,45 @@ const csvCell = (v: string | number) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export default function HistoryClient({ rows, owners, viewerEmail, canOpenDetail }: Props) {
+export default function HistoryClient({
+  rows,
+  owners,
+  viewerEmail,
+  canOpenDetail,
+  canApprove,
+}: Props) {
   const [owner, setOwner] = useState("");
   const [status, setStatus] = useState("");
+
+  const pendingCount = useMemo(() => rows.filter((r) => r.status === "SUBMITTED").length, [rows]);
 
   const visible = useMemo(
     () =>
       rows
         .filter((r) => (!owner || r.owner_email === owner) && (!status || r.status === status))
-        .sort((a, b) => String(when(b)).localeCompare(String(when(a)))),
-    [rows, owner, status],
+        // For an approver this page IS the approval queue — there is no
+        // /budget-approvals the way there is /ceo-approvals for requests — so
+        // what is waiting on them sorts first, then recency within each block.
+        .sort(
+          (a, b) =>
+            (canApprove ? Number(b.status === "SUBMITTED") - Number(a.status === "SUBMITTED") : 0) ||
+            String(when(b)).localeCompare(String(when(a))),
+        ),
+    [rows, owner, status, canApprove],
   );
 
   const exportCsv = () => {
     const header = [
       "when", "owner", "fiscal_year", "revision_no", "status", "departments",
       "lines", "fy_total", "created_by", "submitted_by", "submitted_at",
-      "approved_by", "approved_at", "rejected_by", "rejected_at", "note",
+      "approved_by", "approved_at", "self_approved", "rejected_by", "rejected_at", "note",
     ];
     const body = visible.map((r) => [
       when(r) ?? "", r.owner_email, r.fiscal_year, r.revision_no, r.status,
       r.departments.join(" | "), r.line_count, Math.round(r.fy_total),
       r.created_by, r.submitted_by ?? "", r.submitted_at ?? "",
-      r.approved_by ?? "", r.approved_at ?? "", r.rejected_by ?? "", r.rejected_at ?? "",
-      r.note ?? "",
+      r.approved_by ?? "", r.approved_at ?? "", r.self_approved ? "yes" : "no",
+      r.rejected_by ?? "", r.rejected_at ?? "", r.note ?? "",
     ]);
     const csv = [header, ...body].map((l) => l.map(csvCell).join(",")).join("\n");
     const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
@@ -99,6 +118,18 @@ export default function HistoryClient({ rows, owners, viewerEmail, canOpenDetail
           Export audit trail
         </button>
       </div>
+
+      {canApprove && pendingCount > 0 && (
+        <div
+          className="rounded-[10px] px-4 py-3 text-[13px]"
+          style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+        >
+          <strong>
+            {pendingCount} budget revision{pendingCount === 1 ? "" : "s"} waiting for your approval
+          </strong>{" "}
+          — listed first below. There is no separate approvals page for budget; this is the queue.
+        </div>
+      )}
 
       <div className="mm-card">
         <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
@@ -173,9 +204,22 @@ export default function HistoryClient({ rows, owners, viewerEmail, canOpenDetail
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ background: pill.bg, color: pill.fg }}>
-                        {pill.label}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ background: pill.bg, color: pill.fg }}>
+                          {pill.label}
+                        </span>
+                        {/* A self-approval had no second reviewer. It must not
+                            read as an ordinary approval at a glance. */}
+                        {r.self_approved && (
+                          <span
+                            title={`Submitted and approved by ${r.approved_by} — no second review`}
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FCD34D" }}
+                          >
+                            ⚠ Self-approved
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-brand-dark">{thb(r.fy_total)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right">

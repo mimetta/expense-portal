@@ -290,6 +290,30 @@ export async function listAdminContacts(): Promise<string[]> {
   return Array.from(new Set((data ?? []).map((r) => r.email as string))).sort();
 }
 
+/**
+ * How many budget revisions are waiting on THIS viewer to approve them — the
+ * Budget nav badge. Zero for anyone who cannot approve, so the badge simply
+ * never renders for a BO.
+ *
+ * A self-submitted revision still counts: a SUPERADMIN may now approve their
+ * own, and for a CEO it is still their queue's problem even though another CEO
+ * has to act on it. Hiding it would make the count disagree with the list.
+ */
+export async function pendingBudgetApprovals(viewer: CurrentUser): Promise<number> {
+  if (!isSuperadmin(viewer) && !hasRole(viewer, "CEO")) return 0;
+  const admin = createAdminClient();
+  const { count, error } = await admin
+    .from("budget_revisions")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "SUBMITTED");
+  if (error) {
+    // The nav must not break because a count failed.
+    console.error("[budget] pending approval count failed:", error);
+    return 0;
+  }
+  return count ?? 0;
+}
+
 /** Does this viewer hold any BO scope covering at least one category line? */
 export async function viewerHasBudgetScope(viewer: CurrentUser): Promise<boolean> {
   const admin = createAdminClient();

@@ -11,6 +11,8 @@ import type { RoleRow } from "@/types/database";
 interface RoleMeResponse {
   user: { email: string; name: string; allRoles?: RoleRow[] } | null;
   access?: Record<Page, boolean>;
+  /** Per-nav-item counts of things waiting on this viewer. */
+  badges?: Partial<Record<Page, number>>;
 }
 
 // "dashboard" deliberately omitted — the homepage (/) now serves as the
@@ -82,17 +84,27 @@ export default function Nav() {
             </Link>
             {LINKS.filter((link) => data.access?.[link.page]).map((link) => {
               const active = pathname.startsWith(link.href);
+              const badge = data.badges?.[link.page] ?? 0;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex h-full shrink-0 items-center whitespace-nowrap border-b-2 px-2.5 text-sm transition ${
+                  className={`flex h-full shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 text-sm transition ${
                     active
                       ? "border-brand-brown font-medium text-brand-brown"
                       : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
                   }`}
                 >
                   {link.label}
+                  {badge > 0 && (
+                    <span
+                      title={`${badge} waiting for your approval`}
+                      className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white"
+                      style={{ background: "#BD5A2E" }}
+                    >
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}

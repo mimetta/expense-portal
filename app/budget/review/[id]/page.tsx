@@ -25,6 +25,8 @@ export default async function BudgetReviewPage({ params }: { params: Promise<{ i
       data={JSON.parse(JSON.stringify(data))}
       viewerEmail={user.email}
       canAct={isSuperadmin(user) || hasRole(user, "CEO")}
+      // Migration 030: only a SUPERADMIN may approve what they submitted.
+      canSelfApprove={isSuperadmin(user)}
     />
   );
 }

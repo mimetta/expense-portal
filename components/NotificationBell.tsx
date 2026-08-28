@@ -11,6 +11,14 @@ import type { NotificationRow } from "@/types/database";
 // a new one just for this feature.
 const POLL_MS = 30_000;
 
+// notifications.request_id is a plain TEXT identifier with no FK (migration
+// 027), so budget notifications reuse it to carry a budget_revisions id. The
+// event prefix says which kind it is — a revision id sent to /print/… would
+// just 404.
+function targetFor(n: NotificationRow): string {
+  return n.event.startsWith("BUDGET_") ? `/budget/review/${n.request_id}` : `/print/${n.request_id}`;
+}
+
 export default function NotificationBell() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -53,7 +61,7 @@ export default function NotificationBell() {
       fetch(`/api/notifications/${n.id}`, { method: "PATCH" }).catch(() => {});
     }
     setOpen(false);
-    router.push(`/print/${n.request_id}`);
+    router.push(targetFor(n));
   };
 
   const markAllRead = async () => {

@@ -1256,8 +1256,71 @@ Resolution, applied 2026-08-26:
 | `016_budgets.sql` … `023_spend_view_by_item_segment.sql` | yes | reconciliation stream, numbering untouched |
 | `024_settings_tab_permissions.sql` | yes | **was main's 016.** Renumbered to clear the collision, then `migration repair --status applied` — its objects already existed (`settings_tab_permissions`, 8 rows). DDL was NOT re-run. |
 | `025_saved_signatures.sql` | yes | **was main's 017.** Same treatment (`saved_signatures`, 3 rows already present). |
-| `026_petty_cash_signoff.sql` | **no** | was main's 018. Genuinely unapplied — `requests.petty_cash_signed_off_at` does not exist. |
-| `027_notifications.sql` | **no** | was main's 019. Genuinely unapplied — the `notifications` table does not exist. |
+| `026_petty_cash_signoff.sql` | yes | was main's 018. Unapplied when this table was written; applied since. |
+| `027_notifications.sql` | yes | was main's 019. Unapplied when this table was written; applied since — the `notifications` table is live. |
+| `028_budget_revisions.sql` … `030_budget_self_approval.sql` | yes | budget editor. |
+
+**As of 2026-08-28 `supabase migration list` reports 001-030 all applied, local and remote in
+step, and `supabase db push` works from this environment** — the "no `SUPABASE_ACCESS_TOKEN`,
+apply by hand" caveat repeated throughout this document is stale for anything numbered 016+.
+
+### Budget self-approval (migration 030)
+
+A SUPERADMIN may approve a budget revision they submitted; a BO or CEO still may not.
+
+**The CHECK constraint could not express the exception.** 028 had
+`check (approved_by is null or approved_by <> submitted_by)`. Saying "unless the approver holds
+SUPERADMIN" needs a lookup in `roles`, and a Postgres CHECK may only reference columns of the row
+being written — no subqueries, since it must be immutable. A trigger could, but this schema has
+no triggers anywhere and that would hide an authorisation decision where nobody looks.
+
+So self-approval became something a writer must **declare**, via `budget_revisions.self_approved`:
+
+```
+no_unmarked_self_approval   approved_by is null or approved_by <> submitted_by or self_approved
+self_approved_is_really_self  self_approved = false or approved_by = submitted_by
+```
+
+**Say plainly what was lost: the database can no longer prove the approver was a SUPERADMIN.**
+A direct write setting both `approved_by = submitted_by` and `self_approved = true` now succeeds
+whoever it is. That check lives only in `lib/budget-revisions.ts#approveRevision`. What the
+database still guarantees is narrower but real — an *accidental* or *unmarked* self-approval is
+refused (`23514`), and every self-approval that happens is recorded as one. Both constraints
+verified live against a synthetic row.
+
+A self-approval is surfaced, never silent: audit action `BUDGET_SELF_APPROVED` (not
+`BUDGET_APPROVED`), an amber "⚠ Self-approved" pill and "self-approved by X" wording in
+`/budget/history`, a `self_approved` column in its CSV export, an amber warning above an
+**enabled** Approve button on the review page (BO/CEO still get the red blocking banner and a
+disabled button), and a line in the Discord message.
+
+### Budget notifications
+
+Nothing told a CEO a revision was waiting — the budget editor has no per-approver queue the way
+`/ceo-approvals` does for requests. `lib/budget-notify.ts` reuses **both** existing mechanisms
+rather than adding a third: `lib/notifications.ts#notifyUsers` for the bell and
+`lib/discord.ts#postToWebhook` for the channel.
+
+- `notifyUsers`, not `notifyInApp` — `notifyInApp` recomputes recipients from an
+  `ExpenseRequest`'s status via `isBoActionable`/`isCeoActionable`/…, and a revision is not a
+  request. `notifyUsers` is already the exported seam "for callers that know who to notify"
+  (the two Edit Request routes); this is the third.
+- `notifications.request_id` is plain TEXT with no FK (per 027's own header), so it carries the
+  revision id. `NotificationBell` routes on the event prefix: `BUDGET_*` → `/budget/review/<id>`,
+  everything else → `/print/<id>`.
+- Submit notifies every CEO **and** every SUPERADMIN, minus the submitter. Approve and
+  request-changes notify the owner and whoever submitted it, minus the actor. Reject reads the
+  **pre-update** revision, since the update nulls `submitted_by`.
+- Discord goes to `DISCORD_WEBHOOK_CEO` (new export `ceoWebhookUrl()`): a revision spans several
+  departments, so there is no single department channel the way a request has one.
+- Every call is wrapped in `safeNotify` — the transition is already committed by the time these
+  run, so a failed notification must never surface as a failed approval.
+
+Nav gets a count badge on Budget, from a new `badges` field on `GET /api/roles/me` (Nav already
+calls it on mount; a second endpoint would be a second round trip on every page load). It counts
+`SUBMITTED` revisions and is 0 for anyone who cannot approve. `/budget/history` sorts `SUBMITTED`
+first for a CEO/SUPERADMIN and shows a banner naming the count — that page **is** the budget
+approval queue; there is no `/budget-approvals`.
 
 So 015, 024 and 025 sit out of numeric order in the history: they were
 applied long before 016-023 but are recorded after them. That is a faithful
