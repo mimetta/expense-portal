@@ -362,8 +362,13 @@ export default function BudgetEditorClient({
           </div>
         </div>
         {/* No owner chosen yet means nothing to save or submit — an admin
-            should not see live-looking controls over an empty page. */}
-        <div className="flex items-center gap-2" hidden={!ownerEmail}>
+            should not see live-looking controls over an empty page.
+            Conditional render, NOT the hidden attribute: Tailwind's `.flex`
+            sets display:flex at the same specificity as preflight's
+            [hidden]{display:none} and, coming later in the sheet, wins — so
+            `hidden` here did nothing and the controls showed anyway. */}
+        {ownerEmail && (
+        <div className="flex items-center gap-2">
           <span
             className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
             style={{ background: pill.bg, color: pill.fg }}
@@ -383,6 +388,7 @@ export default function BudgetEditorClient({
             Submit for CEO approval
           </button>
         </div>
+        )}
       </div>
 
       {error && (
