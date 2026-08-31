@@ -91,11 +91,15 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
     case "dashboard":
       return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING");
     case "budget":
-      // CEO/ACCOUNTING see every department; DEPT_HEAD sees the page too but
-      // gets scoped to their own dept_scope — see canViewBudgetDept below.
-      // This mirrors the dashboard rule plus the new role, same convention
-      // as every other canAccessPage case.
-      return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING") || hasRole(user, "DEPT_HEAD");
+      // The budget editor. BO enters their own revision; CEO reviews and
+      // approves; ACCOUNTING gets read-only history (summary rows, not
+      // cell-level figures — see lib/budget-editor.ts#canOpenRevisionDetail).
+      //
+      // DEPT_HEAD was dropped here when /budget became the budget editor: that
+      // grant existed for the ONEST P&L page, which is parked in
+      // parked/onest-pl/ and unreachable. canViewBudgetDept still exists for
+      // it and is unused meanwhile.
+      return hasRole(user, "BO") || hasRole(user, "CEO") || hasRole(user, "ACCOUNTING");
     // Spend vs Budget by Segment. Same finance-visibility rule as dashboard,
     // plus BO — a budget owner is exactly the person who needs to see spend
     // against budget for the segments they own. BO viewers are scoped down

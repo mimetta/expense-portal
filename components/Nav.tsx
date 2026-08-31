@@ -11,12 +11,18 @@ import type { RoleRow } from "@/types/database";
 interface RoleMeResponse {
   user: { email: string; name: string; allRoles?: RoleRow[] } | null;
   access?: Record<Page, boolean>;
+  /** Per-nav-item counts of things waiting on this viewer. */
+  badges?: Partial<Record<Page, number>>;
 }
 
 // "dashboard" deliberately omitted — the homepage (/) now serves as the
 // dashboard; the /dashboard route itself still exists (redirects to /) in
 // case anything still links there directly. See CLAUDE.md "Homepage".
-const LINKS: { page: Page; href: string; label: string }[] = [
+// badgeHref: where the COUNT goes, when it differs from where the label goes.
+// Budget's badge counts revisions awaiting approval, which live on
+// /budget/history — sending it to /budget (the editor) would show a number and
+// then hide what it counts.
+const LINKS: { page: Page; href: string; label: string; badgeHref?: string }[] = [
   { page: "submit", href: "/submit", label: "Submit" },
   { page: "my", href: "/my", label: "My Requests" },
   { page: "petty-cash", href: "/petty-cash", label: "Petty Cash" },
@@ -24,22 +30,7 @@ const LINKS: { page: Page; href: string; label: string }[] = [
   { page: "bo-approvals", href: "/bo-approvals", label: "BO Approvals" },
   { page: "ceo-approvals", href: "/ceo-approvals", label: "CEO Approvals" },
   { page: "accounting", href: "/accounting", label: "Accounting" },
-  // "budget" is deliberately absent. app/budget/, lib/budget/,
-  // components/budget/ and app/api/budget/ are all UNCOMMITTED — they depend
-  // on supabase/pending/015_budget_cashflow.sql, which is parked and not
-  // applied (see that directory's README). With the route absent from the
-  // deployed tree, a nav entry here would 404; if the code were committed
-  // without 015 it would instead render a P&L of all zeros, because
-  // lib/budget/data.ts never checks .error and falls back to `?? []`.
-  //
-  // It is NOT enough to leave "budget" out of the access map to hide it:
-  // PAGES is derived from an exhaustive Record<Page, true> in
-  // lib/permissions.ts precisely so a page can never be silently dropped
-  // there, so access.budget is legitimately true for CEO/ACCOUNTING/
-  // DEPT_HEAD/SUPERADMIN. Omitting the LINKS entry is what hides it.
-  //
-  // Restore this line when the budget feature ships — 015 applied and the
-  // four directories committed.
+  { page: "budget", href: "/budget", label: "Budget", badgeHref: "/budget/history?tab=pending" },
   { page: "spend-report", href: "/reports/spend", label: "Spend report" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];
@@ -97,16 +88,39 @@ export default function Nav() {
             </Link>
             {LINKS.filter((link) => data.access?.[link.page]).map((link) => {
               const active = pathname.startsWith(link.href);
+              const badge = data.badges?.[link.page] ?? 0;
+              const labelClass = `flex h-full shrink-0 items-center whitespace-nowrap border-b-2 text-sm transition ${
+                active
+                  ? "border-brand-brown font-medium text-brand-brown"
+                  : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
+              }`;
+              // The badge is a SIBLING link, not nested inside the label's —
+              // an <a> inside an <a> is invalid HTML and the inner one would
+              // not reliably receive the click. Both sit in one flex cell so
+              // they still read as a single nav item.
+              if (badge > 0 && link.badgeHref) {
+                return (
+                  <span key={link.href} className="flex h-full shrink-0 items-center">
+                    <Link href={link.href} className={`${labelClass} pl-2.5 pr-1.5`}>
+                      {link.label}
+                    </Link>
+                    <Link
+                      href={link.badgeHref}
+                      title={`${badge} budget revision${badge === 1 ? "" : "s"} waiting for your approval — open the queue`}
+                      className={`${labelClass} pr-2.5`}
+                    >
+                      <span
+                        className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white transition-opacity hover:opacity-80"
+                        style={{ background: "#BD5A2E" }}
+                      >
+                        {badge > 99 ? "99+" : badge}
+                      </span>
+                    </Link>
+                  </span>
+                );
+              }
               return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`flex h-full shrink-0 items-center whitespace-nowrap border-b-2 px-2.5 text-sm transition ${
-                    active
-                      ? "border-brand-brown font-medium text-brand-brown"
-                      : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
-                  }`}
-                >
+                <Link key={link.href} href={link.href} className={`${labelClass} px-2.5`}>
                   {link.label}
                 </Link>
               );

@@ -20,6 +20,13 @@ function webhookUrlFor(envName: string | undefined): string | null {
   return process.env[envName] ?? null;
 }
 
+// Exported for lib/budget-notify.ts. A budget revision spans several
+// departments and is addressed to the CEO, so it has no single department
+// channel to post to the way an expense request does.
+export function ceoWebhookUrl(): string | null {
+  return webhookUrlFor(CEO_WEBHOOK_ENV);
+}
+
 // Exported for app/api/cron/document-reminder/route.ts, which posts a
 // bespoke message shape (not one of the NotificationEvent cases below).
 //

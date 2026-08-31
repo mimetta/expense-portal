@@ -1256,8 +1256,71 @@ Resolution, applied 2026-08-26:
 | `016_budgets.sql` … `023_spend_view_by_item_segment.sql` | yes | reconciliation stream, numbering untouched |
 | `024_settings_tab_permissions.sql` | yes | **was main's 016.** Renumbered to clear the collision, then `migration repair --status applied` — its objects already existed (`settings_tab_permissions`, 8 rows). DDL was NOT re-run. |
 | `025_saved_signatures.sql` | yes | **was main's 017.** Same treatment (`saved_signatures`, 3 rows already present). |
-| `026_petty_cash_signoff.sql` | **no** | was main's 018. Genuinely unapplied — `requests.petty_cash_signed_off_at` does not exist. |
-| `027_notifications.sql` | **no** | was main's 019. Genuinely unapplied — the `notifications` table does not exist. |
+| `026_petty_cash_signoff.sql` | yes | was main's 018. Unapplied when this table was written; applied since. |
+| `027_notifications.sql` | yes | was main's 019. Unapplied when this table was written; applied since — the `notifications` table is live. |
+| `028_budget_revisions.sql` … `030_budget_self_approval.sql` | yes | budget editor. |
+
+**As of 2026-08-28 `supabase migration list` reports 001-030 all applied, local and remote in
+step, and `supabase db push` works from this environment** — the "no `SUPABASE_ACCESS_TOKEN`,
+apply by hand" caveat repeated throughout this document is stale for anything numbered 016+.
+
+### Budget self-approval (migration 030)
+
+A SUPERADMIN may approve a budget revision they submitted; a BO or CEO still may not.
+
+**The CHECK constraint could not express the exception.** 028 had
+`check (approved_by is null or approved_by <> submitted_by)`. Saying "unless the approver holds
+SUPERADMIN" needs a lookup in `roles`, and a Postgres CHECK may only reference columns of the row
+being written — no subqueries, since it must be immutable. A trigger could, but this schema has
+no triggers anywhere and that would hide an authorisation decision where nobody looks.
+
+So self-approval became something a writer must **declare**, via `budget_revisions.self_approved`:
+
+```
+no_unmarked_self_approval   approved_by is null or approved_by <> submitted_by or self_approved
+self_approved_is_really_self  self_approved = false or approved_by = submitted_by
+```
+
+**Say plainly what was lost: the database can no longer prove the approver was a SUPERADMIN.**
+A direct write setting both `approved_by = submitted_by` and `self_approved = true` now succeeds
+whoever it is. That check lives only in `lib/budget-revisions.ts#approveRevision`. What the
+database still guarantees is narrower but real — an *accidental* or *unmarked* self-approval is
+refused (`23514`), and every self-approval that happens is recorded as one. Both constraints
+verified live against a synthetic row.
+
+A self-approval is surfaced, never silent: audit action `BUDGET_SELF_APPROVED` (not
+`BUDGET_APPROVED`), an amber "⚠ Self-approved" pill and "self-approved by X" wording in
+`/budget/history`, a `self_approved` column in its CSV export, an amber warning above an
+**enabled** Approve button on the review page (BO/CEO still get the red blocking banner and a
+disabled button), and a line in the Discord message.
+
+### Budget notifications
+
+Nothing told a CEO a revision was waiting — the budget editor has no per-approver queue the way
+`/ceo-approvals` does for requests. `lib/budget-notify.ts` reuses **both** existing mechanisms
+rather than adding a third: `lib/notifications.ts#notifyUsers` for the bell and
+`lib/discord.ts#postToWebhook` for the channel.
+
+- `notifyUsers`, not `notifyInApp` — `notifyInApp` recomputes recipients from an
+  `ExpenseRequest`'s status via `isBoActionable`/`isCeoActionable`/…, and a revision is not a
+  request. `notifyUsers` is already the exported seam "for callers that know who to notify"
+  (the two Edit Request routes); this is the third.
+- `notifications.request_id` is plain TEXT with no FK (per 027's own header), so it carries the
+  revision id. `NotificationBell` routes on the event prefix: `BUDGET_*` → `/budget/review/<id>`,
+  everything else → `/print/<id>`.
+- Submit notifies every CEO **and** every SUPERADMIN, minus the submitter. Approve and
+  request-changes notify the owner and whoever submitted it, minus the actor. Reject reads the
+  **pre-update** revision, since the update nulls `submitted_by`.
+- Discord goes to `DISCORD_WEBHOOK_CEO` (new export `ceoWebhookUrl()`): a revision spans several
+  departments, so there is no single department channel the way a request has one.
+- Every call is wrapped in `safeNotify` — the transition is already committed by the time these
+  run, so a failed notification must never surface as a failed approval.
+
+Nav gets a count badge on Budget, from a new `badges` field on `GET /api/roles/me` (Nav already
+calls it on mount; a second endpoint would be a second round trip on every page load). It counts
+`SUBMITTED` revisions and is 0 for anyone who cannot approve. `/budget/history` sorts `SUBMITTED`
+first for a CEO/SUPERADMIN and shows a banner naming the count — that page **is** the budget
+approval queue; there is no `/budget-approvals`.
 
 So 015, 024 and 025 sit out of numeric order in the history: they were
 applied long before 016-023 but are recorded after them. That is a faithful
@@ -1750,82 +1813,49 @@ more departments, the exact class of bug an earlier fix already cleaned up once 
 `"Marketing (MKT)"` → `"Marketing"` (see the Category L1/L2 Management bullet under "Settings &
 Reference Data" above). The map was kept exactly as specified in the source spec rather than
 silently "corrected", since it's not certain which side is wrong (maybe `DEPARTMENTS` itself is
-supposed to change) — but it needs a decision before `--apply` is ever used. The live dry run
-also found 3 department values and 15 category values matching neither map at all (unmatched,
-left as-is); rerun the script to see the current list, since live data continues to change.
+supposed to change).
+
+**That decision was taken 2026-08-28: the script now refuses to run at all against a reconciled
+database** (`assertNotReconciled()`), rather than having its map quietly corrected — a script
+that silently does the right thing is still one nobody has a reason to run. The map is
+deliberately left as-is so the refusal message can name what it would undo.
+
+Detection is a **data probe, not the migration history**: `supabase_migrations` is not a schema
+PostgREST exposes (`PGRST106`, "Only the following schemas are exposed: public, graphql_public"),
+and a standalone script has only the REST key. So it looks for department names that exist only
+*after* migrations 019-022 — `New Store Investment`, `People (HR)`, `Marketing`, `COG` — across
+`categories.department`, `dept_config.dept`, `roles.dept_scope` and `requests.department`. If any
+is present it prints the exact renames `--apply` would perform, with the columns each affects,
+and exits 1. Verified against live data: it refuses both the dry run and `--apply`, naming three
+reversals (`Marketing` -> `Marketing (MKT)`, `New Store Investment` -> `Store Investment
+(STOREINV)`, `Factory Investment` -> `Factory Investment (FACINV)`) across all four columns.
+
+The guard fires on the dry run too, on purpose: a dry-run report reading "would rename 60
+Marketing rows" is a to-do list, not a warning. The `@coroand.co` -> `@mimetta.co` half of the
+script is already a no-op (0 rows carry the old domain), so nothing useful is being blocked.
 
 ---
 
-## Legacy requests import script
+## Legacy one-off scripts — deleted 2026-08-28
 
-`scripts/import-expensedb-requests.ts` — distinct from `migrate-from-sheets.ts` above, which
-only normalizes rows already sitting in Supabase. This is the script that actually puts the
-legacy Google Sheets "ExpenseDB - Requests" export's ~825 historical rows into the live
-`requests` table in the first place. Same conventions: plain Node script
-(`npx tsx scripts/import-expensedb-requests.ts` / `npm run import:expensedb`), **dry-run by
-default**, `--apply` to write, reads `.env.local` itself. The CSV is never committed (`*.csv` is
-gitignored) — pass `--file=/path/to/"ExpenseDB - Requests.csv"`, or drop it in the repo root
-under that exact name (the script's default).
+Four scripts existed to reconcile legacy Google Sheets naming. Three were deleted once their
+work was done, because migrations 019-023 later moved the canonical names the OTHER way and
+left every one of their rename maps pointing at strings those migrations had removed. A script
+that would silently undo an applied migration is worse than no script:
 
-No external CSV-parsing dependency exists in this repo, so the script has its own small
-RFC4180-compliant parser (quoted fields, embedded commas/newlines, `""`-escaped quotes) rather
-than adding one.
+| deleted | what it did | why it can go |
+|---|---|---|
+| `scripts/fix-category-departments.ts` | normalised `categories.department` | done — all 352 rows hold one of the 12 canonical names. Its map contained `"People (HR)" -> "People & HR & System"`, the exact reverse of migration 020 |
+| `scripts/fix-department-names-everywhere.ts` | same map applied to `requests.department` / `dept_config.dept` / `roles.dept_scope` | done — all four columns verified canonical. Header said its map was "byte-for-byte identical" to the above, so it carried the same reversal |
+| `scripts/import-expensedb-requests.ts` | one-time import of the ~825-row ExpenseDB CSV | done — the rows are live (1,036 requests, 32 still `EXPIRED`, which is what `014_reallow_expired_status.sql` exists for). Its department map targeted `"People & HR & System"`, so a re-run against a new CSV would inject legacy names |
 
-**Column mapping notes** (see the script's own header comment and inline comments for the full
-list):
-- Department/category normalization reuses `migrate-from-sheets.ts`'s legacy-name coverage, but
-  with corrected, **unsuffixed** department targets (`lib/constants.ts#DEPARTMENTS` has no
-  `"(ABBREV)"` suffix — that's display-only; see the confirmed mismatch flagged in
-  `migrate-from-sheets.ts`'s own map, deliberately not reused here).
-- `budget_period` is backfilled from `timestamp` (`YYYY-MM`) wherever the legacy sheet left it
-  blank — the column is `not null` and the legacy data frequently didn't populate it.
-- Each legacy row becomes a single-entry `items_json` array (this predates the multi-item
-  feature) built from the flat `cat_l1`/`cat_l2`/`product`/`product_code`/`description`/
-  `amount_net`/`vat_rate`/`wht_rate` columns.
-- `rejection_history` entries are remapped from the legacy shape
-  (`round`/`rejected_by`/`stage`/`reason`/`rejected_at`/`resubmitted_at`) to the current
-  `RejectionHistoryEntry` shape (`stage`/`actor_email`/`reason`/`rejected_at`). The legacy sheet
-  has **no `rejected_by` column at all** — `requests.rejected_by` is recovered from the last
-  rejection_history entry's `rejected_by` where that isn't the literal `"(unknown)"` sentinel the
-  legacy system itself recorded when it didn't know; stays `null` otherwise. Same treatment for
-  `rejected_at`/`rejected_stage` when the top-level columns are blank but the history entry has a
-  real value. The dry-run report counts how many REJECTED rows end up with no recoverable
-  actor/date — a legacy data gap, not a bug in this script.
-- `files_json` and the legacy sheet's separate `po_files_json` column are merged into the single
-  `files_json` array this schema actually has, with merged-in PO entries tagged
-  `doc_type: "PO / Purchase Order (legacy)"`.
-- Dates are parsed assuming Google Sheets' default US-locale CSV export format (`M/D/YYYY[
-  H:MM:SS]`) — the script logs a warning if any parsed month component exceeds 12 (a sign the
-  data is actually `D/M/YYYY` and this assumption is wrong; investigate before trusting parsed
-  dates if that warning appears).
-- Idempotent by `request_id`: existing rows in the live table are skipped, never overwritten —
-  safe to re-run after fixing an unmatched-value map or a failed row.
+Their `npm run` entries (`import:expensedb`, `fix:category-departments`, `fix:department-names`)
+went with them. Nothing imported any of the three — only comments referenced them, and those
+were updated. **Read them in git history if the reasoning is ever needed; do not resurrect
+them.** The `request_id_seq` advance the import performed is already reflected in the live
+sequence rows.
 
-**EXPIRED status**: 36 legacy rows' true historical status is `EXPIRED`, which
-`004_new_features.sql` had removed from the `requests_status_check` CHECK constraint (written
-when the table was still empty, on the assumption there was no historical data to reconcile
-against it). `supabase/migrations/014_reallow_expired_status.sql` re-adds it — chosen over
-remapping those rows to `REJECTED` or dropping them, to keep the imported history accurate. This
-is purely a terminal, inert historical status going forward (nothing currently produces it; the
-old auto-expiry cron is already gone) — `lib/constants.ts#STATUSES`, `lib/status.ts`
-(`STATUS_LABELS` + `isTerminal`), `components/StatusBadge.tsx` (`COLORS`), and
-`lib/resubmit.ts` (`NOTIFY_EVENT_FOR_STATUS`) were all exhaustively typed against the `Status`
-union and needed an `EXPIRED` entry each — without it, `StatusBadge` would throw destructuring
-`undefined` the first time any of these rows rendered anywhere an "All" tab shows them.
-
-**`request_id_seq` must be advanced after import.** Historical rows insert with an explicit,
-already-formatted `request_id` (preserving the exact legacy ID, per the same rule
-`migrate-from-sheets.ts` follows) rather than going through `generate_request_id()` — which means
-`request_id_seq` never learns about these months. Left alone, the next *real* submission in an
-already-imported month would start back at sequence 1 and collide with an imported row's primary
-key. The script computes each imported month's max sequence number and, in `--apply` mode,
-upserts `request_id_seq.last_seq` up to at least that value (never down — `GREATEST` against
-whatever's already there) for every affected `year_month`.
-
-Applying `014_reallow_expired_status.sql` (SQL editor, or `supabase db push` with real
-credentials — same constraint as every other migration in this project, no `SUPABASE_ACCESS_TOKEN`
-in this agent environment) is required before `--apply`; the dry run works either way since it
-only reads.
+`scripts/migrate-from-sheets.ts` was kept and guarded instead — see above.
 
 ---
 

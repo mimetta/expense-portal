@@ -3,6 +3,11 @@ import { ForbiddenError } from "@/lib/auth";
 import { ConflictError, NotFoundError } from "@/lib/request-repo";
 import { boScopeMatchesRequest, hasRole, isSuperadmin } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import {
+  notifyBudgetApproved,
+  notifyBudgetRejected,
+  notifyBudgetSubmitted,
+} from "@/lib/budget-notify";
 import type { CurrentUser, ExpenseRequest, RoleRow } from "@/types/database";
 
 // Budget revision state machine. SERVER-SIDE ONLY — every function here holds
@@ -33,6 +38,8 @@ export interface BudgetRevision {
   approved_at: string | null;
   rejected_by: string | null;
   rejected_at: string | null;
+  /** approved_by = submitted_by. SUPERADMIN only — see migration 030. */
+  self_approved: boolean;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -53,6 +60,29 @@ export interface BudgetLine {
 export type LineKey = Pick<BudgetLine, "bu" | "department" | "cat_l1" | "cat_l2" | "month">;
 
 export const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+/**
+ * PostgREST caps a response at 1000 rows and says nothing about having done
+ * so. A revision holds 12 rows per line, so any owner with more than 83 lines
+ * overflows it — wacharanan.j holds 100, and an unpaged read of that revision
+ * returns 84 lines with no error. Every budget_lines / v_budget_current read
+ * must page. (lib/spend.ts#fetchAllPages is the same guard for the same
+ * reason; this is its budget-side twin, kept here so budget code has one.)
+ */
+export async function fetchAllRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const SIZE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += SIZE) {
+    const { data, error } = await page(from, from + SIZE - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < SIZE) break;
+  }
+  return out;
+}
 
 const lineKey = (l: LineKey) =>
   `${l.bu}|${l.department}|${l.cat_l1}|${l.cat_l2 ?? ""}|${l.month}`;
@@ -187,6 +217,20 @@ async function assertNoScopeOverlap(ownerEmail: string, dims: LineKey[]): Promis
   }
 }
 
+/**
+ * A failed notification must never fail the transition that triggered it — the
+ * revision is already committed by the time these run, so throwing here would
+ * report an error for work that actually succeeded. Same posture as
+ * lib/discord.ts, which logs and returns rather than throwing.
+ */
+async function safeNotify(fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    console.error("[budget] notification failed (transition already committed):", err);
+  }
+}
+
 // --- transitions ------------------------------------------------------------
 
 /**
@@ -221,7 +265,7 @@ export async function createDraft(
       bu: c.bu as string,
       department: c.department as string,
       cat_l1: c.cat_l1 as string,
-      cat_l2: (c.cat_l2 as string | null) ?? null,
+      cat_l2: (c.cat_l2 as string | null) ?? "",
     }));
   if (dims.length === 0) {
     throw new ConflictError(
@@ -235,13 +279,15 @@ export async function createDraft(
   );
 
   // Carry forward the currently-approved figure per line.
-  const { data: current, error: curErr } = await admin
-    .from("v_budget_current")
-    .select("bu, department, cat_l1, cat_l2, month, amount")
-    .eq("fiscal_year", fiscalYear);
-  if (curErr) throw curErr;
+  const current = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    admin
+      .from("v_budget_current")
+      .select("bu, department, cat_l1, cat_l2, month, amount")
+      .eq("fiscal_year", fiscalYear)
+      .range(from, to),
+  );
   const carried = new Map<string, number>();
-  for (const c of current ?? []) carried.set(lineKey(c as never), Number(c.amount));
+  for (const c of current) carried.set(lineKey(c as never), Number(c.amount));
 
   const { data: prior, error: priorErr } = await admin
     .from("budget_revisions")
@@ -273,7 +319,7 @@ export async function createDraft(
       bu: d.bu,
       department: d.department,
       cat_l1: d.cat_l1,
-      cat_l2: d.cat_l2,
+      cat_l2: d.cat_l2 ?? "",
       month: m,
       amount: carried.get(lineKey({ ...d, month: m })) ?? 0,
     })),
@@ -328,7 +374,10 @@ export async function saveDraft(
       bu: l.bu,
       department: l.department,
       cat_l1: l.cat_l1,
-      cat_l2: l.cat_l2,
+      // cat_l2 is NOT NULL DEFAULT '' since migration 029 (a nullable
+      // column cannot arbitrate ON CONFLICT). Normalise here so callers may
+      // still pass null.
+      cat_l2: l.cat_l2 ?? "",
       month: l.month,
       amount: l.amount,
     }));
@@ -380,6 +429,22 @@ export async function submitForApproval(
     owner_email: revision.owner_email,
     revision_no: revision.revision_no,
   });
+
+  // Nothing else tells a CEO that a revision is waiting: the budget editor has
+  // no per-approver queue the way /ceo-approvals does for requests.
+  const lines = await fetchAllRows<{ amount: number; bu: string; department: string; cat_l1: string; cat_l2: string }>(
+    (from, to) =>
+      admin
+        .from("budget_lines")
+        .select("amount, bu, department, cat_l1, cat_l2")
+        .eq("revision_id", revisionId)
+        .range(from, to),
+  );
+  const fyTotal = lines.reduce((s, l) => s + Number(l.amount), 0);
+  const lineCount = new Set(lines.map((l) => dimKey(l))).size;
+  await safeNotify(() =>
+    notifyBudgetSubmitted(data as BudgetRevision, viewer.email, lineCount, fyTotal),
+  );
   return data as BudgetRevision;
 }
 
@@ -401,26 +466,40 @@ export async function approveRevision(
   if (revision.status !== "SUBMITTED") {
     throw new ConflictError(`Only a SUBMITTED revision can be approved; this one is ${revision.status}.`);
   }
-  if (revision.submitted_by && revision.submitted_by === viewer.email) {
+  // Self-approval: refused for BO and CEO, permitted for SUPERADMIN, and
+  // always recorded as such. The database can no longer tell these apart —
+  // a CHECK cannot look up roles — so this line IS the enforcement. See
+  // migration 030.
+  const selfApproved = !!revision.submitted_by && revision.submitted_by === viewer.email;
+  if (selfApproved && !isSuperadmin(viewer)) {
     throw new ForbiddenError(
       "You submitted this revision, so you cannot approve it. Another CEO must act on it.",
     );
   }
 
   const admin = createAdminClient();
-  const { data: lines, error: lineErr } = await admin
-    .from("budget_lines")
-    .select("bu, department, cat_l1, cat_l2, month")
-    .eq("revision_id", revisionId);
-  if (lineErr) throw lineErr;
+  const lines = await fetchAllRows<LineKey>((from, to) =>
+    admin
+      .from("budget_lines")
+      .select("bu, department, cat_l1, cat_l2, month")
+      .eq("revision_id", revisionId)
+      .range(from, to),
+  );
   // Re-checked here, not only at createDraft: a scope widened in between could
-  // have introduced an overlap since.
-  await assertNoScopeOverlap(revision.owner_email, (lines ?? []) as LineKey[]);
+  // have introduced an overlap since. Paged — an unpaged read would check only
+  // the first 84 lines of a 100-line revision.
+  await assertNoScopeOverlap(revision.owner_email, lines);
 
   const now = new Date().toISOString();
   const { data, error } = await admin
     .from("budget_revisions")
-    .update({ status: "APPROVED", approved_by: viewer.email, approved_at: now, updated_at: now })
+    .update({
+      status: "APPROVED",
+      approved_by: viewer.email,
+      approved_at: now,
+      self_approved: selfApproved,
+      updated_at: now,
+    })
     .eq("id", revisionId)
     .eq("status", "SUBMITTED")
     .select("*")
@@ -437,12 +516,14 @@ export async function approveRevision(
     .neq("id", revisionId);
   if (supErr) throw supErr;
 
-  await logAudit(viewer.email, null, "BUDGET_APPROVED", {
+  await logAudit(viewer.email, null, selfApproved ? "BUDGET_SELF_APPROVED" : "BUDGET_APPROVED", {
     revision_id: revisionId,
     owner_email: revision.owner_email,
     revision_no: revision.revision_no,
     submitted_by: revision.submitted_by,
+    self_approved: selfApproved,
   });
+  await safeNotify(() => notifyBudgetApproved(data as BudgetRevision, viewer.email, selfApproved));
   return data as BudgetRevision;
 }
 
@@ -489,6 +570,9 @@ export async function rejectRevision(
     revision_no: revision.revision_no,
     note: note.trim(),
   });
+  // `revision`, not `data`: the update above clears submitted_by, and the
+  // person who submitted it is exactly one of the people to tell.
+  await safeNotify(() => notifyBudgetRejected(revision, viewer.email, note.trim()));
   return data as BudgetRevision;
 }
 
@@ -507,16 +591,18 @@ export async function getRevision(
   if (!mayRead) throw new ForbiddenError("You cannot view this budget revision.");
 
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("budget_lines")
-    .select("id, revision_id, bu, department, cat_l1, cat_l2, month, amount")
-    .eq("revision_id", revisionId)
-    .order("bu")
-    .order("department")
-    .order("cat_l1")
-    .order("month");
-  if (error) throw error;
-  return { revision, lines: (data ?? []) as BudgetLine[] };
+  const lines = await fetchAllRows<BudgetLine>((from, to) =>
+    admin
+      .from("budget_lines")
+      .select("id, revision_id, bu, department, cat_l1, cat_l2, month, amount")
+      .eq("revision_id", revisionId)
+      .order("bu")
+      .order("department")
+      .order("cat_l1")
+      .order("month")
+      .range(from, to),
+  );
+  return { revision, lines };
 }
 
 /** A BO sees only their own; CEO/ACCOUNTING/SUPERADMIN see every owner's. */

@@ -47,3 +47,6 @@ next-env.d.ts
 *.csv
 .env*
 *.zip
+
+# Parked, uncommitted code kept on disk only — see parked/onest-pl/README.md
+parked/

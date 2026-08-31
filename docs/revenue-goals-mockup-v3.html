@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revenue goals — channel hierarchy</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2B; --terracotta:#BD5A2E; --cream:#FAF8F4; --sand:#D8CBB0;
+    --ink:#1B1B18; --muted:#6B6B60; --white:#fff;
+    --ok:#2E7D52; --over:#B23A2F; --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1440px;margin:0 auto;padding:22px 20px 64px}
+  .num{font-family:'DM Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+  .screens{display:flex;margin-bottom:20px;border:1px dashed var(--sand);border-radius:var(--radius);overflow:hidden;background:#FFFDF7}
+  .screens button{flex:1;border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:11px 14px;cursor:pointer;border-left:1px dashed var(--sand)}
+  .screens button:first-child{border-left:0}
+  .screens button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .screens-hint{font-size:11px;color:var(--muted);padding:6px 12px 0;letter-spacing:.04em;text-transform:uppercase}
+
+  h1{font-size:21px;font-weight:700;margin:0 0 5px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  .actions{display:flex;gap:9px}
+  .btn{border:1px solid var(--sand);background:var(--white);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer}
+  .btn:hover{border-color:var(--forest)}
+  .btn-primary{background:var(--forest);border-color:var(--forest);color:#fff}
+  select{font:inherit;padding:8px 12px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);color:var(--ink)}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .spacer{flex:1}
+
+  .banner{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;line-height:1.5}
+  .banner b{font-weight:500}
+  .banner.info{background:#F6F3EC;border:1px solid var(--sand)}
+  .banner.warn{background:#FBF2EC;border:1px solid #EBD3C4;color:#7A3A18}
+  .banner .ico{flex:none;font-size:15px;line-height:1.3}
+
+  .tbl-scroll{overflow-x:auto;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:right;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 10px;border-bottom:1px solid var(--sand);background:#FDFCFA;white-space:nowrap}
+  th.l{text-align:left}
+  td{padding:0;border-bottom:1px solid #EFEAE0;white-space:nowrap;text-align:right}
+  td.pad{padding:9px 12px}
+  .namecol{position:sticky;left:0;z-index:3;background:var(--white);min-width:250px;max-width:250px;text-align:left;overflow:hidden;text-overflow:ellipsis}
+  thead .namecol{background:#FDFCFA}
+  th.mo,td.mo{width:116px}
+  .totcol{border-left:1px solid var(--sand);padding:9px 12px;font-weight:500;width:132px}
+
+  .twist{border:0;background:transparent;cursor:pointer;color:inherit;font:inherit;padding:0 5px 0 0;width:17px;opacity:.7}
+  .twist:hover{opacity:1}
+  .hide{display:none}
+
+  tr.rbu td{background:var(--forest);color:#fff;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding:8px 12px}
+  tr.rbu .namecol{background:var(--forest);color:#fff}
+  tr.rcat td{background:#EDF4EE;font-weight:500;font-size:12.5px;padding:8px 10px;border-bottom:1px solid #DDE9DF}
+  tr.rcat .namecol{background:#EDF4EE;padding-left:18px}
+  tr.rsub td{background:#F4F8F4;font-size:12.5px;padding:7px 10px;border-bottom:1px solid #E6EFE7}
+  tr.rsub .namecol{background:#F4F8F4;padding-left:40px}
+  tr.rch td{background:var(--white);font-size:13px}
+  tr.rch .namecol{background:var(--white);padding-left:64px;color:var(--muted)}
+
+  tr.goaltot td{background:#F1F7F2;border-top:1px solid #C6D8CB;border-bottom:2px solid #C6D8CB;padding:9px 10px;font-weight:500}
+  tr.goaltot .namecol{background:#F1F7F2}
+  .glabel{display:flex;align-items:center;gap:7px;font-size:12.5px}
+  .dot{width:7px;height:7px;border-radius:99px;background:var(--ok);flex:none}
+  .missing{color:#C5C0B3}
+  .notopen{color:#C5C0B3;font-style:italic;font-size:11.5px}
+  .share{display:block;font-size:10px;color:#9AA89C;margin-top:1px}
+  .newchip{font-size:10px;font-weight:500;background:#FBF2EC;border:1px solid #EBD3C4;color:var(--terracotta);padding:1px 7px;border-radius:99px;margin-left:7px}
+
+  .addrow td{background:#FCFBF9;padding:6px 10px}
+  .addrow .namecol{background:#FCFBF9}
+  .addbtn{border:1px dashed var(--sand);background:transparent;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;padding:4px 11px;border-radius:99px}
+  .addbtn:hover{border-color:var(--forest);color:var(--forest);border-style:solid}
+
+  tr.deptgrp td{background:var(--forest);color:#fff;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding:7px 12px}
+  tr.deptgrp .namecol{background:var(--forest);color:#fff}
+  tr.l1grp td{background:#F6F3EC;font-weight:500;font-size:12.5px;padding:7px 12px}
+  tr.l1grp .namecol{background:#F6F3EC}
+  .l2name{padding-left:16px}
+
+  .cellwrap{position:relative;padding:6px 10px 5px}
+  input.cell{width:100%;border:0;background:transparent;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:13.5px;text-align:right;padding:2px 0;color:var(--ink)}
+  input.cell:hover{background:#FBF9F5}
+  input.cell:focus{outline:2px solid var(--forest);outline-offset:2px;background:#fff;border-radius:3px}
+  input.cell.changed{color:#8E3F1B;font-weight:500}
+  .cellwrap.changed{background:rgba(189,90,46,.09)}
+  .pctline{display:block;font-size:10.5px;color:var(--muted);text-align:right;margin-top:1px;letter-spacing:-.01em}
+  .pctline.none{color:#C5C0B3}
+  .fill{position:absolute;left:3px;top:50%;transform:translateY(-50%);opacity:0;border:1px solid var(--sand);background:#fff;color:var(--muted);
+        cursor:pointer;font-size:10px;border-radius:4px;padding:1px 4px;font-family:'DM Mono',monospace;transition:opacity .12s}
+  .cellwrap:hover .fill,input.cell:focus + .fill{opacity:1}
+  .fill:hover{color:var(--forest);border-color:var(--forest)}
+  .ro{padding:9px 10px;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:13.5px}
+  tfoot td{background:#FDFCFA;font-weight:700;border-top:1px solid var(--sand)}
+  tfoot .namecol{background:#FDFCFA}
+
+  .hint{font-size:12.5px;color:var(--muted);margin:9px 0 0}
+  kbd{font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--sand);border-bottom-width:2px;border-radius:4px;padding:1px 5px;background:#fff}
+  .note{margin-top:30px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)} .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+  .new{color:var(--terracotta);font-weight:500}
+  .screen{display:none} .screen.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div>
+    <div class="screens-hint">Mockup only</div>
+    <div class="screens" role="group">
+      <button data-s="ceo" aria-pressed="true">CEO / Admin · set revenue goals</button>
+      <button data-s="bo" aria-pressed="false">BO · budget grid with goals</button>
+    </div>
+  </div>
+
+  <!-- ══════ CEO ══════ -->
+  <div class="screen on" id="s-ceo">
+    <div class="page-head">
+      <div>
+        <h1>Revenue goals · FY2026</h1>
+        <p class="sub">Business unit → category → sub-category → channel. Goals are typed at channel level; every total above is a sum.</p>
+      </div>
+      <div class="actions">
+        <button class="btn">Save</button>
+        <button class="btn btn-primary">Publish goals</button>
+      </div>
+    </div>
+
+    <div class="banner info">
+      <span class="ico">◆</span>
+      <div><b>Add a category, sub-category or channel at any point in the year.</b> A store opening in September gets goals from September onward; earlier months stay blank and read as <i>not yet open</i>, never as zero. Siplor below shows this.</div>
+    </div>
+
+    <div class="tbl-scroll"><table id="goalTable"></table></div>
+    <p class="hint">Paste 12 values into any channel row · <kbd>→</kbd> fills the rest of the year · click any level to collapse it.</p>
+  </div>
+
+  <!-- ══════ BO ══════ -->
+  <div class="screen" id="s-bo">
+    <div class="page-head">
+      <div>
+        <h1>Editing wacharanan.j's budget · FY2026</h1>
+        <p class="sub">revision 3 · 9 lines across 6 segments · both BUs</p>
+      </div>
+      <div class="actions">
+        <button class="btn">Save draft</button>
+        <button class="btn btn-primary">Submit for CEO approval</button>
+      </div>
+    </div>
+
+    <div class="bar">
+      <select><option>All segments</option><option>COG</option><option>Marketing</option></select>
+      <select id="buSel"><option>Both BUs</option><option>ONEST</option><option>SV</option></select>
+      <div class="spacer"></div>
+      <span class="hint">Showing 9 of 9 lines</span>
+    </div>
+
+    <div class="banner warn">
+      <span class="ico">◆</span>
+      <div><b>The percentage is your lines only</b> — the share of the revenue goal your HR Salary lines consume, not the company's whole budget. Expand the revenue goal row to see the channel mix behind it.</div>
+    </div>
+
+    <div class="tbl-scroll"><table id="boTable"></table></div>
+    <p class="hint">Paste 12 values into any row · <kbd>→</kbd> appears on hover · <kbd>↑↓←→</kbd> moves between cells · the figure beneath each budget is its share of that month's revenue goal.</p>
+  </div>
+
+  <div class="note">
+    <b>Your real channel structure, as given:</b>
+    <ol>
+      <li><b>ONEST</b> — Physical store (Owned store: Song Wat, Talat Noi · Modern Trade: 8 retailers · Pop-up: DCP) and Online (E-commerce: Shopee, Lazada, TikTok · DTC-Thailand: LINE Shop, LINE OA). 13 channels.</li>
+      <li><b>SV</b> — Online only (E-commerce: Shopee, Lazada, TikTok · DTC-Thailand: LINE OA, Facebook). 5 channels.</li>
+      <li>The two BUs have different trees, so the hierarchy is per-BU rather than shared.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Decisions in this mockup:</b>
+    <ol>
+      <li class="new"><b>Every level is addable</b> — category, sub-category and channel, via the dashed buttons. Adding is data entry, not a code change, so a new store never needs a deployment.</li>
+      <li class="new"><b>Months before a channel opens stay blank and read "not yet open"</b>, not 0. Siplor demonstrates it: goals from September only. A zero would drag averages down and imply a target that was missed.</li>
+      <li class="new"><b>Closing a store deactivates it, never deletes it.</b> Its historical goals must survive, or last year's comparison silently changes. A closed channel stops accepting new months and disappears from the BO's view once its goals are all in the past.</li>
+      <li>Goals are typed only at channel level; sub-category, category, BU and company totals are all sums.</li>
+      <li>With the BU filter on "Both", the denominator is both BUs combined.</li>
+      <li>Cells are 116px, fitting 7 digits plus a percentage, fill-right on hover only.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">One thing worth deciding separately:</b>
+    <ol>
+      <li>This structure is close to what a sales report would use. If actual revenue by channel ever lands in the portal, it should reuse these same channel rows rather than a parallel list — otherwise you get two channel hierarchies that disagree, which is exactly the problem the categories reconciliation just fixed.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const K=1000;
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+
+const TREE={
+  ONEST:[
+    {cat:'Physical store',subs:[
+      {sub:'Owned store',channels:['Song Wat','Talat Noi']},
+      {sub:'Modern Trade',channels:['Siam Discovery','Vanich House','Loft Eyes','Ecotopia','Gaysorn','Unusual & Friend','Another story','Siplor']},
+      {sub:'Pop-up',channels:['DCP']}
+    ]},
+    {cat:'Online',subs:[
+      {sub:'E-commerce',channels:['Shopee','Lazada','TikTok']},
+      {sub:'DTC-Thailand',channels:['LINE Shop','LINE OA']}
+    ]}
+  ],
+  SV:[
+    {cat:'Online',subs:[
+      {sub:'E-commerce',channels:['Shopee','Lazada','TikTok']},
+      {sub:'DTC-Thailand',channels:['LINE OA','Facebook']}
+    ]}
+  ]
+};
+
+const key=(bu,c,s,ch)=>bu+'|'+c+'|'+s+'|'+ch;
+const G={};
+function seed(bu,c,s,ch,base,openFrom){
+  const a=[]; for(let m=0;m<12;m++){
+    if(openFrom!==undefined && m<openFrom){ a.push(null); continue; }
+    a.push(Math.round(base*(0.92+((m*37)%13)/50)));
+  }
+  G[key(bu,c,s,ch)]=a;
+}
+seed('ONEST','Physical store','Owned store','Song Wat',760);
+seed('ONEST','Physical store','Owned store','Talat Noi',540);
+seed('ONEST','Physical store','Modern Trade','Siam Discovery',420);
+seed('ONEST','Physical store','Modern Trade','Vanich House',280);
+seed('ONEST','Physical store','Modern Trade','Loft Eyes',190);
+seed('ONEST','Physical store','Modern Trade','Ecotopia',240);
+seed('ONEST','Physical store','Modern Trade','Gaysorn',310);
+seed('ONEST','Physical store','Modern Trade','Unusual & Friend',150);
+seed('ONEST','Physical store','Modern Trade','Another story',205);
+seed('ONEST','Physical store','Modern Trade','Siplor',180,8);      // opens September
+seed('ONEST','Physical store','Pop-up','DCP',95);
+seed('ONEST','Online','E-commerce','Shopee',880);
+seed('ONEST','Online','E-commerce','Lazada',540);
+seed('ONEST','Online','E-commerce','TikTok',610);
+seed('ONEST','Online','DTC-Thailand','LINE Shop',210);
+seed('ONEST','Online','DTC-Thailand','LINE OA',165);
+seed('SV','Online','E-commerce','Shopee',1180);
+seed('SV','Online','E-commerce','Lazada',760);
+seed('SV','Online','E-commerce','TikTok',620);
+seed('SV','Online','DTC-Thailand','LINE OA',330);
+seed('SV','Online','DTC-Thailand','Facebook',245);
+
+const NEW_CHANNELS={'ONEST|Physical store|Modern Trade|Siplor':true};
+
+function subGoal(bu,c,s,m){
+  const node=TREE[bu].find(x=>x.cat===c).subs.find(x=>x.sub===s);
+  let t=0,any=false;
+  node.channels.forEach(ch=>{const v=G[key(bu,c,s,ch)][m]; if(v!==null){t+=v;any=true;}});
+  return any?t:null;
+}
+function catGoal(bu,c,m){
+  const node=TREE[bu].find(x=>x.cat===c);
+  let t=0,any=false;
+  node.subs.forEach(s=>{const v=subGoal(bu,c,s.sub,m); if(v!==null){t+=v;any=true;}});
+  return any?t:null;
+}
+function buGoal(bu,m){
+  let t=0,any=false;
+  TREE[bu].forEach(c=>{const v=catGoal(bu,c.cat,m); if(v!==null){t+=v;any=true;}});
+  return any?t:null;
+}
+function goalFor(m,bu){
+  if(bu==='ONEST'||bu==='SV') return buGoal(bu,m);
+  const a=buGoal('ONEST',m),b=buGoal('SV',m);
+  if(a===null&&b===null) return null;
+  return (a||0)+(b||0);
+}
+
+const openState={};
+const isOpen=k=> openState[k]!==false;   // default open on CEO screen
+
+/* ── CEO ── */
+function renderGoals(){
+  let h='<thead><tr><th class="namecol l">Channel</th>';
+  MONTHS.forEach(m=>h+='<th class="mo">'+m+'</th>');
+  h+='<th class="totcol">FY total</th></tr></thead><tbody>';
+  const cells=(fn)=>{let s='';MONTHS.forEach((_,m)=>{const v=fn(m);s+='<td class="mo num">'+(v===null?'<span class="missing">—</span>':fmt(v*K))+'</td>';});return s;};
+  const fyOf=(fn)=>MONTHS.reduce((s,_,m)=>s+(fn(m)||0),0)*K;
+
+  ['ONEST','SV'].forEach(bu=>{
+    const bk='bu:'+bu, bo=isOpen(bk);
+    h+='<tr class="rbu"><td class="namecol"><button class="twist" data-k="'+bk+'">'+(bo?'▾':'▸')+'</button>'+bu+'</td>';
+    h+=cells(m=>buGoal(bu,m))+'<td class="totcol num">'+fmt(fyOf(m=>buGoal(bu,m)))+'</td></tr>';
+
+    TREE[bu].forEach(c=>{
+      const ck='cat:'+bu+'|'+c.cat, co=isOpen(ck);
+      h+='<tr class="rcat'+(bo?'':' hide')+'"><td class="namecol"><button class="twist" data-k="'+ck+'">'+(co?'▾':'▸')+'</button>'+c.cat+'</td>';
+      h+=cells(m=>catGoal(bu,c.cat,m))+'<td class="totcol num">'+fmt(fyOf(m=>catGoal(bu,c.cat,m)))+'</td></tr>';
+
+      c.subs.forEach(s=>{
+        const sk='sub:'+bu+'|'+c.cat+'|'+s.sub, so=isOpen(sk), vis=bo&&co;
+        h+='<tr class="rsub'+(vis?'':' hide')+'"><td class="namecol"><button class="twist" data-k="'+sk+'">'+(so?'▾':'▸')+'</button>'+s.sub+'</td>';
+        h+=cells(m=>subGoal(bu,c.cat,s.sub,m))+'<td class="totcol num">'+fmt(fyOf(m=>subGoal(bu,c.cat,s.sub,m)))+'</td></tr>';
+
+        s.channels.forEach(ch=>{
+          const kk=key(bu,c.cat,s.sub,ch), vis2=vis&&so;
+          h+='<tr class="rch'+(vis2?'':' hide')+'"><td class="namecol pad">'+ch
+            +(NEW_CHANNELS[kk]?'<span class="newchip">opens Sep</span>':'')+'</td>';
+          G[kk].forEach((v,m)=>{
+            h+='<td class="mo"><div class="cellwrap"><input class="cell" data-k="'+kk+'" data-m="'+m+'" value="'
+             +(v===null?'':fmt(v*K))+'" placeholder="—"><button class="fill">→</button></div></td>';
+          });
+          h+='<td class="totcol num">'+fmt(G[kk].reduce((a,v)=>a+(v||0),0)*K)+'</td></tr>';
+        });
+        h+='<tr class="addrow'+(vis&&so?'':' hide')+'"><td class="namecol" style="padding-left:64px"><button class="addbtn">+ Add channel to '+s.sub+'</button></td><td colspan="13"></td></tr>';
+      });
+      h+='<tr class="addrow'+(bo&&co?'':' hide')+'"><td class="namecol" style="padding-left:40px"><button class="addbtn">+ Add sub-category to '+c.cat+'</button></td><td colspan="13"></td></tr>';
+    });
+    h+='<tr class="addrow'+(bo?'':' hide')+'"><td class="namecol" style="padding-left:18px"><button class="addbtn">+ Add category to '+bu+'</button></td><td colspan="13"></td></tr>';
+  });
+
+  h+='</tbody><tfoot><tr><td class="namecol pad">Company total</td>';
+  MONTHS.forEach((_,m)=>{const g=goalFor(m,'both');h+='<td class="mo"><div class="ro">'+(g===null?'<span class="missing">—</span>':fmt(g*K))+'</div></td>';});
+  h+='<td class="totcol num">'+fmt(MONTHS.reduce((s,_,m)=>s+(goalFor(m,'both')||0),0)*K)+'</td></tr></tfoot>';
+  document.getElementById('goalTable').innerHTML=h;
+
+  document.querySelectorAll('#goalTable .twist').forEach(b=>b.addEventListener('click',()=>{
+    openState[b.dataset.k]=!isOpen(b.dataset.k); renderGoals();
+  }));
+  document.querySelectorAll('#goalTable input.cell').forEach(inp=>{
+    inp.addEventListener('focus',()=>inp.select());
+    inp.addEventListener('change',()=>{
+      const raw=inp.value.replace(/[^0-9.]/g,'');
+      G[inp.dataset.k][+inp.dataset.m]= raw===''?null:Math.round(parseFloat(raw)/K);
+      renderGoals(); renderBO();
+    });
+  });
+}
+
+/* ── BO ── */
+const ROWS=[
+  {dept:'COG',bu:'ONEST',l1:'HR Salary',l2:'Factory Management',approved:[62,62,62,62,62,62,62,62,62,62,62,62],proposed:[62,62,62,62,62,62,68,68,68,68,68,68]},
+  {dept:'COG',bu:'SV',l1:'HR Salary',l2:'Factory Management',approved:[48,48,48,48,48,48,48,48,48,48,48,48],proposed:[48,48,48,48,48,48,52,52,52,52,52,52]},
+  {dept:'COG',bu:'ONEST',l1:'HR Salary',l2:'Factory เบี้ยขยัน',approved:[14,14,14,14,14,14,14,14,14,14,14,14],proposed:[14,14,14,14,14,14,14,14,14,14,14,14]},
+  {dept:'Marketing',bu:'ONEST',l1:'HR Salary',l2:'Marketing team',approved:[38,38,38,38,38,38,38,38,38,38,38,38],proposed:[38,38,38,38,38,38,38,38,38,38,38,38]},
+  {dept:'Operations/Fulfillment',bu:'ONEST',l1:'HR Salary',l2:'Fulfillment staff',approved:[44,44,44,44,44,44,44,44,44,44,44,44],proposed:[44,44,44,44,44,44,44,44,44,44,44,44]},
+  {dept:'People (HR)',bu:'ONEST',l1:'HR Salary',l2:'HR team',approved:[26,26,26,26,26,26,26,26,26,26,26,26],proposed:[26,26,26,26,26,26,26,26,26,26,26,26]},
+  {dept:'R&D',bu:'SV',l1:'HR Salary',l2:'R&D Team',approved:[32,32,32,32,32,32,32,32,32,32,32,32],proposed:[32,32,32,32,32,32,32,32,32,32,32,32]},
+  {dept:'Retail',bu:'ONEST',l1:'HR Salary',l2:'Store staff',approved:[36,36,36,36,36,36,36,36,36,36,36,36],proposed:[36,36,36,36,36,36,36,42,42,42,42,42]},
+  {dept:'Retail',bu:'SV',l1:'HR Salary',l2:'Store staff',approved:[22,22,22,22,22,22,22,22,22,22,22,22],proposed:[22,22,22,22,22,22,22,22,22,22,22,22]}
+];
+let buFilter='Both BUs';
+const boOpen={};
+const bopen=k=>boOpen[k]===true;
+const visible=()=> buFilter==='Both BUs'?ROWS:ROWS.filter(r=>r.bu===buFilter);
+const denom=()=> buFilter==='Both BUs'?'both':buFilter;
+
+function renderBO(){
+  const rows=visible();
+  let h='<thead><tr><th class="namecol l">Line</th>';
+  MONTHS.forEach(m=>h+='<th class="mo">'+m+'</th>');
+  h+='<th class="totcol">FY total</th></tr></thead><tbody>';
+
+  const root=bopen('root');
+  h+='<tr class="goaltot"><td class="namecol"><div class="glabel"><button class="twist" data-b="root">'+(root?'▾':'▸')+'</button>'
+   +'<span class="dot"></span>Revenue goal <span style="color:var(--muted);font-weight:400">('+denom()+')</span></div></td>';
+  MONTHS.forEach((_,m)=>{const g=goalFor(m,denom());h+='<td class="mo num">'+(g===null?'<span class="missing">—</span>':fmt(g*K))+'</td>';});
+  const gy=MONTHS.reduce((s,_,m)=>s+(goalFor(m,denom())||0),0)*K;
+  h+='<td class="totcol num">'+fmt(gy)+'</td></tr>';
+
+  const bus= denom()==='both'?['ONEST','SV']:[denom()];
+  bus.forEach(bu=>{
+    const bk='b:'+bu, bo=bopen(bk);
+    if(denom()==='both'){
+      h+='<tr class="rcat'+(root?'':' hide')+'"><td class="namecol"><button class="twist" data-b="'+bk+'">'+(bo?'▾':'▸')+'</button>'+bu+'</td>';
+      MONTHS.forEach((_,m)=>{const g=buGoal(bu,m);h+='<td class="mo num">'+(g===null?'<span class="missing">—</span>':fmt(g*K))+'</td>';});
+      h+='<td class="totcol num">'+fmt(MONTHS.reduce((s,_,m)=>s+(buGoal(bu,m)||0),0)*K)+'</td></tr>';
+    }
+    const showCats = denom()==='both'? (root&&bo) : root;
+    TREE[bu].forEach(c=>{
+      const ck='c:'+bu+c.cat, co=bopen(ck);
+      h+='<tr class="rsub'+(showCats?'':' hide')+'"><td class="namecol"><button class="twist" data-b="'+ck+'">'+(co?'▾':'▸')+'</button>'+c.cat+'</td>';
+      MONTHS.forEach((_,m)=>{
+        const v=catGoal(bu,c.cat,m), g=goalFor(m,denom());
+        h+='<td class="mo num">'+(v===null?'<span class="missing">—</span>':fmt(v*K))
+         +(v!==null&&g?'<span class="share">'+(v/g*100).toFixed(0)+'%</span>':'')+'</td>';
+      });
+      h+='<td class="totcol num">'+fmt(MONTHS.reduce((s,_,m)=>s+(catGoal(bu,c.cat,m)||0),0)*K)+'</td></tr>';
+
+      c.subs.forEach(s=>{
+        s.channels.forEach(ch=>{
+          const kk=key(bu,c.cat,s.sub,ch);
+          h+='<tr class="rch'+(showCats&&co?'':' hide')+'"><td class="namecol pad">'+s.sub+' · '+ch
+            +(NEW_CHANNELS[kk]?'<span class="newchip">opens Sep</span>':'')+'</td>';
+          G[kk].forEach((v,m)=>{
+            const g=goalFor(m,denom());
+            h+='<td class="mo num">'+(v===null?'<span class="notopen">not yet open</span>':fmt(v*K))
+             +(v!==null&&g?'<span class="share">'+(v/g*100).toFixed(1)+'%</span>':'')+'</td>';
+          });
+          h+='<td class="totcol num">'+fmt(G[kk].reduce((a,v)=>a+(v||0),0)*K)+'</td></tr>';
+        });
+      });
+    });
+  });
+
+  let d=null,l1=null;
+  rows.forEach((r,i)=>{
+    if(r.dept!==d){h+='<tr class="deptgrp"><td class="namecol" colspan="14">'+r.dept+'</td></tr>';d=r.dept;l1=null;}
+    const lk=r.dept+'|'+r.l1;
+    if(lk!==l1){h+='<tr class="l1grp"><td class="namecol" colspan="14">'+r.l1+'</td></tr>';l1=lk;}
+    h+='<tr><td class="namecol pad"><span class="l2name">'+r.l2+'</span><span style="color:#B9B4A7;font-size:11px;margin-left:6px">'+r.bu+'</span></td>';
+    r.proposed.forEach((v,m)=>{
+      const ch=v!==r.approved[m], g=goalFor(m,denom()), pct=g?(v/g*100):null;
+      h+='<td class="mo"><div class="cellwrap'+(ch?' changed':'')+'">'
+       +'<input class="cell'+(ch?' changed':'')+'" data-i="'+i+'" data-m="'+m+'" value="'+fmt(v*K)+'">'
+       +'<button class="fill">→</button>'
+       +'<span class="pctline'+(pct===null?' none':'')+'">'+(pct===null?'—':pct.toFixed(2)+'% of goal')+'</span></div></td>';
+    });
+    h+='<td class="totcol num">'+fmt(r.proposed.reduce((s,v)=>s+v,0)*K)+'</td></tr>';
+  });
+
+  h+='</tbody><tfoot><tr><td class="namecol pad">Total — my lines</td>';
+  MONTHS.forEach((_,m)=>{
+    const t=rows.reduce((s,r)=>s+r.proposed[m],0), g=goalFor(m,denom()), pct=g?(t/g*100):null;
+    h+='<td class="mo"><div class="ro">'+fmt(t*K)+'<span class="pctline'+(pct===null?' none':'')+'">'+(pct===null?'—':pct.toFixed(2)+'%')+'</span></div></td>';
+  });
+  const ty=rows.reduce((s,r)=>s+r.proposed.reduce((a,v)=>a+v,0),0)*K;
+  h+='<td class="totcol num">'+fmt(ty)+'<span class="pctline">'+(gy?(ty/gy*100).toFixed(2)+'%':'—')+'</span></td></tr></tfoot>';
+  document.getElementById('boTable').innerHTML=h;
+
+  document.querySelectorAll('#boTable .twist').forEach(b=>b.addEventListener('click',()=>{
+    boOpen[b.dataset.b]=!bopen(b.dataset.b); renderBO();
+  }));
+  document.querySelectorAll('#boTable input.cell').forEach(inp=>{
+    inp.addEventListener('focus',()=>inp.select());
+    inp.addEventListener('change',()=>{
+      visible()[+inp.dataset.i].proposed[+inp.dataset.m]=Math.round((parseFloat(inp.value.replace(/[^0-9.]/g,''))||0)/K);
+      renderBO();
+    });
+    inp.addEventListener('keydown',e=>{
+      const i=+inp.dataset.i,m=+inp.dataset.m;let t=null;
+      if(e.key==='ArrowRight'&&inp.selectionStart===inp.value.length)t=[i,m+1];
+      if(e.key==='ArrowLeft'&&inp.selectionStart===0)t=[i,m-1];
+      if(e.key==='ArrowDown')t=[i+1,m];
+      if(e.key==='ArrowUp')t=[i-1,m];
+      if(t){e.preventDefault();const el=document.querySelector('#boTable input.cell[data-i="'+t[0]+'"][data-m="'+t[1]+'"]');if(el)el.focus();}
+    });
+    inp.addEventListener('paste',e=>{
+      const txt=(e.clipboardData||window.clipboardData).getData('text');
+      const vals=txt.trim().split(/[\t,;]|\s{2,}/).map(s=>parseFloat(s.replace(/[^0-9.]/g,''))).filter(v=>!isNaN(v));
+      if(vals.length<2)return;
+      e.preventDefault();
+      const i=+inp.dataset.i;let m=+inp.dataset.m;
+      vals.forEach(v=>{if(m<12)visible()[i].proposed[m++]=Math.round(v/K);});
+      renderBO();
+    });
+  });
+}
+
+document.getElementById('buSel').addEventListener('change',e=>{buFilter=e.target.value;renderBO();});
+document.querySelectorAll('.screens button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.screens button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-'+b.dataset.s).classList.add('on');
+}));
+renderGoals(); renderBO();
+</script>
+</body>
+</html>

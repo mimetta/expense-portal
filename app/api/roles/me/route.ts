@@ -5,6 +5,7 @@ import { handleApiError } from "@/lib/api-helpers";
 // Record<Page, true>, so it can never again drift out of sync with the Page
 // union — a page missing here is invisible in the nav with no error at all.
 import { canAccessPage, PAGES } from "@/lib/permissions";
+import { pendingBudgetApprovals } from "@/lib/budget-editor";
 
 export async function GET() {
   try {
@@ -15,9 +16,15 @@ export async function GET() {
 
     const access = Object.fromEntries(PAGES.map((p) => [p, canAccessPage(user, p)]));
 
+    // Counted here rather than from a second endpoint: Nav already calls this
+    // on mount and is the only consumer of the badge, so this avoids a second
+    // round trip on every page load. It is 0 for anyone who cannot approve.
+    const badges = { budget: access.budget ? await pendingBudgetApprovals(user) : 0 };
+
     return NextResponse.json({
       user: { email: user.email, name: user.name, allRoles: user.allRoles, chapter: user.chapter },
       access,
+      badges,
     });
   } catch (err) {
     return handleApiError(err);
