@@ -66,6 +66,15 @@ export async function PATCH(
       reject_reason: body.reason,
       rejected_at: entry.rejected_at,
       rejection_history: [...existing.rejection_history, entry],
+      // A rejection can sit for days before it's resubmitted (see the
+      // stage-dependent resubmit window in lib/status.ts) — by then the
+      // original due date may already be past, or too close to a payment
+      // cutoff to hit. Clearing it forces the requester to consciously
+      // re-pick a due date on resubmit/edit rather than silently carrying
+      // forward a date that's no longer realistic; RequestForm already
+      // enforces due_date as required wherever it's shown, so this doesn't
+      // need a separate validation change.
+      due_date: null,
     });
 
     await logAudit(user.email, id, "REJECTED", { stage: existing.status, reason: body.reason });

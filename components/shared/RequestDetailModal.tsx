@@ -16,7 +16,15 @@ import {
   PRINTABLE_EXPENSE_TYPES,
   getExpenseTypeConfig,
 } from "@/lib/constants";
-import { isBoActionable, isCeoActionable, isAccountingActionable, isOwnerEditable, needsProcurement } from "@/lib/status";
+import {
+  isBoActionable,
+  isCeoActionable,
+  isAccountingActionable,
+  isOwnerEditable,
+  needsProcurement,
+  resubmitDeadline,
+  resubmitWindowHours,
+} from "@/lib/status";
 import { canPettyCashActOnRequest } from "@/lib/permissions";
 import type { CompanyRow, ExpenseRequest, FileEntry, RequestItem, RoleRow, SupplierRow } from "@/types/database";
 
@@ -1091,15 +1099,28 @@ export default function RequestDetailModal({
           {/* Approval Timeline */}
           <section>
             <h3 className="mm-section-label">Approval Timeline</h3>
-            {request.status === "REJECTED" && (
-              <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm">
-                <p className="font-medium text-red-800">Rejected at {request.rejected_stage ?? "-"}</p>
-                <p className="text-red-700">
-                  by {request.rejected_by ?? "-"} — {formatDate(request.rejected_at)}
-                </p>
-                <p className="mt-1 text-red-700">Reason: {request.reject_reason ?? "-"}</p>
-              </div>
-            )}
+            {request.status === "REJECTED" && (() => {
+              const deadline = resubmitDeadline(request);
+              const hours = resubmitWindowHours(request);
+              const windowLabel = hours % 24 === 0 && hours > 24 ? `${hours / 24} days` : `${hours} hours`;
+              const closed = !deadline || deadline.getTime() <= Date.now();
+              return (
+                <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm">
+                  <p className="font-medium text-red-800">Rejected at {request.rejected_stage ?? "-"}</p>
+                  <p className="text-red-700">
+                    by {request.rejected_by ?? "-"} — {formatDate(request.rejected_at)}
+                  </p>
+                  <p className="mt-1 text-red-700">Reason: {request.reject_reason ?? "-"}</p>
+                  <p className="mt-2 text-xs text-red-700">
+                    {closed
+                      ? `The ${windowLabel} resubmit window has closed — this request stays rejected permanently. Its content can still be edited (without resubmitting), but the status can no longer change.`
+                      : `The requester can resubmit within ${windowLabel} of rejection (by ${formatDate(
+                          deadline!.toISOString(),
+                        )}). After that, this request stays rejected permanently.`}
+                  </p>
+                </div>
+              );
+            })()}
             <div className="flex items-start justify-between gap-1 overflow-x-auto pb-1">
               {timeline.map((step, i) => (
                 <div key={step.key} className="flex min-w-[110px] flex-1 flex-col items-center px-1 text-center">

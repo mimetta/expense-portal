@@ -294,12 +294,37 @@ unreachable in practice.
 
 ### Rejection & Resubmit
 
-A rejected request can only be **resubmitted** (status change) within `RESUBMIT_WINDOW_HOURS`
-(24h) of `rejected_at` — reflected in the UI as a live countdown (`app/my/page.tsx`,
+A rejected request can only be **resubmitted** (status change) within a window of
+`rejected_at` — reflected in the UI as a live countdown (`app/my/page.tsx`,
 `lib/status.ts#canResubmit`/`resubmitDeadline`). After the window closes, resubmit is no
 longer offered and the request stays `REJECTED` permanently — there is no automated cleanup
 of these (unlike the old `EXPIRED` cron). **Plain editing** of a rejected request's content
 (status unchanged) has no time limit — only the status transition is time-boxed.
+
+**The window length depends on which stage rejected it**
+(`lib/status.ts#resubmitWindowHours`) — originally a single flat `RESUBMIT_WINDOW_HOURS = 24`
+for every rejection, changed after a real case (`EXP-2026-09-000005`, rejected by BO/CEO-stage
+review) got permanently stuck within a day, before the requester had a realistic chance to
+react. Now: **24h** (`RESUBMIT_WINDOW_HOURS_ACCOUNTING`) only for a rejection at the
+Accounting/payment stage; **3 days** (`RESUBMIT_WINDOW_HOURS_APPROVAL`) for every earlier
+stage — Procurement, the petty cash custodian, BO, or CEO. Distinguishing "which stage
+rejected it" needed no new column: Accounting's own `canReject` branch
+(`isAccountingActionable`) only ever matches when `existing.status === "CEO_APPROVED"`, and no
+other role's `canReject` branch matches that status — so `rejected_stage === "CEO_APPROVED"`
+is already a fully reliable signal for "this was the payment-stage rejection," reusing data
+already stored rather than adding an actor/role column just to re-derive the same fact.
+
+**Rejection also clears `due_date`** (`POST /api/requests/[id]/reject`) — a rejection can now
+sit for up to 3 days before resubmission, by which point the original due date may already be
+past or too close to a payment cutoff to hit. Clearing it forces the requester to consciously
+re-pick a due date on resubmit/edit (already enforced as required wherever `RequestForm` shows
+it) rather than silently carrying forward a stale one.
+
+Both the `/my` list's countdown and every list page's shared rejection banner
+(`RequestDetailModal.tsx`) now spell out the actual deadline and what happens after it, not
+just "resubmit window closed" — this was previously easy to misread as "click Save Changes and
+it'll resubmit," when past the window it silently only edits content (see the `EXP-2026-09-
+000005` case above: the file *did* save, the requester just expected the status to move too).
 
 Resubmit steps the request backward by exactly **one** stage rather than restarting the whole
 approval chain. This falls directly out of how `rejected_stage` is already captured in

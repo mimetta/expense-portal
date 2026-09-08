@@ -70,13 +70,31 @@ export const STATUS_LABELS: Record<ExpenseRequest["status"], string> = {
   EXPIRED: "Expired",
 };
 
-// Rejected requests can only be resubmitted within this window of
-// rejected_at (see app/api/requests/[id]/resubmit/route.ts).
-export const RESUBMIT_WINDOW_HOURS = 24;
+// Rejected requests can only be resubmitted within a window of
+// rejected_at (see app/api/requests/[id]/resubmit/route.ts) — the window's
+// length depends on which stage rejected it, not a single flat constant.
+// Accounting's rejection (the "payment stage") only ever happens when
+// rejected_stage is CEO_APPROVED — that's the one and only stage no other
+// role can reject from (Procurement/BO/petty-cash-custodian all act at
+// SUBMITTED/PO_UPLOADED, CEO acts at BO_APPROVED or, on the skip_bo path,
+// at SUBMITTED/PO_UPLOADED same as BO) — so this single equality check is
+// a fully reliable "was this the payment-stage rejection" test with no
+// need for a separate stored role/actor column.
+export const RESUBMIT_WINDOW_HOURS_ACCOUNTING = 24;
+// Every earlier stage (Procurement, petty cash custodian, BO, CEO) gets
+// the same, longer window — a requester whose request was rejected before
+// it ever reached Accounting has more room to fix and resubmit it.
+export const RESUBMIT_WINDOW_HOURS_APPROVAL = 24 * 3;
+
+export function resubmitWindowHours(r: ExpenseRequest): number {
+  return r.rejected_stage === "CEO_APPROVED"
+    ? RESUBMIT_WINDOW_HOURS_ACCOUNTING
+    : RESUBMIT_WINDOW_HOURS_APPROVAL;
+}
 
 export function resubmitDeadline(r: ExpenseRequest): Date | null {
   if (r.status !== "REJECTED" || !r.rejected_at) return null;
-  return new Date(new Date(r.rejected_at).getTime() + RESUBMIT_WINDOW_HOURS * 60 * 60 * 1000);
+  return new Date(new Date(r.rejected_at).getTime() + resubmitWindowHours(r) * 60 * 60 * 1000);
 }
 
 export function canResubmit(r: ExpenseRequest): boolean {

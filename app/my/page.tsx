@@ -15,8 +15,18 @@ import {
   isEditRequestPending,
   isOwnerEditable,
   resubmitDeadline,
+  resubmitWindowHours,
 } from "@/lib/status";
 import type { DraftRow, ExpenseRequest, RequestItem } from "@/types/database";
+
+// "What happens next" for a rejected request — shown regardless of how
+// much time is left, not just while the countdown is ticking, per the
+// resubmit-window redesign (see lib/status.ts#resubmitWindowHours): the
+// window is 3 days for every stage except Accounting/payment-stage
+// rejections (rejected_stage === "CEO_APPROVED"), which stay at 24h.
+function windowLabel(hours: number): string {
+  return hours % 24 === 0 && hours > 24 ? `${hours / 24} days` : `${hours} hours`;
+}
 
 function Countdown({ request }: { request: ExpenseRequest }) {
   const [, setTick] = useState(0);
@@ -27,14 +37,24 @@ function Countdown({ request }: { request: ExpenseRequest }) {
 
   const deadline = resubmitDeadline(request);
   if (!deadline) return null;
+  const hours = resubmitWindowHours(request);
   const msLeft = deadline.getTime() - Date.now();
-  if (msLeft <= 0) return <span className="text-xs text-brand-subtle">Resubmit window closed</span>;
+  if (msLeft <= 0) {
+    return (
+      <span className="text-xs text-brand-subtle">
+        The {windowLabel(hours)} resubmit window closed {formatDate(deadline.toISOString())} — this
+        request stays rejected permanently. You can still edit its details (e.g. attach a missing
+        document) without resubmitting, but the status can no longer change.
+      </span>
+    );
+  }
 
-  const hours = Math.floor(msLeft / 3_600_000);
-  const minutes = Math.floor((msLeft % 3_600_000) / 60_000);
+  const hoursLeft = Math.floor(msLeft / 3_600_000);
+  const minutesLeft = Math.floor((msLeft % 3_600_000) / 60_000);
   return (
     <span className="text-xs font-medium text-red-700">
-      {hours}h {minutes}m left to resubmit
+      {hoursLeft}h {minutesLeft}m left to resubmit (by {formatDate(deadline.toISOString())}) — after
+      that this request stays rejected permanently.
     </span>
   );
 }
@@ -45,8 +65,10 @@ function Countdown({ request }: { request: ExpenseRequest }) {
 // request's current status:
 //   - REJECTED: "Save Changes" is a plain PATCH (status unchanged); "Save &
 //     Resubmit" additionally flags resubmit: true, which steps the status
-//     back one stage (see lib/resubmit.ts) — only offered within the 24h
-//     window. Unchanged from the original Edit & Resubmit behavior.
+//     back one stage (see lib/resubmit.ts) — only offered within the
+//     resubmit window, whose length depends on which stage rejected it
+//     (see lib/status.ts#resubmitWindowHours: 24h for an Accounting/
+//     payment-stage rejection, 3 days for everything earlier).
 //   - SUBMITTED + isOwnerEditable (no Procurement action yet): "Save
 //     Changes" only (resubmitting doesn't apply — there's nothing to step
 //     back from) — flags owner_edit: true instead (see the PATCH route's
