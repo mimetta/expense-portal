@@ -24,8 +24,11 @@ import type { DraftRow, ExpenseRequest, RequestItem } from "@/types/database";
 // resubmit-window redesign (see lib/status.ts#resubmitWindowHours): the
 // window is 3 days for every stage except Accounting/payment-stage
 // rejections (rejected_stage === "CEO_APPROVED"), which stay at 24h.
+// Thai-only per explicit request — this app is otherwise mostly English
+// UI copy, but this specific warning was asked to be Thai (matching the
+// existing Thai-only auto-registration banner in components/Nav.tsx).
 function windowLabel(hours: number): string {
-  return hours % 24 === 0 && hours > 24 ? `${hours / 24} days` : `${hours} hours`;
+  return hours % 24 === 0 && hours > 24 ? `${hours / 24} วัน` : `${hours} ชั่วโมง`;
 }
 
 function Countdown({ request }: { request: ExpenseRequest }) {
@@ -42,9 +45,9 @@ function Countdown({ request }: { request: ExpenseRequest }) {
   if (msLeft <= 0) {
     return (
       <span className="text-xs text-brand-subtle">
-        The {windowLabel(hours)} resubmit window closed {formatDate(deadline.toISOString())} — this
-        request stays rejected permanently. You can still edit its details (e.g. attach a missing
-        document) without resubmitting, but the status can no longer change.
+        ระยะเวลาส่งคำขอกลับ ({windowLabel(hours)}) ได้สิ้นสุดลงแล้วเมื่อวันที่{" "}
+        {formatDate(deadline.toISOString())} — คำขอนี้จะถูกปฏิเสธถาวร คุณยังสามารถแก้ไขรายละเอียดได้
+        (เช่น แนบเอกสารที่ขาด) แต่สถานะจะไม่สามารถเปลี่ยนแปลงได้อีก
       </span>
     );
   }
@@ -53,8 +56,8 @@ function Countdown({ request }: { request: ExpenseRequest }) {
   const minutesLeft = Math.floor((msLeft % 3_600_000) / 60_000);
   return (
     <span className="text-xs font-medium text-red-700">
-      {hoursLeft}h {minutesLeft}m left to resubmit (by {formatDate(deadline.toISOString())}) — after
-      that this request stays rejected permanently.
+      เหลือเวลา {hoursLeft} ชม. {minutesLeft} นาที ในการส่งคำขอกลับ (ภายในวันที่{" "}
+      {formatDate(deadline.toISOString())}) — หากเกินกำหนดนี้ คำขอจะถูกปฏิเสธถาวร
     </span>
   );
 }

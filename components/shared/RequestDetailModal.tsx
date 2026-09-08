@@ -1102,7 +1102,9 @@ export default function RequestDetailModal({
             {request.status === "REJECTED" && (() => {
               const deadline = resubmitDeadline(request);
               const hours = resubmitWindowHours(request);
-              const windowLabel = hours % 24 === 0 && hours > 24 ? `${hours / 24} days` : `${hours} hours`;
+              // Thai-only per explicit request — see the matching note on
+              // app/my/page.tsx#windowLabel.
+              const windowLabel = hours % 24 === 0 && hours > 24 ? `${hours / 24} วัน` : `${hours} ชั่วโมง`;
               const closed = !deadline || deadline.getTime() <= Date.now();
               return (
                 <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm">
@@ -1113,10 +1115,10 @@ export default function RequestDetailModal({
                   <p className="mt-1 text-red-700">Reason: {request.reject_reason ?? "-"}</p>
                   <p className="mt-2 text-xs text-red-700">
                     {closed
-                      ? `The ${windowLabel} resubmit window has closed — this request stays rejected permanently. Its content can still be edited (without resubmitting), but the status can no longer change.`
-                      : `The requester can resubmit within ${windowLabel} of rejection (by ${formatDate(
+                      ? `ระยะเวลาส่งคำขอกลับ ${windowLabel} ได้สิ้นสุดลงแล้ว คำขอนี้จะถูกปฏิเสธถาวร ยังสามารถแก้ไขรายละเอียดได้ (โดยไม่ต้องส่งกลับ) แต่สถานะจะไม่สามารถเปลี่ยนแปลงได้อีก`
+                      : `สามารถส่งคำขอนี้กลับเข้าระบบได้ภายใน ${windowLabel} หลังถูกปฏิเสธ (ภายในวันที่ ${formatDate(
                           deadline!.toISOString(),
-                        )}). After that, this request stays rejected permanently.`}
+                        )}) หากเกินกำหนดนี้ คำขอจะถูกปฏิเสธถาวร`}
                   </p>
                 </div>
               );
