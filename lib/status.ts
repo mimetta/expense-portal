@@ -24,10 +24,28 @@ export function needsProcurement(r: ExpenseRequest): boolean {
 // NOT check skip_bo — the custodian sign-off is always required for a
 // petty cash request regardless of whether the BO step itself is skipped
 // for that segment; only the step *after* sign-off follows skip_bo.
+// requires_po normally decides whether a reviewer waits for PO_UPLOADED or
+// acts straight from SUBMITTED — but it isn't a hard gate on PO_UPLOADED
+// ever happening: buildProcurementPatch's autoUploadsPo (see PATCH
+// /api/requests/[id]) advances status to PO_UPLOADED whenever a po_number
+// is entered while status is SUBMITTED, with no requires_po check at all.
+// So a requires_po=false request can still end up at PO_UPLOADED in
+// practice (Procurement attaching a PO anyway), and every "is this
+// reviewer's stage" check below must treat PO_UPLOADED as actionable
+// regardless of requires_po, not just when requires_po is true — otherwise
+// that request becomes stuck, actionable by no one (confirmed live on
+// EXP-2026-09-000005: requires_po false, status PO_UPLOADED after a PO was
+// attached anyway, isBoActionable wrongly returned false so BO's Approve
+// button 409'd with "not awaiting BO approval").
+function isSubmittedOrPoUploaded(r: ExpenseRequest): boolean {
+  if (r.status === "PO_UPLOADED") return true;
+  return !r.requires_po && r.status === "SUBMITTED";
+}
+
 export function isPettyCashApprovable(r: ExpenseRequest): boolean {
   if (r.expense_type !== PETTY_CASH_LABEL) return false;
   if (r.petty_cash_approved_by) return false;
-  return r.requires_po ? r.status === "PO_UPLOADED" : r.status === "SUBMITTED";
+  return isSubmittedOrPoUploaded(r);
 }
 
 export function isBoActionable(r: ExpenseRequest): boolean {
@@ -35,8 +53,7 @@ export function isBoActionable(r: ExpenseRequest): boolean {
   // A petty cash request only reaches the segment's real BO once the
   // custodian has signed off — see isPettyCashApprovable above.
   if (r.expense_type === PETTY_CASH_LABEL && !r.petty_cash_approved_by) return false;
-  if (r.requires_po) return r.status === "PO_UPLOADED";
-  return r.status === "SUBMITTED";
+  return isSubmittedOrPoUploaded(r);
 }
 
 export function isCeoActionable(r: ExpenseRequest): boolean {
@@ -45,7 +62,7 @@ export function isCeoActionable(r: ExpenseRequest): boolean {
     // path where CEO is the very next reviewer after the custodian instead
     // of a real BO.
     if (r.expense_type === PETTY_CASH_LABEL && !r.petty_cash_approved_by) return false;
-    return r.requires_po ? r.status === "PO_UPLOADED" : r.status === "SUBMITTED";
+    return isSubmittedOrPoUploaded(r);
   }
   return r.status === "BO_APPROVED";
 }
