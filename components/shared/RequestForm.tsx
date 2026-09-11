@@ -99,7 +99,12 @@ function creditDeadlineMessage(): string {
 // body limit. Historical requests may still carry base64 `data:` URLs
 // (from before any Storage-based upload existed) or drive.google.com URLs
 // (from the Drive-based build); both are left as-is, not migrated.
-async function uploadFileEntry(
+// Exported so RequestDetailModal.tsx's Procurement inline-edit attachment
+// path can use it too — that path used to have its own fileToEntry() base64
+// converter (see its own history) and hit the exact same Vercel body-limit
+// 413 this function was written to fix, since Procurement's edit was never
+// migrated when this replaced base64/FormData-proxy everywhere else.
+export async function uploadFileEntry(
   file: File,
   requestId: string,
   budgetPeriod: string,

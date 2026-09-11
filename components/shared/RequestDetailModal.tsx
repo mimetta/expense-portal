@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import StatusBadge from "@/components/StatusBadge";
 import RequiredMark from "@/components/shared/RequiredMark";
 import PDFSigner from "@/components/shared/PDFSigner";
-import RequestForm, { requestToFormInitial, openStoredFile, type RequestFormPayload } from "@/components/shared/RequestForm";
+import RequestForm, { requestToFormInitial, openStoredFile, uploadFileEntry, type RequestFormPayload } from "@/components/shared/RequestForm";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { computeTotals } from "@/lib/totals";
 import {
@@ -31,23 +31,24 @@ import type { CompanyRow, ExpenseRequest, FileEntry, RequestItem, RoleRow, Suppl
 const inputClass =
   "w-full rounded-md border border-brand-border bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-brown";
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
+// Matches the "attachments" Supabase Storage bucket's real file_size_limit
+// (see app/api/upload/route.ts / RequestForm.tsx) — was 5MB here via a
+// private base64 fileToEntry() this modal never migrated off of when
+// RequestForm.tsx switched to direct-to-Storage uploads. That base64 path
+// embedded the whole file (inflated ~33% by base64) straight into this
+// modal's Save Changes PATCH body, which silently 413'd on anything that
+// pushed the request past Vercel's ~4.5MB body limit — confirmed live on a
+// 4.11MB PO PDF. Fixed by switching to uploadFileEntry (see below), the
+// same direct-to-Storage-via-signed-URL upload RequestForm.tsx already
+// uses, so the cap here now matches the bucket's real limit instead of an
+// arbitrary, too-small band-aid.
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 function formatBytes(n?: number): string {
   if (!n) return "";
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
-}
-
-function fileToEntry(file: File): Promise<FileEntry> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () =>
-      resolve({ name: file.name, url: reader.result as string, size: file.size, doc_type: "" });
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-    reader.readAsDataURL(file);
-  });
 }
 
 export interface ProcurementSavePatch {
@@ -217,6 +218,11 @@ export default function RequestDetailModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Upload progress/errors for the attachments picker below — this request
+  // already exists (unlike /submit's create mode), so files upload straight
+  // to Storage on pick rather than waiting for Save Changes; see handleFiles.
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
@@ -345,19 +351,33 @@ export default function RequestDetailModal({
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
 
   const handleFiles = async (fileList: FileList) => {
-    const entries: FileEntry[] = [];
-    for (const file of Array.from(fileList)) {
+    setUploadError(null);
+    const picked = Array.from(fileList).filter((file) => {
       if (file.size > MAX_FILE_BYTES) {
-        alert(`${file.name} is larger than 5MB and can't be attached.`);
-        continue;
+        alert(`${file.name} is larger than ${MAX_FILE_BYTES / 1024 / 1024}MB and can't be attached.`);
+        return false;
       }
+      return true;
+    });
+    if (picked.length === 0) return;
+
+    // This request already exists — upload straight to Storage now (same
+    // uploadFileEntry RequestForm.tsx uses in its own edit mode), rather
+    // than staging raw File objects and embedding them as base64 in the
+    // eventual Save Changes PATCH body (the old approach, and the direct
+    // cause of the 413 this replaced — see the MAX_FILE_BYTES comment above).
+    setUploadStatus(`Uploading files... (0/${picked.length})`);
+    for (let i = 0; i < picked.length; i++) {
       try {
-        entries.push(await fileToEntry(file));
-      } catch {
-        alert(`Failed to read ${file.name}`);
+        const entry = await uploadFileEntry(picked[i], request.request_id, request.budget_period, "");
+        setFiles((prev) => [...prev, entry]);
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : `Failed to upload ${picked[i].name}`);
+        break;
       }
+      setUploadStatus(`Uploading files... (${i + 1}/${picked.length})`);
     }
-    setFiles((prev) => [...prev, ...entries]);
+    setUploadStatus(null);
   };
   const updateFile = (idx: number, patch: Partial<FileEntry>) =>
     setFiles((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
@@ -1090,6 +1110,8 @@ export default function RequestDetailModal({
                     e.target.value = "";
                   }}
                 />
+                {uploadStatus && <p className="mt-1 text-xs text-brand-muted">{uploadStatus}</p>}
+                {uploadError && <p className="mt-1 text-xs text-[#DC2626]">{uploadError}</p>}
               </>
             )}
 
