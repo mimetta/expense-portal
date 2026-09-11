@@ -1543,12 +1543,16 @@ still gets an `_SIGNED` suffix appended (`app/api/requests/[id]/ceo-approve/rout
 markNewestFileSigned`) — unaffected by any of the storage-backend changes above, still
 metadata-only.
 
-**One remaining base64 path, deliberately left alone**: `RequestDetailModal.tsx`'s own narrow
-`editable` mode (Procurement's inline edit-in-place — see "Request Detail Modal" above) still
-has its own private `fileToEntry()` base64 conversion for files picked there. Untouched by both
-this batch and the Drive build before it — the attachment-storage work in this project has
-consistently been scoped to `/submit` and the `RequestForm`-based edit paths, not Procurement's
-separate inline attachment upload; flag if that should change too.
+**The Procurement inline-edit base64 path was migrated too (2026-09-11).** `RequestDetailModal.tsx`'s
+`editable` mode (Procurement's inline edit-in-place — see "Request Detail Modal" above) used to
+carry its own private `fileToEntry()` base64 conversion, left over from before this batch's
+Storage migration — flagged at the time as an untouched gap since the attachment-storage work
+had only ever been scoped to `/submit` and the `RequestForm`-based edit paths. It hit the exact
+413 this section warns about: a 4.11MB PO PDF, base64-inflated and embedded in the Save Changes
+PATCH body, pushed past Vercel's ~4.5MB body limit. Fixed by exporting `uploadFileEntry` (below)
+from `RequestForm.tsx` and reusing it here — files upload straight to Storage on pick, same as
+`RequestForm`'s own edit mode, instead of riding along in the PATCH body. `MAX_FILE_BYTES` in
+`RequestDetailModal.tsx` went from a band-aid 5MB to the bucket's real 50MB limit accordingly.
 
 **Known, real limitation**: a 7-day signed URL is a real constraint on a record that can live
 indefinitely (expense requests are effectively permanent accounting records) — this build
