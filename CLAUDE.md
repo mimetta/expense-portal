@@ -1476,6 +1476,39 @@ migration 017 fixed it by granting real BO rows rather than by widening any exis
 
 ---
 
+## SUPPLIER_MANAGER / PRODUCT_MANAGER — narrow, Settings-only roles (added 2026-09-15)
+
+Before this, granting someone "just" Supplier or Product management meant giving them a whole
+existing role (ACCOUNTING or PROCUREMENT) — which also bundles in unrelated powers (the
+Accounting page/Mark Paid toggle, or the Procurement page/PO workflow actions) they may not
+need or shouldn't have. These two new roles (`lib/constants.ts#ROLES`,
+`supabase/migrations/032_supplier_product_manager_roles.sql`) carry **no page access or
+request-approval powers of their own** — `canAccessPage`'s generic "any role except a pure
+EMPLOYEE" rule already grants them the Settings page, and which tab they actually see there is
+governed entirely by the existing, already-dynamic Settings > Permissions config
+(`DEFAULT_SETTINGS_TAB_ROLES` / the `settings_tab_permissions` table, see "Settings tab
+permissions" above) — no new permission mechanism was built, these roles just plug into the one
+that already existed. Both the User Management Add/Edit modal's Role dropdown and the
+Permissions tab's per-tab role toggles are already fully derived from the `ROLES` array
+(`ROLES.map(...)` / `TOGGLEABLE_ROLES` in `settingsClient.tsx`), so adding these two there was
+the only code change needed to make them assignable and toggleable — no new UI.
+
+**Migration 032 also had to update live *data*, not just the schema.** `getSettingsTabPermissions()`
+(`lib/settings-permissions.ts`) fully replaces a tab's hardcoded default with whatever row
+already exists in `settings_tab_permissions` — and since migration 024 has been applied (every
+tab already has a live row), just adding `SUPPLIER_MANAGER`/`PRODUCT_MANAGER` to
+`DEFAULT_SETTINGS_TAB_ROLES` in code would have been silently dead for these two tabs. Migration
+032 also appends the new role onto the existing `suppliers`/`products` rows' comma-separated
+`roles` column (guarded by `NOT LIKE`, so re-running is a no-op) — appending, not overwriting,
+so any admin customization already made via the Permissions tab survives.
+
+Petty Cash Custodian, by contrast, already existed as its own narrow role before this — nothing
+changed there. It's scoped differently (by exact request match — a request names one holder
+email, and only that person can sign off — see `canPettyCashActOnRequest`), not by department/
+BU the way BO/DEPT_HEAD are; left as-is, this being a deliberate choice, not a gap.
+
+---
+
 ## Notifications (Discord Webhooks)
 
 Env vars: `DISCORD_WEBHOOK_FACTORY`, `DISCORD_WEBHOOK_MARKETING`, `DISCORD_WEBHOOK_RD`,

@@ -164,9 +164,14 @@ export const MANAGED_SETTINGS_TABS: ManagedSettingsTab[] = SETTINGS_TABS.filter(
 // canAccessSettingsTab grants it unconditionally below, same convention as
 // canAccessPage.
 export const DEFAULT_SETTINGS_TAB_ROLES: Record<ManagedSettingsTab, Role[]> = {
-  suppliers: ["ACCOUNTING", "PROCUREMENT"],
+  // SUPPLIER_MANAGER/PRODUCT_MANAGER (supabase/migrations/
+  // 032_supplier_product_manager_roles.sql) added here so a freshly
+  // assigned row works immediately, without an admin also having to visit
+  // Settings > Permissions first — same reasoning as every other role
+  // already listed below.
+  suppliers: ["ACCOUNTING", "PROCUREMENT", "SUPPLIER_MANAGER"],
   users: [],
-  products: ["PROCUREMENT"],
+  products: ["PROCUREMENT", "PRODUCT_MANAGER"],
   categories: [],
   deptconfig: ["CEO"],
   announcements: ["CEO"],

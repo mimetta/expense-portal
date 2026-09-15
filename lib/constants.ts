@@ -63,6 +63,15 @@ export const ROLES = [
   "PETTY_CASH_CUSTODIAN",
   "EMPLOYEE",
   "DEPT_HEAD",
+  // Narrow, Settings-only roles (supabase/migrations/
+  // 032_supplier_product_manager_roles.sql) — grant just Supplier or
+  // Product management without bundling in a full PROCUREMENT/ACCOUNTING
+  // role's other powers. No dedicated permission logic needed: they plug
+  // straight into the existing dynamic Settings > Permissions tab
+  // (lib/permissions.ts#DEFAULT_SETTINGS_TAB_ROLES / TOGGLEABLE_ROLES in
+  // settingsClient.tsx are both already derived from this ROLES array).
+  "SUPPLIER_MANAGER",
+  "PRODUCT_MANAGER",
 ] as const;
 export type Role = (typeof ROLES)[number];
 
