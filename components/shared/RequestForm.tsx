@@ -25,6 +25,7 @@ import type {
   CompanyRow,
   ExpenseRequest,
   FileEntry,
+  PaymentPresetRow,
   PettyCashCustodianRow,
   ProductRow,
   RequestItem,
@@ -506,6 +507,12 @@ export default function RequestForm({
   const [procurementFillsPayment, setProcurementFillsPayment] = useState(
     initial?.procurementFillsPayment ?? false,
   );
+  // Personal, self-service saved payment details (supabase/migrations/
+  // 031_payment_presets.sql) — a requester's own reusable supplier/bank/
+  // account combos, separate from the shared admin-managed `suppliers`
+  // table above (that one drives the autocomplete dropdown/handleSupplierChange;
+  // this one is just "load one of my own saved payees").
+  const [presets, setPresets] = useState<PaymentPresetRow[]>([]);
 
   // --- Attachments ---------------------------------------------------------
   const [filesFolderUrl, setFilesFolderUrl] = useState(initial?.filesFolderUrl ?? "");
@@ -551,6 +558,10 @@ export default function RequestForm({
     fetch("/api/petty-cash-custodians")
       .then((res) => res.json())
       .then((data) => setCustodians(data.custodians ?? []));
+    fetch("/api/payment-presets")
+      .then((res) => res.json())
+      .then((data) => setPresets(data.presets ?? []))
+      .catch(() => setPresets([]));
     fetch("/api/roles/me")
       .then((res) => res.json())
       .then((data) => {
@@ -659,6 +670,56 @@ export default function RequestForm({
       if (match.bank_name) setBankName(match.bank_name);
       if (match.account_no) setAccountNo(match.account_no);
       if (match.email) setSlipReceiverEmail(match.email);
+    }
+  };
+
+  // Loads one of the signed-in user's own saved payment presets — only
+  // overwrites a field if the preset actually has a value for it, same
+  // "don't clobber with blanks" rule handleSupplierChange already follows.
+  const handlePresetSelect = (preset: PaymentPresetRow) => {
+    if (preset.supplier_name) setSupplierName(preset.supplier_name);
+    if (preset.pay_method) setPayMethod(preset.pay_method);
+    if (preset.bank_name) setBankName(preset.bank_name);
+    if (preset.card_type) setCardType(preset.card_type);
+    if (preset.account_no) setAccountNo(preset.account_no);
+    if (preset.slip_receiver_email) setSlipReceiverEmail(preset.slip_receiver_email);
+  };
+
+  const handleSavePreset = async () => {
+    const name = prompt("Name this saved payee (e.g. the supplier or purpose):", supplierName || "");
+    if (!name?.trim()) return;
+    try {
+      const res = await fetch("/api/payment-presets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          supplier_name: supplierName || undefined,
+          pay_method: payMethod || undefined,
+          bank_name: bankName || undefined,
+          card_type: cardType || undefined,
+          account_no: accountNo || undefined,
+          slip_receiver_email: slipReceiverEmail || undefined,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to save preset");
+      setPresets((prev) => [...prev, body.preset]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save preset");
+    }
+  };
+
+  const handleDeletePreset = async (id: number) => {
+    if (!confirm("Delete this saved payee?")) return;
+    const prevPresets = presets;
+    setPresets((prev) => prev.filter((p) => p.id !== id));
+    try {
+      const res = await fetch(`/api/payment-presets/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+    } catch {
+      setPresets(prevPresets);
+      alert("Failed to delete saved payee");
     }
   };
 
@@ -1526,6 +1587,51 @@ export default function RequestForm({
               style={{ background: "#DBEAFE", border: "1px solid #93C5FD", color: "#1E3A8A" }}
             >
               ℹ️ Procurement จะกรอกข้อมูลการชำระเงินให้ภายหลัง
+            </div>
+          )}
+
+          {!hideSupplierPaymentMethodAccountFields && !procurementFillsPayment && (
+            <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-2.5">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-brand-subtle">⭐ Saved payees</span>
+                <button
+                  type="button"
+                  onClick={handleSavePreset}
+                  className="text-xs font-medium text-brand-brown hover:underline"
+                >
+                  💾 Save current as preset
+                </button>
+              </div>
+              {presets.length === 0 ? (
+                <p className="text-xs text-brand-subtle">
+                  No saved payees yet — fill in the fields below, then save one for next time.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {presets.map((p) => (
+                    <span
+                      key={p.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-brand-border bg-white px-2 py-1 text-xs"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handlePresetSelect(p)}
+                        className="font-medium text-brand-dark hover:text-brand-brown"
+                      >
+                        {p.name}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePreset(p.id)}
+                        aria-label={`Delete ${p.name}`}
+                        className="text-brand-subtle hover:text-[#DC2626]"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

@@ -253,6 +253,23 @@ export interface PettyCashCustodianRow {
   created_at: string;
 }
 
+// A requester's own saved supplier/bank/account combo (supabase/migrations/
+// 031_payment_presets.sql) — personal, self-service, unrelated to the
+// shared admin-managed `suppliers` table. See RequestForm.tsx's Payment
+// Details section and app/api/payment-presets/route.ts.
+export interface PaymentPresetRow {
+  id: number;
+  owner_email: string;
+  name: string;
+  supplier_name: string | null;
+  pay_method: string | null;
+  bank_name: string | null;
+  card_type: string | null;
+  account_no: string | null;
+  slip_receiver_email: string | null;
+  created_at: string;
+}
+
 export interface DraftRow {
   id: number;
   owner_email: string;

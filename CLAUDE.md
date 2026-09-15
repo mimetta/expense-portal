@@ -1001,6 +1001,35 @@ rebuilt. BO Approvals (`app/bo-approvals/boapprovalsClient.tsx`) has no hardcode
 list either — it only ever displays `request.department`, the already-persisted value on each
 request, never a picker or a decoded `dept_scope`.
 
+### Saved payment presets (personal, added 2026-09-15)
+
+A requester who pays the same payee repeatedly wanted to stop retyping Supplier/Payee, Payment
+Method, Bank Name, Card Type, Account No, and Slip Payment Receiver every time — but doesn't
+need (and shouldn't need) any Settings role just to do it. Deliberately **separate from the
+shared `suppliers` table** above: that one is admin-managed reference data feeding an
+autocomplete every requester reads from; this one is a private list each requester curates for
+themselves, with no Settings tab, no role/permission gate beyond being signed in.
+
+- **Schema**: `payment_presets` (`supabase/migrations/031_payment_presets.sql`) — `bigserial`
+  id (a list per user, unlike `saved_signatures`' single-row-per-email shape, since a requester
+  plausibly pays several different payees), `owner_email`, `name`, and the same payment fields
+  named above. Self-contained/idempotent, same pattern as every migration since 008.
+- **API**: `GET /api/payment-presets` / `POST /api/payment-presets` (both scoped to
+  `owner_email = ` the signed-in user server-side — never trusted from the client body) and
+  `DELETE /api/payment-presets/[id]` (checks the row's `owner_email` matches before deleting,
+  same ownership-check pattern as request owner delete). Degrades to `{ presets: [] }` / a
+  friendly 503 on Postgrest's `PGRST205` if migration 031 isn't applied yet, matching every
+  other not-yet-applied-migration route in this app.
+- **UI**: `components/shared/RequestForm.tsx`'s Payment Details section — a "⭐ Saved payees"
+  panel above the Supplier/Payee field (hidden whenever the fields themselves are, i.e.
+  `hideSupplierPaymentMethodAccountFields` or "Let Procurement fill payment details" is
+  checked): a pill per saved payee (click the name to load it via `handlePresetSelect`, same
+  "only overwrite a field if the preset actually has a value" rule `handleSupplierChange`
+  already follows for the shared-suppliers autocomplete; click ✕ to delete) plus a "💾 Save
+  current as preset" button that `prompt()`s for a name and POSTs whatever the four payment
+  fields currently hold. One shared component, so `/submit` and every edit path
+  (`RequestForm`-based Edit & Resubmit, Duplicate, in-place owner edit) all get this for free.
+
 ## Database Schema
 
 See `supabase/migrations/001_initial_schema.sql` for the full DDL: `requests`, `roles`,
