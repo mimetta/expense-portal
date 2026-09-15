@@ -177,6 +177,94 @@ function EditRequestModal({
   );
 }
 
+// Duplicate — a REJECTED request's content is a decent starting point for a
+// brand-new request (e.g. the requester wants to try again with a
+// different supplier/PO after a rejection closed its resubmit window, or
+// just wants to submit a similar expense again), but it's a genuinely new
+// request: new request_id, starts at SUBMITTED, no link back to the
+// original. Different from Edit & Resubmit above, which mutates this exact
+// row and steps it back one stage — Duplicate never touches the original
+// REJECTED request at all.
+//
+// requesterName/chapter are deliberately omitted from the prefill, same
+// reasoning as draftToFormInitial in app/submit/page.tsx: they're a
+// read-only display fallback only (RequestForm shows initial?.requesterName
+// ?? currentUser?.name), never part of the payload actually submitted — the
+// server always derives requester_email/requester_name from whoever is
+// signed in. Carrying the original requester's name into the prefill would
+// show a name that doesn't match who the new request will actually belong
+// to. Attachments (files/filesFolderUrl) are dropped too — they're
+// evidence for the rejected request, and whatever needs fixing likely
+// means fresh documents anyway; the requester re-attaches on the new form.
+function requestToDuplicateInitial(r: ExpenseRequest) {
+  const base = requestToFormInitial(r);
+  return { ...base, requesterName: undefined, chapter: undefined, files: [], filesFolderUrl: "" };
+}
+
+function DuplicateRequestModal({
+  request,
+  onClose,
+  onCreated,
+}: {
+  request: ExpenseRequest;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  // No uploadContext — same create-mode behavior as /submit (app/submit/
+  // page.tsx#handleSubmit): POST /api/requests, then RequestForm itself
+  // uploads any newly-picked files once it has the real new request_id back.
+  const handleSubmit = async (payload: RequestFormPayload) => {
+    const res = await fetch("/api/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json();
+      throw new Error(body.error ?? "Failed to submit request");
+    }
+    const body = await res.json();
+    return { requestId: body.request?.request_id as string | undefined };
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4"
+      style={{ backdropFilter: "blur(2px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="mx-auto my-8 max-w-4xl rounded-xl border border-brand-border bg-white p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 flex justify-end">
+          <button onClick={onClose} className="text-sm text-brand-muted hover:text-brand-dark">
+            ✕ Close
+          </button>
+        </div>
+        <RequestForm
+          initial={requestToDuplicateInitial(request)}
+          title={`Duplicate ${request.request_id}`}
+          banner={
+            <div className="rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
+              Creating a new request pre-filled from the rejected {request.request_id}. This does not change or
+              resubmit the original — review every field (especially payment details and attachments) before
+              submitting.
+            </div>
+          }
+          submitLabel="Submit Duplicate"
+          submittingLabel="Submitting..."
+          onSubmit={handleSubmit}
+          onComplete={() => {
+            onCreated();
+            onClose();
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // Small reason-prompt modal for step 1 of the Edit Request workflow
 // (see CLAUDE.md) — the owner asks an approver's permission before they
 // can touch a request that's already past isOwnerEditable's free window.
@@ -449,6 +537,7 @@ export default function MyRequestsPage() {
   const [selected, setSelected] = useState<ExpenseRequest | null>(null);
   const [editing, setEditing] = useState<ExpenseRequest | null>(null);
   const [requestingEdit, setRequestingEdit] = useState<ExpenseRequest | null>(null);
+  const [duplicating, setDuplicating] = useState<ExpenseRequest | null>(null);
   const [deleting, setDeleting] = useState<ExpenseRequest | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -609,6 +698,14 @@ export default function MyRequestsPage() {
                         ↩ Edit &amp; Resubmit
                       </button>
                     )}
+                    {r.status === "REJECTED" && (
+                      <button
+                        onClick={() => setDuplicating(r)}
+                        className="ml-3 text-sm font-medium text-brand-brown hover:underline"
+                      >
+                        ⎘ Duplicate
+                      </button>
+                    )}
                     {canRequestEdit(r) && (
                       <button
                         onClick={() => setRequestingEdit(r)}
@@ -660,6 +757,15 @@ export default function MyRequestsPage() {
                 >
                   Edit &amp; Resubmit
                 </button>
+                <button
+                  onClick={() => {
+                    setDuplicating(selected);
+                    setSelected(null);
+                  }}
+                  className="mm-btn-secondary"
+                >
+                  ⎘ Duplicate
+                </button>
                 <Countdown request={selected} />
               </div>
             ) : isEditApproved(selected) ? (
@@ -697,6 +803,10 @@ export default function MyRequestsPage() {
           onClose={() => setRequestingEdit(null)}
           onSubmitted={load}
         />
+      )}
+
+      {duplicating && (
+        <DuplicateRequestModal request={duplicating} onClose={() => setDuplicating(null)} onCreated={load} />
       )}
 
       {deleting && (
