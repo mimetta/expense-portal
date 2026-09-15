@@ -91,6 +91,24 @@ interface ProcurementEditBody {
 // po_number is provided, status auto-advances to PO_UPLOADED and
 // po_uploaded_by/po_uploaded_at are stamped, same as the dedicated
 // /api/requests/[id]/po route did.
+// RequestDetailModal's Save Changes always sends due_date/po_date/
+// po_delivery_date as plain strings (initialized from `request.field ?? ""`
+// — see ProcurementSavePatch), so an untouched/cleared date field arrives
+// here as "" rather than being omitted. "" ?? existing.field never falls
+// back (?? only triggers on null/undefined), so it used to be written
+// straight into a `date` column as-is — Postgres has no concept of a blank
+// date and always rejects it with "invalid input syntax for type date: ''",
+// regardless of whether any other date on the request is in the past or
+// future. This is NOT a past-date restriction (Postgres date columns never
+// reject a valid past date) — it's an empty-string-vs-null bug. Treat ""
+// as an explicit "clear this date" (-> null), same as any other field the
+// user blanks out, while a real date string (past, present, or future)
+// still passes straight through untouched.
+function dateOrNull(value: string | undefined, existing: string | null): string | null {
+  if (value === undefined) return existing;
+  return value === "" ? null : value;
+}
+
 function buildProcurementPatch(body: ProcurementEditBody, existing: ExpenseRequest, actorEmail: string) {
   const items =
     Array.isArray(body.items_json) && body.items_json.length > 0 ? body.items_json : existing.items_json;
@@ -114,13 +132,13 @@ function buildProcurementPatch(body: ProcurementEditBody, existing: ExpenseReque
     bank_name: body.bank_name ?? existing.bank_name,
     card_type: body.card_type ?? existing.card_type,
     account_no: body.account_no ?? existing.account_no,
-    due_date: body.due_date ?? existing.due_date,
+    due_date: dateOrNull(body.due_date, existing.due_date),
     credit_term_days: body.credit_term_days ?? existing.credit_term_days,
     slip_receiver_email: body.slip_receiver_email ?? existing.slip_receiver_email,
     po_number: body.po_number ?? existing.po_number,
-    po_date: body.po_date ?? existing.po_date,
+    po_date: dateOrNull(body.po_date, existing.po_date),
     po_vendor: body.po_vendor ?? existing.po_vendor,
-    po_delivery_date: body.po_delivery_date ?? existing.po_delivery_date,
+    po_delivery_date: dateOrNull(body.po_delivery_date, existing.po_delivery_date),
     po_notes: body.po_notes ?? existing.po_notes,
     files_json: Array.isArray(body.files_json) ? body.files_json : existing.files_json,
     ...(autoUploadsPo

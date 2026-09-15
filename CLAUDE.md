@@ -400,6 +400,22 @@ One route, six mutually-exclusive behaviors gated by request status / body shape
    auto-advances `status` to `PO_UPLOADED`** and stamps `po_uploaded_by`/`po_uploaded_at` —
    this is what replaced the old dedicated "Upload PO" modal; `PATCH /api/requests/[id]/po`
    still exists but nothing in the UI calls it anymore.
+
+   **`due_date`/`po_date`/`po_delivery_date` empty-string bug (fixed 2026-09-15).**
+   `RequestDetailModal.tsx`'s `payment`/`poDetails` state initializes each of these three date
+   inputs from `request.field ?? ""`, and `handleSave` always spreads the whole `payment`/
+   `poDetails` object into the PATCH body regardless of whether a given field was touched — so
+   an untouched or intentionally-cleared date field arrives here as `""`, not `undefined`.
+   `buildProcurementPatch` used plain `body.due_date ?? existing.due_date`, and `??` only falls
+   back on `null`/`undefined`, never on `""` — so an empty string was written straight to a
+   `date` column, and Postgres has no concept of a blank date: `invalid input syntax for type
+   date: ""`. **This was never a past-date restriction** — Postgres's `date` type accepts any
+   valid past, present, or future date; a PO dated before the expense request it's attached to
+   is fine and always was. Fixed via a `dateOrNull()` helper: `""` now normalizes to `null`
+   (clearing the column, same as leaving it blank should mean) while any real date string,
+   including a past one, passes through unchanged. `buildEditableFields` (`lib/resubmit.ts`,
+   backing resubmit/owner_edit/edit_resubmit) does not have this bug — `RequestForm.tsx`'s own
+   submit payload already sends `due_date: dueDate || undefined` before it ever reaches there.
 5. **Owner editing a REJECTED request without resubmitting** — only when
    `status === "REJECTED"`. Requester or SUPERADMIN. Full field set (same as resubmit/#3, via
    `buildEditableFields`), status unchanged. Logged as `REQUEST_EDITED`. This is the "Save
