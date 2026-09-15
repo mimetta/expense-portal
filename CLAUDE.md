@@ -338,6 +338,19 @@ this, fields for stages at or before the target status (`po_*`/`bo_*`/`ceo_*`) a
 cleared on resubmit — only the rejection markers (`rejected_by`/`rejected_stage`/
 `reject_reason`/`rejected_at`) are.
 
+**Duplicate (added 2026-09-15)** is a separate, simpler escape hatch alongside resubmit — for
+when the requester just wants to reuse a REJECTED request's content as a starting point for a
+*new* request, whether or not the resubmit window is still open. `app/my/page.tsx`'s
+"⎘ Duplicate" button (table row + `RequestDetailModal` footer, both REJECTED-only) opens
+`RequestForm` in plain create mode — no `uploadContext`, posts to `POST /api/requests` exactly
+like `/submit` — pre-filled via `requestToDuplicateInitial()` (wraps `requestToFormInitial()`,
+dropping `requesterName`/`chapter` — display-only fallbacks the server never trusts, so keeping
+the original requester's name in the prefill would show identity info that won't match who the
+new request actually belongs to — and `files`/`filesFolderUrl`, since old attachments are
+evidence for the old, rejected request). Result is a brand-new `request_id` starting at
+`SUBMITTED`; the original REJECTED request is never touched, unlike resubmit which mutates it
+in place.
+
 This logic lives in `lib/resubmit.ts` (`buildEditableFields`, `resubmitTargetStatus`,
 `resubmitRequest`), shared by two entry points:
 - `PATCH /api/requests/[id]/resubmit` — dedicated route, kept for backward compatibility.
