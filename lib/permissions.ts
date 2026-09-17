@@ -107,7 +107,12 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
     // lib/spend.ts#getSpendReport (via the same boScopeMatchesRequest helper
     // /bo-approvals uses), so granting the page does not grant the data.
     case "spend-report":
-      return hasRole(user, "CEO") || hasRole(user, "ACCOUNTING") || hasRole(user, "BO");
+      // Open to anyone who holds a roles row at all. What they SEE is decided
+      // by lib/spend.ts#scopeFilter: CEO/ACCOUNTING/SUPERADMIN see everything,
+      // a BO sees their approval scope, and everyone else sees the
+      // department(s) on roles.department — or, if that is unassigned,
+      // nothing at all. Page access is not data access here.
+      return user.allRoles.length > 0;
     case "settings":
       // Visible to every role except a pure EMPLOYEE (or a user with no
       // roles at all, though auto-registration means that's now transient
@@ -128,6 +133,7 @@ export type SettingsTab =
   | "announcements"
   | "pettycash"
   | "companies"
+  | "people"
   | "permissions";
 
 // The 8 tabs whose access is governed by the DB-backed
@@ -137,7 +143,10 @@ export type SettingsTab =
 // exception to avoid a self-referential lockout or privilege-escalation
 // risk) — so it has no entry in DEFAULT_SETTINGS_TAB_ROLES/the DB table and
 // can never be passed to requireSettingsTabRole (lib/settings-permissions.ts).
-export type ManagedSettingsTab = Exclude<SettingsTab, "permissions">;
+// "people" joins "permissions" as SUPERADMIN-only and DB-unconfigurable:
+// it assigns the department that decides what each person can see in the
+// spend report, so who may edit it must not itself be editable from a tab.
+export type ManagedSettingsTab = Exclude<SettingsTab, "permissions" | "people">;
 
 export const SETTINGS_TABS: SettingsTab[] = [
   "suppliers",
@@ -148,11 +157,12 @@ export const SETTINGS_TABS: SettingsTab[] = [
   "announcements",
   "pettycash",
   "companies",
+  "people",
   "permissions",
 ];
 
 export const MANAGED_SETTINGS_TABS: ManagedSettingsTab[] = SETTINGS_TABS.filter(
-  (t): t is ManagedSettingsTab => t !== "permissions",
+  (t): t is ManagedSettingsTab => t !== "permissions" && t !== "people",
 );
 
 // Fallback default when the settings_tab_permissions table doesn't exist
@@ -190,7 +200,7 @@ export function canAccessSettingsTab(
   config: Record<ManagedSettingsTab, Role[]> = DEFAULT_SETTINGS_TAB_ROLES,
 ): boolean {
   if (isSuperadmin(user)) return true;
-  if (tab === "permissions") return false;
+  if (tab === "permissions" || tab === "people") return false;
   if (tab === "products") return canManageProducts(user, config);
   return hasAnyRole(user, config[tab]);
 }

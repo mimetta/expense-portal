@@ -316,6 +316,23 @@ export default function SpendReportClient() {
         </button>
       </div>
 
+      {report?.unscoped && (
+        <div
+          className="rounded-[10px] px-4 py-4 text-[13px]"
+          style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+        >
+          <strong>No department has been assigned to your account yet.</strong>
+          <p className="mt-1">
+            This report is scoped to the department you work in, and yours has not been set, so
+            there is nothing to show. This is not a report of zero spend — it is a report you
+            cannot see yet.
+          </p>
+          <p className="mt-1">
+            Ask an admin to set it in Settings &gt; People &amp; departments.
+          </p>
+        </div>
+      )}
+
       <SpendFilters
         value={state}
         years={[currentYear + 1, currentYear, currentYear - 1, currentYear - 2]}
