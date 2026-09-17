@@ -40,7 +40,7 @@ export default function PendingPanel({ requests }: Props) {
                           its own. */}
                       <Link
                         href={`/print/${r.request_id}`}
-                        className="font-mono text-[13px] text-brand-brown hover:text-brand-accent hover:underline"
+                        className="tabular-nums text-[13px] text-brand-brown hover:text-brand-accent hover:underline"
                       >
                         {r.request_id}
                       </Link>

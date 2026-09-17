@@ -2,7 +2,9 @@
 
 import { useCallback, useMemo, useRef } from "react";
 import { MONTH_NAMES, thb, EM_DASH } from "@/components/spend/format";
+import RevenueRows from "@/components/budget/RevenueRows";
 import type { EditorRow } from "@/lib/budget-editor";
+import type { RevenueNode } from "@/lib/revenue-goals";
 
 // The editable budget grid. A BO like siriwan.b holds ~50 lines x 12 months =
 // 600 cells, so the four entry interactions below are the feature, not polish:
@@ -58,6 +60,26 @@ export interface GridProps {
   /** CEO review adds a per-row Change column and the delta beneath each cell. */
   showDelta?: boolean;
   priorFiscalYear?: number;
+  /** The revenue goal block, rendered above the budget rows. */
+  revenue?: {
+    tree: RevenueNode;
+    editable: boolean;
+    onChange?: (channelId: string, month: number, value: number | null) => void;
+    onAddChannel?: () => void;
+    onToggleChannel?: (channelId: string, active: boolean) => void;
+  } | null;
+}
+
+/**
+ * A budget figure as a share of that month's revenue goal. Null where there
+ * is no goal — dividing by a month that is "not yet open" would invent a
+ * percentage out of nothing.
+ */
+function shareOfGoal(amount: number, goal: number | null | undefined): string | null {
+  if (goal === null || goal === undefined || goal === 0) return null;
+  const pct = (amount / goal) * 100;
+  if (!Number.isFinite(pct)) return null;
+  return `${pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)}% of goal`;
 }
 
 interface Grouped {
@@ -117,11 +139,16 @@ export default function BudgetGrid({
   onClearRow,
   showDelta = false,
   priorFiscalYear,
+  revenue = null,
 }: GridProps) {
   const gridRef = useRef<HTMLTableElement>(null);
   const readOnly = onChange === null;
   const grouped = useMemo(() => group(rows), [rows]);
   const totalWidth = STICKY_W + 12 * MONTH_W + TOTAL_W + (showDelta ? TOTAL_W : 0);
+  // The denominator for the share-of-goal line under every budget cell: the
+  // root of the revenue tree, which already respects the BU filter (with
+  // "Both" selected it is the two BUs combined).
+  const goalMonths = revenue?.tree.months ?? null;
 
   const focusCell = useCallback((rowIdx: number, month: number) => {
     const el = gridRef.current?.querySelector<HTMLInputElement>(
@@ -228,6 +255,17 @@ export default function BudgetGrid({
             {showDelta && <th className="text-right">Change</th>}
           </tr>
         </thead>
+        {revenue && (
+          <RevenueRows
+            tree={revenue.tree}
+            editable={revenue.editable}
+            monthWidthCols={12}
+            showDelta={showDelta}
+            onChange={revenue.onChange}
+            onAddChannel={revenue.onAddChannel}
+            onToggleChannel={revenue.onToggleChannel}
+          />
+        )}
         <tbody>
           {grouped.map((g, gi) => {
             if (g.deptHead) {
@@ -317,6 +355,11 @@ export default function BudgetGrid({
                               {Math.abs(Math.round(d)).toLocaleString("en-US")}
                             </div>
                           )}
+                          {v > 0 && shareOfGoal(v, goalMonths?.[m]) && (
+                            <div className="text-[10px] text-brand-subtle">
+                              {shareOfGoal(v, goalMonths?.[m])}
+                            </div>
+                          )}
                         </div>
                       </td>
                     );
@@ -363,6 +406,15 @@ export default function BudgetGrid({
                         >
                           →
                         </button>
+                        {/* Share of that month's revenue goal — same small
+                            muted treatment Variance and Used already use in
+                            the spend report. Absent when the month has no
+                            goal, rather than shown as 0%. */}
+                        {v > 0 && shareOfGoal(v, goalMonths?.[m]) && (
+                          <div className="pr-2 text-right text-[10px] leading-tight text-brand-subtle">
+                            {shareOfGoal(v, goalMonths?.[m])}
+                          </div>
+                        )}
                       </div>
                     </td>
                   );
