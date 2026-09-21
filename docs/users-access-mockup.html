@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users & access — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2B; --terracotta:#BD5A2E; --cream:#FAF8F4; --sand:#D8CBB0;
+    --ink:#1B1B18; --muted:#6B6B60; --white:#fff;
+    --ok:#2E7D52; --over:#B23A2F; --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums}
+  .wrap{max-width:1280px;margin:0 auto;padding:22px 20px 64px}
+  h1{font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .btn{border:1px solid var(--sand);background:var(--white);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer}
+  .btn:hover{border-color:var(--forest)}
+  .btn-primary{background:var(--forest);border-color:var(--forest);color:#fff}
+  .btn-sm{padding:5px 10px;font-size:12.5px}
+  input[type=text],select{font:inherit;padding:8px 11px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);color:var(--ink)}
+
+  .layout{display:grid;grid-template-columns:360px 1fr;gap:16px;align-items:start}
+
+  /* people list */
+  .list{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden;position:sticky;top:12px}
+  .listtools{padding:12px;border-bottom:1px solid var(--sand);display:flex;flex-direction:column;gap:8px;background:#FDFCFA}
+  .listtools input{width:100%}
+  .filters{display:flex;gap:6px;flex-wrap:wrap}
+  .fchip{border:1px solid var(--sand);background:#fff;border-radius:99px;padding:3px 10px;font:inherit;font-size:11.5px;color:var(--muted);cursor:pointer}
+  .fchip.on{background:var(--forest);border-color:var(--forest);color:#fff}
+  .person{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #EFEAE0;background:#fff;padding:11px 14px;cursor:pointer;font:inherit}
+  .person:hover{background:#FBF9F5}
+  .person.sel{background:#F1F7F2;box-shadow:inset 3px 0 0 var(--forest)}
+  .person .em{font-weight:500;font-size:13.5px;display:flex;align-items:center;gap:7px}
+  .person .meta{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .rtag{font-size:10.5px;font-weight:500;padding:1px 7px;border-radius:99px;background:#F2EFE8;color:var(--muted)}
+  .flag{font-size:10px;font-weight:500;padding:1px 7px;border-radius:99px}
+  .flag.warn{background:#FBF2EC;color:var(--terracotta)}
+  .flag.bad{background:#FBF0EE;color:var(--over)}
+  .dotover{width:6px;height:6px;border-radius:99px;background:var(--terracotta);display:inline-block}
+
+  /* detail */
+  .panel{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius)}
+  .phead{padding:18px 22px;border-bottom:1px solid var(--sand);display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+  .phead h2{font-size:18px;font-weight:700;margin:0 0 4px}
+  .phead .ctx{font-size:12.5px;color:var(--muted)}
+  .sec{padding:18px 22px;border-bottom:1px solid #EFEAE0}
+  .sec:last-child{border-bottom:0}
+  .sec h3{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:0 0 12px}
+  .rolegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .role{border:1px solid var(--sand);border-radius:var(--radius);padding:9px 11px;cursor:pointer;background:#fff;text-align:left;font:inherit}
+  .role b{display:block;font-weight:500;font-size:13px}
+  .role span{font-size:11px;color:var(--muted)}
+  .role.on{border-color:var(--forest);background:#F1F7F2;box-shadow:inset 0 0 0 1px var(--forest)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .dchip{border:1px solid var(--sand);background:#fff;border-radius:99px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--ink)}
+  .dchip.on{background:var(--forest);border-color:var(--forest);color:#fff}
+  .empty-note{font-size:12.5px;color:var(--terracotta);margin-top:9px}
+
+  .scope{width:100%;border-collapse:collapse}
+  .scope th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:0 8px 7px 0}
+  .scope td{padding:5px 8px 5px 0;vertical-align:middle}
+  .scope select{width:100%;padding:7px 9px}
+  .scope .cats{font-size:12.5px;color:var(--ink);border:1px solid var(--sand);border-radius:var(--radius);padding:7px 10px;background:#FDFCFA;cursor:pointer}
+  .xs{border:0;background:transparent;color:#C0BBAE;font-size:16px;cursor:pointer}
+  .xs:hover{color:var(--over)}
+  .muted-box{font-size:12.5px;color:var(--muted);background:#F6F3EC;border-radius:var(--radius);padding:10px 12px}
+
+  .menus{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .mgroup h4{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:0 0 8px}
+  .mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #F2EEE6;font-size:13px}
+  .mrow:last-child{border-bottom:0}
+  .mrow .name{flex:1}
+  .mrow .why{font-size:11px;color:var(--muted)}
+  .mrow .why.over{color:var(--terracotta);font-weight:500}
+  .lock{font-size:11px;color:#B9B4A7}
+  .tog{width:34px;height:19px;border-radius:99px;background:#DDD7CB;position:relative;cursor:pointer;flex:none;border:0}
+  .tog::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:99px;background:#fff;transition:left .12s}
+  .tog.on{background:var(--forest)}
+  .tog.on::after{left:17px}
+  .tog.locked{opacity:.45;cursor:not-allowed}
+  .reset{border:0;background:transparent;color:var(--terracotta);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline}
+
+  .note{margin-top:26px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)} .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px">
+    <div>
+      <h1>Users &amp; access</h1>
+      <p class="sub" style="margin:0" id="summary"></p>
+    </div>
+    <button class="btn">+ Add person</button>
+  </div>
+
+  <div class="layout">
+    <div class="list">
+      <div class="listtools">
+        <input type="text" id="q" placeholder="Search by email">
+        <div class="filters" id="filters"></div>
+      </div>
+      <div id="people"></div>
+    </div>
+    <div class="panel" id="detail"></div>
+  </div>
+
+  <div class="note">
+    <b>How this works:</b>
+    <ol>
+      <li><b>Seven roles</b>, several per person. DEPT_HEAD and PRODUCT_MANAGER are retired — their holders keep Products and Suppliers as menu grants, migrated automatically.</li>
+      <li><b>Business unit belongs to the person</b> — ONEST, SV or Both. Today it's read from any role row to stamp the BU on every request, so it can't live only on BO ownership. <i>Both</i> means the person picks the BU on each request; switching it clears categories already chosen.</li>
+      <li><b>Anyone whose BU is blank today files as ONEST.</b> The migration keeps that, but flags each one as <i>BU defaulted</i> so it gets confirmed rather than inherited.</li>
+      <li><b>"Can see spending for" and "Budget ownership" are separate sections.</b> The first is visibility in the spend report, for anyone. The second is approval scope, for BOs only, at department + category grain. Seeing a department never lets you approve in it.</li>
+      <li><b>Workflow menus follow the role and are locked.</b> BO Approvals, CEO Approvals, Accounting, Procurement and Petty Cash do things, so they're granted by holding the role — never ticked separately. Ticking one alone would open a page where the person can't act.</li>
+      <li><b>Viewing and settings menus are a free checklist</b>, defaulting from the roles. An override — a grant the roles don't give, or a removal of one they do — is marked in terracotta, with a reset, so exceptions are visible rather than hidden.</li>
+      <li>Submit and My Requests are always on for everyone, so they aren't listed.</li>
+      <li>This replaces three things: the scattered multi-row roles table, the separate People &amp; departments tab, and the settings_tab_permissions table.</li>
+      <li>Scope written on non-BO rows today — nine Petty Cash Custodians carry detailed department lists — is read by nothing. It's dropped rather than migrated, and recorded in docs/access-baseline.md so nothing is lost.</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+const ROLES={
+  SUPERADMIN:'Full access',
+  CEO:'Final approval',
+  ACCOUNTING:'Payments',
+  BO:'Owns budget, approves',
+  PROCUREMENT:'POs & suppliers',
+  PETTY_CASH_CUSTODIAN:'Petty cash sign-off',
+  EMPLOYEE:'Submits requests'
+};
+const DEPTS=['COG','Marketing','Retail','R&D','People (HR)','General Administrative','Operations/Fulfillment','New Store Investment','Factory Investment','OEM','Merchandise'];
+const CATS={
+  'COG':['Direct Labour - COG','Direct Material - COG','Factory Consumable','Factory Operation (OH) - COG','HR Salary','NPD','Raw Materials'],
+  'Marketing':['Brand Building','Content Production','CRM & Retention','E-Commerce','HR Salary','Marketing Influencer/KOLs'],
+  'R&D':['Consumables','HR Salary','Legal & Compliance','Process Dev','Product Dev','Regulatory Compliance'],
+  'Retail':['HR Salary','In-Store Consumables & Supplies','Store Fixed cost','Utilities']
+};
+// workflow menus: locked to role
+const WORKFLOW=[
+  ['BO Approvals','BO'],['CEO Approvals','CEO'],['Accounting','ACCOUNTING'],
+  ['Procurement','PROCUREMENT'],['Petty Cash','PETTY_CASH_CUSTODIAN']
+];
+// viewing/settings menus: default from roles, overridable
+const FREE={
+  'Spend report':['EMPLOYEE','BO','CEO','ACCOUNTING'],
+  'Budget':['BO','CEO','ACCOUNTING'],
+  'Settings · Categories':['ACCOUNTING'],
+  'Settings · Products':['PROCUREMENT'],
+  'Settings · Suppliers':['PROCUREMENT'],
+  'Settings · Companies':['ACCOUNTING'],
+  'Settings · Users & access':[]
+};
+
+const P=[
+  {email:'admin@mimetta.co',bu:'Both',roles:['SUPERADMIN'],depts:[],scope:[],over:{},n:0},
+  {email:'mitdanai.s@mimetta.co',bu:'Both',roles:['CEO'],depts:[],scope:[],over:{},n:4},
+  {email:'wacharanan.j@mimetta.co',bu:'Both',roles:['BO','EMPLOYEE'],depts:['People (HR)'],
+    scope:[{bu:'*',dept:'COG',cats:['HR Salary']},{bu:'*',dept:'Marketing',cats:['HR Salary']},{bu:'*',dept:'R&D',cats:['HR Salary']},{bu:'*',dept:'Retail',cats:['HR Salary']}],over:{},n:9},
+  {email:'siriwan.b@mimetta.co',bu:'ONEST',roles:['BO','PETTY_CASH_CUSTODIAN'],depts:['COG'],
+    scope:[{bu:'*',dept:'COG',cats:['Direct Labour - COG','Direct Material - COG','Factory Consumable','Factory Operation (OH) - COG','NPD','Raw Materials']},{bu:'*',dept:'Factory Investment',cats:'*'}],over:{},n:0},
+  {email:'sitanun.n@mimetta.co',bu:'ONEST',buDefaulted:true,roles:['PROCUREMENT','PETTY_CASH_CUSTODIAN','BO'],depts:['COG','Retail','R&D'],
+    scope:[{bu:'*',dept:'OEM',cats:'*'}],over:{'Settings · Categories':true},n:83},
+  {email:'thannaporn.s@mimetta.co',bu:'SV',roles:['PETTY_CASH_CUSTODIAN'],depts:['People (HR)','General Administrative'],scope:[],over:{},n:185},
+  {email:'pinprai.t@mimetta.co',bu:'ONEST',buDefaulted:true,roles:['EMPLOYEE'],depts:[],scope:[],over:{},n:141},
+  {email:'ice.a@mimetta.co',bu:'Both',roles:['ACCOUNTING'],depts:[],scope:[],over:{'Budget':false},n:12},
+  {email:'chamaiporn.p@mimetta.co',bu:'',roles:[],depts:[],scope:[],over:{},n:54,norole:true},
+  {email:'wacharanan.j@plantae.co',bu:'ONEST',buDefaulted:true,roles:['EMPLOYEE'],depts:[],scope:[],over:{},n:25,dup:'wacharanan.j@mimetta.co'}
+];
+
+let sel=2, filter='All', q='';
+
+function roleGives(p,menu){ return FREE[menu].some(r=>p.roles.includes(r)) || p.roles.includes('SUPERADMIN'); }
+function hasMenu(p,menu){ return (menu in p.over)? p.over[menu] : roleGives(p,menu); }
+function overrideCount(p){ return Object.keys(p.over).length; }
+
+function renderFilters(){
+  const opts=['All','Unassigned','BU defaulted','BO','EMPLOYEE','Overrides'];
+  document.getElementById('filters').innerHTML=opts.map(o=>
+    '<button class="fchip'+(o===filter?' on':'')+'" data-f="'+o+'">'+o+'</button>').join('');
+  document.querySelectorAll('.fchip').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.f;render();}));
+}
+
+function visible(){
+  return P.map((p,i)=>({p,i})).filter(({p})=>{
+    if(q && !p.email.includes(q)) return false;
+    if(filter==='Unassigned') return p.norole || p.depts.length===0;
+    if(filter==='BU defaulted') return !!p.buDefaulted;
+    if(filter==='BO') return p.roles.includes('BO');
+    if(filter==='EMPLOYEE') return p.roles.includes('EMPLOYEE');
+    if(filter==='Overrides') return overrideCount(p)>0;
+    return true;
+  }).sort((a,b)=>b.p.n-a.p.n);
+}
+
+function renderList(){
+  document.getElementById('people').innerHTML=visible().map(({p,i})=>{
+    const flags=[];
+    if(p.norole) flags.push('<span class="flag warn">no role yet</span>');
+    if(!p.norole && p.depts.length===0 && !p.roles.includes('SUPERADMIN') && !p.roles.includes('CEO')) flags.push('<span class="flag warn">no department</span>');
+    if(p.buDefaulted) flags.push('<span class="flag warn">BU defaulted</span>');
+    if(p.dup) flags.push('<span class="flag bad">possible duplicate</span>');
+    return '<button class="person'+(i===sel?' sel':'')+'" data-i="'+i+'">'
+      +'<div class="em">'+p.email+(overrideCount(p)?' <span class="dotover" title="Has menu overrides"></span>':'')+'</div>'
+      +'<div class="meta">'+(p.bu?'<span class="rtag" style="background:#EDF4EE;color:#1E5537">'+p.bu+'</span>':'')+(p.roles.length?p.roles.map(r=>'<span class="rtag">'+r.replace('PETTY_CASH_CUSTODIAN','PETTY CASH')+'</span>').join(''):'')
+      +flags.join('')+'<span class="num" style="margin-left:auto">'+p.n+' req</span></div></button>';
+  }).join('');
+  document.querySelectorAll('.person').forEach(b=>b.addEventListener('click',()=>{sel=+b.dataset.i;render();}));
+}
+
+function renderDetail(){
+  const p=P[sel];
+  let h='<div class="phead"><div><h2>'+p.email+'</h2><div class="ctx num">'+p.n+' requests in FY2026'
+       +(p.dup?' · <span style="color:var(--over)">possible duplicate of '+p.dup+'</span>':'')+'</div></div>'
+       +'<div style="display:flex;gap:8px"><button class="btn btn-sm">Discard</button><button class="btn btn-sm btn-primary">Save</button></div></div>';
+
+  // roles
+  h+='<div class="sec"><h3>Roles</h3><div class="rolegrid">';
+  Object.entries(ROLES).forEach(([r,d])=>{
+    h+='<button class="role'+(p.roles.includes(r)?' on':'')+'" data-r="'+r+'"><b>'+r.replace(/_/g,' ')+'</b><span>'+d+'</span></button>';
+  });
+  h+='</div></div>';
+
+  // business unit
+  h+='<div class="sec"><h3>Business unit</h3><div class="chips">';
+  ['ONEST','SV','Both'].forEach(b=>h+='<button class="dchip bchip'+(p.bu===b?' on':'')+'" data-b="'+b+'">'+b+'</button>');
+  h+='</div>';
+  if(p.buDefaulted) h+='<div class="empty-note">Defaulted to ONEST from a blank value — confirm this is right.</div>';
+  else if(!p.bu) h+='<div class="empty-note">No business unit set — this person cannot submit a request.</div>';
+  else if(p.bu==='Both') h+='<div class="muted-box" style="margin-top:10px">Chooses ONEST or SV on each request. Changing it clears the categories already picked.</div>';
+  else h+='<div class="muted-box" style="margin-top:10px">Every request this person files is '+p.bu+'. The field is locked on their form.</div>';
+  h+='</div>';
+
+  // visibility
+  h+='<div class="sec"><h3>Can see spending for</h3><div class="chips">';
+  DEPTS.forEach(d=>h+='<button class="dchip'+(p.depts.includes(d)?' on':'')+'" data-d="'+d+'">'+d+'</button>');
+  h+='</div>';
+  const seesAll=p.roles.some(r=>['SUPERADMIN','CEO','ACCOUNTING'].includes(r));
+  if(seesAll) h+='<div class="muted-box" style="margin-top:10px">Sees the whole company already through their role — departments here have no effect.</div>';
+  else if(!p.depts.length) h+='<div class="empty-note">No department set — this person sees an empty spend report.</div>';
+  h+='</div>';
+
+  // BO scope
+  h+='<div class="sec"><h3>Budget ownership</h3>';
+  if(!p.roles.includes('BO')){
+    h+='<div class="muted-box">Only a BO owns budget lines. Add the BO role to set ownership.</div>';
+  } else {
+    h+='<table class="scope"><thead><tr><th style="width:110px">BU</th><th style="width:230px">Department</th><th>Categories</th><th style="width:30px"></th></tr></thead><tbody>';
+    p.scope.forEach((s,k)=>{
+      const cats= s.cats==='*' ? 'All categories' : s.cats.join(', ');
+      h+='<tr><td><select><option'+(s.bu==='*'?' selected':'')+'>Both</option><option'+(s.bu==='ONEST'?' selected':'')+'>ONEST</option><option'+(s.bu==='SV'?' selected':'')+'>SV</option></select></td>'
+        +'<td><select>'+DEPTS.map(d=>'<option'+(d===s.dept?' selected':'')+'>'+d+'</option>').join('')+'</select></td>'
+        +'<td><div class="cats">'+cats+'</div></td><td><button class="xs">×</button></td></tr>';
+    });
+    h+='</tbody></table><button class="btn btn-sm" style="margin-top:8px">+ Add ownership</button>';
+  }
+  h+='</div>';
+
+  // menus
+  h+='<div class="sec"><h3>Menu access</h3><div class="menus">';
+  h+='<div class="mgroup"><h4>Follows role</h4>';
+  WORKFLOW.forEach(([m,r])=>{
+    const on=p.roles.includes(r)||p.roles.includes('SUPERADMIN');
+    h+='<div class="mrow"><span class="name">'+m+'</span><span class="lock">'+(on?'via '+(p.roles.includes('SUPERADMIN')?'SUPERADMIN':r.replace(/_/g,' ')):'needs '+r.replace(/_/g,' '))+'</span>'
+      +'<button class="tog locked'+(on?' on':'')+'" disabled></button></div>';
+  });
+  h+='</div><div class="mgroup"><h4>Viewing &amp; settings</h4>';
+  Object.keys(FREE).forEach(m=>{
+    const on=hasMenu(p,m), overridden= m in p.over;
+    const by=FREE[m].filter(r=>p.roles.includes(r));
+    const why= overridden
+      ? '<span class="why over">'+(on?'granted':'removed')+' manually</span> <button class="reset" data-m="'+m+'">reset</button>'
+      : '<span class="why">'+(on?'via '+(p.roles.includes('SUPERADMIN')?'SUPERADMIN':by.map(r=>r.replace(/_/g,' ')).join(', ')):'not from role')+'</span>';
+    h+='<div class="mrow"><span class="name">'+m+'</span>'+why+'<button class="tog'+(on?' on':'')+'" data-m="'+m+'"></button></div>';
+  });
+  h+='</div></div></div>';
+
+  document.getElementById('detail').innerHTML=h;
+
+  document.querySelectorAll('.role').forEach(b=>b.addEventListener('click',()=>{
+    const r=b.dataset.r, p=P[sel];
+    p.roles = p.roles.includes(r) ? p.roles.filter(x=>x!==r) : [...p.roles,r];
+    if(r==='BO' && p.roles.includes('BO') && !p.scope.length) p.scope=[{bu:'*',dept:'COG',cats:'*'}];
+    if(p.roles.length) p.norole=false;
+    render();
+  }));
+  document.querySelectorAll('.bchip').forEach(b=>b.addEventListener('click',()=>{
+    const p=P[sel]; p.bu=b.dataset.b; p.buDefaulted=false; render();
+  }));
+  document.querySelectorAll('.dchip:not(.bchip)').forEach(b=>b.addEventListener('click',()=>{
+    const d=b.dataset.d, p=P[sel];
+    p.depts = p.depts.includes(d)? p.depts.filter(x=>x!==d) : [...p.depts,d];
+    render();
+  }));
+  document.querySelectorAll('.tog[data-m]').forEach(b=>b.addEventListener('click',()=>{
+    const m=b.dataset.m, p=P[sel], now=hasMenu(p,m), def=roleGives(p,m);
+    if(!now===def) delete p.over[m]; else p.over[m]=!now;
+    render();
+  }));
+  document.querySelectorAll('.reset').forEach(b=>b.addEventListener('click',()=>{ delete P[sel].over[b.dataset.m]; render(); }));
+}
+
+function renderSummary(){
+  const unassigned=P.filter(p=>p.norole||(!p.depts.length&&!p.roles.some(r=>['SUPERADMIN','CEO','ACCOUNTING'].includes(r)))).length;
+  const ov=P.filter(p=>overrideCount(p)).length;
+  const bd=P.filter(p=>p.buDefaulted).length;
+  document.getElementById('summary').innerHTML=P.length+' people · '+unassigned+' without a department · '+bd+' with BU to confirm · '+ov+' with menu overrides';
+}
+
+function render(){ renderFilters(); renderList(); renderDetail(); renderSummary(); }
+document.getElementById('q').addEventListener('input',e=>{q=e.target.value.toLowerCase();renderList();});
+render();
+</script>
+</body>
+</html>

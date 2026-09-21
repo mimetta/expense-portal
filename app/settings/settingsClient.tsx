@@ -1136,7 +1136,7 @@ function ProductTab() {
             <tbody>
               {products.map((p) => (
                 <tr key={p.id}>
-                  <td className="px-3 py-2 font-mono text-xs">{p.sku_code ?? "-"}</td>
+                  <td className="px-3 py-2 tabular-nums text-xs">{p.sku_code ?? "-"}</td>
                   <td className="px-3 py-2">{p.product_name}</td>
                   <td className="px-3 py-2">{p.department ?? "-"}</td>
                   <td className="px-3 py-2">{p.bu ?? "-"}</td>
