@@ -168,6 +168,12 @@ export interface RoleRow {
   created_at: string;
   is_auto_registered: boolean;
   chapter: string | null;
+  /**
+   * Departments this person BELONGS TO (comma-separated, '' = unassigned).
+   * Read only by lib/spend.ts#scopeFilter. NOT an approval scope — that is
+   * dept_scope. See migration 034.
+   */
+  department?: string;
 }
 
 export interface DeptConfigRow {

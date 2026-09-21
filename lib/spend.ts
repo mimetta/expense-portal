@@ -69,6 +69,13 @@ export interface SpendPendingRequest {
 }
 
 export interface SpendReport {
+  /**
+   * True when the viewer has no department assigned, so the report is empty
+   * BECAUSE OF SCOPING rather than because there is no spend. Without this
+   * the two are indistinguishable and an unassigned employee is told their
+   * company spent nothing.
+   */
+  unscoped?: boolean;
   months: number[];
   totals: { budget: number; actual: number; pending: number; prevActual: number };
   trend: { month: number; actual: number; pending: number; budget: number }[];
@@ -194,17 +201,52 @@ function scopeFilter(viewer: CurrentUser): ((row: {
   if (isSuperadmin(viewer) || hasAnyRole(viewer, ["CEO", "ACCOUNTING"])) return "all";
 
   const boScopes = rolesOf(viewer, "BO");
-  // No scope at all → return nothing, never everything.
-  if (boScopes.length === 0) return "none";
+  if (boScopes.length > 0) {
+    // Unchanged. A BO is scoped by the approval scope they already hold;
+    // roles.department is not consulted for them at all.
+    return (row) =>
+      boScopes.some((scope) =>
+        boScopeMatchesRequest(scope, {
+          bu: row.bu,
+          department: row.department ?? "",
+          cat_l1: row.cat_l1,
+        } as ExpenseRequest),
+      );
+  }
 
-  return (row) =>
-    boScopes.some((scope) =>
-      boScopeMatchesRequest(scope, {
-        bu: row.bu,
-        department: row.department ?? "",
-        cat_l1: row.cat_l1,
-      } as ExpenseRequest),
-    );
+  // Everyone else: their own department(s), both BUs, all categories.
+  //
+  // This reads roles.department and NOTHING else. It deliberately does not go
+  // through boScopeMatchesRequest: that helper is the approval-scope matcher,
+  // and routing a plain employee through it would make "which departments may
+  // I look at" and "which requests may I approve" the same question. They are
+  // not. See migration 034's header.
+  const departments = viewerDepartments(viewer);
+  // No department assigned → nothing, never everything.
+  if (departments.length === 0) return "none";
+
+  return (row) => !!row.department && departments.includes(row.department);
+}
+
+/**
+ * The departments a person BELONGS TO, from roles.department across all their
+ * rows. Comma-separated, same convention as the scope columns.
+ *
+ * '*' is NOT honoured here. Elsewhere in this schema it means "everything",
+ * but this column defaults to '' and is only ever set by an admin choosing
+ * from the canonical DEPARTMENTS list, so a '*' could only arrive by a manual
+ * database edit — and silently widening one person to the whole company's
+ * spend is not a failure mode worth supporting.
+ */
+export function viewerDepartments(viewer: CurrentUser): string[] {
+  const out = new Set<string>();
+  for (const r of viewer.allRoles ?? []) {
+    for (const d of String(r.department ?? "").split(",")) {
+      const t = d.trim();
+      if (t && t !== "*") out.add(t);
+    }
+  }
+  return Array.from(out);
 }
 
 // --- tree building ---------------------------------------------------------
@@ -327,6 +369,7 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
   const scope = scopeFilter(viewer);
   if (scope === "none") {
     return {
+      unscoped: true,
       months,
       totals: { budget: 0, actual: 0, pending: 0, prevActual: 0 },
       trend: ALL_MONTHS.map((month) => ({ month, actual: 0, pending: 0, budget: 0 })),

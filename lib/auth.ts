@@ -12,6 +12,9 @@ export { isAllowedDomain };
 export const LEGACY_ROLE_COLUMNS = "id, email, role, bu_scope, dept_scope, cat_l1_scope";
 export const MID_ROLE_COLUMNS = `${LEGACY_ROLE_COLUMNS}, created_at, is_auto_registered`;
 export const ROLE_COLUMNS = `${MID_ROLE_COLUMNS}, chapter`;
+// Migration 034. A fourth tier rather than widening ROLE_COLUMNS, so a
+// database without 034 still signs people in — same reasoning as 007/011.
+export const FULL_ROLE_COLUMNS = `${ROLE_COLUMNS}, department`;
 
 // Postgrest's "column does not exist" code — thrown if
 // supabase/migrations/007_roles_update.sql (adds roles.is_auto_registered)
@@ -30,9 +33,11 @@ function withDefaults(rows: Record<string, unknown>[], extra: Partial<RoleRow>):
 }
 
 function defaultsFor(columns: string): Partial<RoleRow> {
-  if (columns === ROLE_COLUMNS) return {};
-  if (columns === MID_ROLE_COLUMNS) return { chapter: null };
-  return { created_at: "", is_auto_registered: false, chapter: null };
+  if (columns === FULL_ROLE_COLUMNS) return {};
+  // "" not "*" — an unassigned department must resolve to "see nothing".
+  if (columns === ROLE_COLUMNS) return { department: "" };
+  if (columns === MID_ROLE_COLUMNS) return { chapter: null, department: "" };
+  return { created_at: "", is_auto_registered: false, chapter: null, department: "" };
 }
 
 // Tries the full column set first, then progressively narrower fallbacks
@@ -45,7 +50,7 @@ async function selectRolesByEmail(
   admin: ReturnType<typeof createAdminClient>,
   email: string,
 ): Promise<{ rows: RoleRow[]; columns: string }> {
-  for (const columns of [ROLE_COLUMNS, MID_ROLE_COLUMNS, LEGACY_ROLE_COLUMNS]) {
+  for (const columns of [FULL_ROLE_COLUMNS, ROLE_COLUMNS, MID_ROLE_COLUMNS, LEGACY_ROLE_COLUMNS]) {
     const { data, error } = await admin.from("roles").select(columns).eq("email", email);
     if (!error) {
       return { rows: withDefaults((data ?? []) as unknown as Record<string, unknown>[], defaultsFor(columns)), columns };

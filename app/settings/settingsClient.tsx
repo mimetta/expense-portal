@@ -36,6 +36,7 @@ const TAB_LABELS: Record<Tab, string> = {
   announcements: "Announcements",
   pettycash: "Petty Cash Custodians",
   companies: "Companies",
+  people: "People & departments",
   permissions: "Permissions",
 };
 
@@ -227,6 +228,7 @@ function SettingsClientInner() {
       {tab === "announcements" && <AnnouncementTab />}
       {tab === "pettycash" && <PettyCashCustodianTab />}
       {tab === "companies" && <CompanyTab />}
+      {tab === "people" && <PeopleDepartmentsTab />}
       {tab === "permissions" && <PermissionsTab />}
     </div>
   );
@@ -2738,6 +2740,210 @@ function PermissionsTab() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// People & departments (SUPERADMIN only)
+//
+// Assigns roles.department — which departments a person BELONGS TO, used
+// only to scope /reports/spend. It is NOT dept_scope and grants no approval
+// rights; see migration 034.
+//
+// Each row carries that person's actual FY filing history, so the decision is
+// made against evidence rather than against a separate document. 17 of 33
+// filers need more than one department, which is why this is a multi-select.
+// ---------------------------------------------------------------------------
+
+interface PersonRow {
+  email: string;
+  roles: string[];
+  department: string[];
+  hasRolesRow: boolean;
+  fy_count: number;
+  history: { department: string; count: number }[];
+  possibleDuplicateOf?: string;
+}
+
+function PeopleDepartmentsTab() {
+  const [people, setPeople] = useState<PersonRow[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [fiscalYear, setFiscalYear] = useState<number>(new Date().getFullYear());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<string, string[]>>({});
+  const [savingEmail, setSavingEmail] = useState<string | null>(null);
+  const [savedEmail, setSavedEmail] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/people-departments");
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Could not load people");
+      setPeople(d.people);
+      setDepartments(d.departments);
+      setFiscalYear(d.fiscalYear);
+      setDraft({});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const valueFor = (p: PersonRow) => draft[p.email] ?? p.department;
+  const dirty = (p: PersonRow) => {
+    const v = draft[p.email];
+    return !!v && JSON.stringify([...v].sort()) !== JSON.stringify([...p.department].sort());
+  };
+
+  const toggle = (p: PersonRow, dept: string) => {
+    const cur = valueFor(p);
+    const next = cur.includes(dept) ? cur.filter((d) => d !== dept) : [...cur, dept];
+    setDraft((prev) => ({ ...prev, [p.email]: next }));
+  };
+
+  const save = async (p: PersonRow) => {
+    setSavingEmail(p.email);
+    setError(null);
+    try {
+      const res = await fetch("/api/people-departments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: p.email, departments: valueFor(p) }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Could not save");
+      setSavedEmail(p.email);
+      setTimeout(() => setSavedEmail(null), 2500);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingEmail(null);
+    }
+  };
+
+  const unassigned = people.filter((p) => p.department.length === 0).length;
+  const noRow = people.filter((p) => !p.hasRolesRow).length;
+
+  if (loading) return <p className="text-sm text-brand-muted">Loading people…</p>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-brand-muted">
+        <span><strong className="text-brand-dark">{people.length}</strong> people</span>
+        <span><strong className="text-brand-dark">{unassigned}</strong> without a department</span>
+        <span><strong className="text-brand-dark">{noRow}</strong> with no roles row</span>
+        <span>FY{fiscalYear} filing shown per person</span>
+      </div>
+
+      {error && (
+        <div className="rounded-[10px] px-4 py-3 text-sm" style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626" }}>
+          {error}
+        </div>
+      )}
+
+      <div className="mm-table-wrap">
+        <table className="mm-table">
+          <thead>
+            <tr>
+              <th className="text-left">Person</th>
+              <th className="text-left">Roles</th>
+              <th className="text-right">FY{fiscalYear}</th>
+              <th className="text-left">Filed against (top 3)</th>
+              <th className="text-left">Departments</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((p) => {
+              const v = valueFor(p);
+              return (
+                <tr key={p.email} style={v.length === 0 ? { background: "#FFFBEB" } : undefined}>
+                  <td className="px-3 py-2 align-top">
+                    <div className="text-[13px] text-brand-dark">{p.email}</div>
+                    {!p.hasRolesRow && (
+                      <span
+                        className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FCD34D" }}
+                        title="No roles row. Saving a department here creates an EMPLOYEE row for them."
+                      >
+                        no role yet
+                      </span>
+                    )}
+                    {p.possibleDuplicateOf && (
+                      <div
+                        className="mt-1 text-[10px]"
+                        style={{ color: "#B23A2F" }}
+                        title="Same name, different domain. Not merged — decide which account is real."
+                      >
+                        ⚠ possible duplicate of {p.possibleDuplicateOf}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 align-top text-[12px] text-brand-muted">
+                    {p.roles.length ? p.roles.join(", ") : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right align-top tabular-nums text-[13px] text-brand-dark">
+                    {p.fy_count}
+                  </td>
+                  <td className="px-3 py-2 align-top text-[12px] text-brand-muted">
+                    {p.history.length === 0
+                      ? "—"
+                      : p.history.slice(0, 3).map((h) => `${h.department} ${h.count}`).join(" · ")}
+                    {p.history.length > 3 && (
+                      <span className="text-brand-subtle"> +{p.history.length - 3} more</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    {/* Multi-select over the canonical list. There is no free
+                        text field: a typed department would match no request
+                        and the person would silently see nothing. */}
+                    <div className="flex max-w-[420px] flex-wrap gap-1">
+                      {departments.map((d) => {
+                        const on = v.includes(d);
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => toggle(p, d)}
+                            className="rounded-full px-2 py-0.5 text-[11px] transition-colors"
+                            style={
+                              on
+                                ? { background: "#1F3A2B", color: "#FFFFFF", border: "1px solid #1F3A2B" }
+                                : { background: "#FFFFFF", color: "#6B7280", border: "1px solid #D8CBB0" }
+                            }
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {v.length === 0 && (
+                      <div className="mt-1 text-[11px]" style={{ color: "#92400E" }}>
+                        unassigned — sees nothing in the spend report
+                      </div>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 align-top text-right">
+                    <button
+                      className="mm-btn-secondary mm-btn-sm"
+                      disabled={!dirty(p) || savingEmail === p.email}
+                      onClick={() => void save(p)}
+                    >
+                      {savingEmail === p.email ? "Saving…" : savedEmail === p.email ? "Saved" : "Save"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
