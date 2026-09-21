@@ -319,7 +319,7 @@ function RequestEditReasonModal({
       >
         <h3 className="mb-2 text-base font-semibold text-brand-dark">Request Edit</h3>
         <p className="mb-3 text-sm text-brand-muted">
-          Ask the current approver for permission to edit <span className="font-mono">{request.request_id}</span>.
+          Ask the current approver for permission to edit <span className="tabular-nums">{request.request_id}</span>.
         </p>
         <textarea
           value={reason}
@@ -659,7 +659,7 @@ export default function MyRequestsPage() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.request_id} onClick={() => setSelected(r)} className="cursor-pointer">
-                  <td className="font-mono text-xs">{r.request_id}</td>
+                  <td className="tabular-nums text-xs">{r.request_id}</td>
                   <td>{formatDate(r.timestamp)}</td>
                   <td>{r.due_date ? formatDate(r.due_date) : "-"}</td>
                   <td>{r.department}</td>
@@ -821,7 +821,7 @@ export default function MyRequestsPage() {
           >
             <h3 className="mb-2 text-base font-semibold text-brand-dark">Delete request?</h3>
             <p className="mb-4 text-sm text-brand-muted">
-              Are you sure you want to delete <span className="font-mono">{deleting.request_id}</span>? This
+              Are you sure you want to delete <span className="tabular-nums">{deleting.request_id}</span>? This
               cannot be undone.
             </p>
             <div className="flex justify-end gap-2">

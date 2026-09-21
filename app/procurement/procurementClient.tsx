@@ -106,7 +106,7 @@ export default function ProcurementPage() {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="font-mono text-xs text-brand-muted">{r.request_id}</span>
+                  <span className="tabular-nums text-xs text-brand-muted">{r.request_id}</span>
                   <span className="ml-2 rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
                     {r.use_for_company || r.bu}
                   </span>

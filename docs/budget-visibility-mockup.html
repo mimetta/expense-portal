@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget visibility — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#1F3A2B; --terracotta:#BD5A2E; --cream:#FAF8F4; --sand:#D8CBB0;
+    --ink:#1B1B18; --muted:#6B6B60; --white:#fff;
+    --ok:#2E7D52; --warn:#C99A2E; --over:#B23A2F;
+    --ok-t:#1E5537; --warn-t:#7A5A0F; --over-t:#8E2A21;
+    --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 64px}
+  .num{font-family:'DM Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+  .screens{display:flex;margin-bottom:20px;border:1px dashed var(--sand);border-radius:var(--radius);overflow:hidden;background:#FFFDF7}
+  .screens button{flex:1;border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:11px 14px;cursor:pointer;border-left:1px dashed var(--sand)}
+  .screens button:first-child{border-left:0}
+  .screens button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .screens-hint{font-size:11px;color:var(--muted);padding:6px 12px 0;letter-spacing:.04em;text-transform:uppercase}
+
+  h1{font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  .actions{display:flex;gap:9px;align-items:center}
+  .btn{border:1px solid var(--sand);background:var(--white);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer}
+  .btn:hover{border-color:var(--forest)}
+  .btn-primary{background:var(--forest);border-color:var(--forest);color:#fff}
+  select,input[type=text]{font:inherit;padding:8px 11px;border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);color:var(--ink);width:100%}
+  label{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:.02em}
+
+  .card{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .grid2{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+
+  /* the budget strip */
+  .strip{margin-top:12px;border-radius:var(--radius);padding:11px 14px;border:1px solid;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .strip.ok{background:rgba(46,125,82,.07);border-color:#C6D8CB;color:var(--ok-t)}
+  .strip.warn{background:rgba(201,154,46,.10);border-color:#E6D7AE;color:var(--warn-t)}
+  .strip.over{background:rgba(178,58,47,.08);border-color:#E4C4BE;color:var(--over-t)}
+  .strip.none{background:#F6F3EC;border-color:var(--sand);color:var(--muted)}
+  .strip .seg{display:flex;flex-direction:column;gap:2px}
+  .strip .k{font-size:10px;letter-spacing:.05em;text-transform:uppercase;opacity:.8;font-weight:500}
+  .strip .v{font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:14px;font-weight:500}
+  .strip .grow{flex:1;min-width:150px}
+  .meter{height:7px;border-radius:99px;background:rgba(0,0,0,.07);overflow:hidden;position:relative;margin-top:5px}
+  .meter i{display:block;height:100%;border-radius:99px}
+  .meter .now{background:currentColor;opacity:.55}
+  .meter .add{position:absolute;top:0;height:100%;background:currentColor;opacity:1;border-radius:99px}
+  .verdict{font-size:12.5px;font-weight:500}
+  .verdict small{font-weight:400;opacity:.85}
+
+  .itemrow{border:1px solid var(--sand);border-radius:var(--radius);padding:15px 16px;margin-bottom:12px;background:#FDFCFA}
+  .itemhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}
+  .itemhead b{font-size:12.5px;font-weight:500;color:var(--muted);letter-spacing:.03em;text-transform:uppercase}
+  .xbtn{border:0;background:transparent;color:#C0BBAE;cursor:pointer;font-size:15px}
+  .xbtn:hover{color:var(--over)}
+
+  details.deptpanel{border:1px solid var(--sand);border-radius:var(--radius);background:var(--white);margin-bottom:14px}
+  details.deptpanel summary{cursor:pointer;padding:13px 18px;font-weight:500;font-size:13.5px;list-style:none;display:flex;align-items:center;gap:9px}
+  details.deptpanel summary::-webkit-details-marker{display:none}
+  details.deptpanel summary .tw{color:var(--muted);font-size:12px}
+  details.deptpanel summary .tail{margin-left:auto;font-weight:400;color:var(--muted);font-size:12.5px}
+  .dtable{width:100%;border-collapse:collapse}
+  .dtable th{text-align:right;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 14px;border-top:1px solid var(--sand);border-bottom:1px solid #EFEAE0;background:#FDFCFA}
+  .dtable th.l{text-align:left}
+  .dtable td{padding:9px 14px;border-bottom:1px solid #EFEAE0;text-align:right;font-size:13px}
+  .dtable td.l{text-align:left}
+  .dtable tr:last-child td{border-bottom:0}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;padding:2px 9px;border-radius:99px}
+  .pill.ok{background:rgba(46,125,82,.10);color:var(--ok-t)}
+  .pill.warn{background:rgba(201,154,46,.14);color:var(--warn-t)}
+  .pill.over{background:rgba(178,58,47,.12);color:var(--over-t)}
+  .pill.none{background:#F2EFE8;color:var(--muted)}
+
+  /* budget page */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px}
+  .kpi{background:var(--white);border:1px solid var(--sand);border-radius:var(--radius);padding:15px 17px}
+  .kpi .label{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:8px}
+  .kpi .val{font-size:24px;font-weight:500;letter-spacing:-.02em}
+  .kpi .foot{margin-top:6px;font-size:12px;color:var(--muted)}
+
+  .tbl-scroll{overflow-x:auto;background:var(--white);border:1px solid var(--sand);border-radius:var(--radius)}
+  table.grid{width:100%;border-collapse:collapse}
+  table.grid th{text-align:right;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 10px;border-bottom:1px solid var(--sand);background:#FDFCFA;white-space:nowrap}
+  table.grid th.l{text-align:left}
+  table.grid td{padding:0;border-bottom:1px solid #EFEAE0;white-space:nowrap;text-align:right}
+  .namecol{position:sticky;left:0;z-index:3;background:var(--white);min-width:300px;max-width:300px;text-align:left;overflow:hidden;text-overflow:ellipsis;padding:9px 12px}
+  thead .namecol{background:#FDFCFA}
+  th.mo,td.mo{width:112px}
+  .totcol{border-left:1px solid var(--sand);padding:9px 12px;font-weight:500;width:126px}
+  tr.rev td{background:#F1F7F2;border-bottom:2px solid #C6D8CB;padding:9px 10px;font-weight:500;font-size:13px}
+  tr.rev .namecol{background:#F1F7F2}
+  tr.revch td{background:#F7FAF7;font-size:12.5px;color:var(--muted);padding:7px 10px;border-bottom:1px solid #E8F0E9}
+  tr.revch .namecol{background:#F7FAF7;padding-left:40px}
+  tr.revch.hide{display:none}
+  tr.deptgrp td{background:var(--forest);color:#fff;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding:7px 12px}
+  tr.deptgrp .namecol{background:var(--forest);color:#fff}
+  tr.l1grp td{background:#F6F3EC;font-weight:500;font-size:12.5px;padding:7px 12px}
+  tr.l1grp .namecol{background:#F6F3EC}
+  .l2name{padding-left:14px}
+  .cellwrap{position:relative;padding:6px 10px 5px}
+  input.cell{width:100%;border:0;background:transparent;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:13.5px;text-align:right;padding:2px 0;color:var(--ink)}
+  input.cell:hover{background:#FBF9F5}
+  input.cell:focus{outline:2px solid var(--forest);outline-offset:2px;background:#fff;border-radius:3px}
+  input.cell.changed{color:#8E3F1B;font-weight:500}
+  .cellwrap.changed{background:rgba(189,90,46,.09)}
+  .pctline{display:block;font-size:10.5px;color:var(--muted);text-align:right;margin-top:1px}
+  .fill{position:absolute;left:3px;top:50%;transform:translateY(-50%);opacity:0;border:1px solid var(--sand);background:#fff;color:var(--muted);cursor:pointer;font-size:10px;border-radius:4px;padding:1px 4px;font-family:'DM Mono',monospace}
+  .cellwrap:hover .fill,input.cell:focus + .fill{opacity:1}
+  tfoot td{background:#FDFCFA;font-weight:700;border-top:1px solid var(--sand)}
+  tfoot .namecol{background:#FDFCFA}
+  .twist{border:0;background:transparent;cursor:pointer;color:inherit;font:inherit;padding:0 6px 0 0;opacity:.7}
+  .twist:hover{opacity:1}
+  .rolechip{font-size:10.5px;font-weight:500;background:#F2EFE8;color:var(--muted);padding:2px 8px;border-radius:99px;margin-left:8px}
+
+  .note{margin-top:30px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)} .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+  .new{color:var(--terracotta);font-weight:500}
+  .screen{display:none} .screen.on{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div>
+    <div class="screens-hint">Mockup only</div>
+    <div class="screens" role="group">
+      <button data-s="submit" aria-pressed="true">Employee · submit a request</button>
+      <button data-s="budget" aria-pressed="false">Budget page · cleaned, with revenue</button>
+    </div>
+  </div>
+
+  <!-- ══════ SUBMIT FORM ══════ -->
+  <div class="screen on" id="s-submit">
+    <div class="page-head">
+      <div>
+        <h1>Submit a request</h1>
+        <p class="sub">ONEST · Marketing · August 2026</p>
+      </div>
+      <div class="actions">
+        <button class="btn">Save draft</button>
+        <button class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+
+    <details class="deptpanel">
+      <summary><span class="tw">▸</span> Marketing budget · August
+        <span class="tail">฿620,000 budget · ฿486,700 spent · 78% used</span>
+      </summary>
+      <table class="dtable">
+        <thead><tr><th class="l">Line</th><th>Budget</th><th>Spent</th><th>Pending</th><th>Remaining</th><th>Used</th></tr></thead>
+        <tbody>
+          <tr><td class="l">Marketing Influencer/KOLs</td><td class="num">180,000</td><td class="num">142,300</td><td class="num">12,000</td><td class="num">25,700</td><td><span class="pill warn">86%</span></td></tr>
+          <tr><td class="l">Content Production</td><td class="num">120,000</td><td class="num">98,400</td><td class="num">—</td><td class="num">21,600</td><td><span class="pill warn">82%</span></td></tr>
+          <tr><td class="l">Brand Building</td><td class="num">160,000</td><td class="num">104,500</td><td class="num">18,000</td><td class="num">37,500</td><td><span class="pill ok">77%</span></td></tr>
+          <tr><td class="l">E-Commerce</td><td class="num">90,000</td><td class="num">96,800</td><td class="num">—</td><td class="num" style="color:var(--over)">−6,800</td><td><span class="pill over">108%</span></td></tr>
+          <tr><td class="l">CRM &amp; Retention</td><td class="num">70,000</td><td class="num">44,700</td><td class="num">—</td><td class="num">25,300</td><td><span class="pill ok">64%</span></td></tr>
+        </tbody>
+      </table>
+    </details>
+
+    <div class="card">
+      <div class="grid3" style="margin-bottom:14px">
+        <div><label>Business unit</label><select disabled><option>ONEST</option></select></div>
+        <div><label>Department</label><select><option>Marketing</option><option>R&amp;D</option></select></div>
+        <div><label>Budget period</label><select><option>Aug 2026</option><option>Sep 2026</option></select></div>
+      </div>
+
+      <!-- item 1 : healthy -->
+      <div class="itemrow">
+        <div class="itemhead"><b>Item 1</b><button class="xbtn">×</button></div>
+        <div class="grid3" style="margin-bottom:11px">
+          <div><label>Category L1</label><select id="c1"><option>Brand Building</option><option>Marketing Influencer/KOLs</option><option>E-Commerce</option></select></div>
+          <div><label>Category L2</label><select><option>Campaign production</option></select></div>
+          <div><label>Amount (net)</label><input type="text" id="a1" value="24,500"></div>
+        </div>
+        <div class="strip" id="strip1"></div>
+      </div>
+
+      <!-- item 2 : pushes over -->
+      <div class="itemrow">
+        <div class="itemhead"><b>Item 2</b><button class="xbtn">×</button></div>
+        <div class="grid3" style="margin-bottom:11px">
+          <div><label>Category L1</label><select id="c2"><option>Marketing Influencer/KOLs</option><option>Brand Building</option></select></div>
+          <div><label>Category L2</label><select><option>Influencer fee</option></select></div>
+          <div><label>Amount (net)</label><input type="text" id="a2" value="38,000"></div>
+        </div>
+        <div class="strip" id="strip2"></div>
+      </div>
+
+      <!-- item 3 : no budget set -->
+      <div class="itemrow">
+        <div class="itemhead"><b>Item 3</b><button class="xbtn">×</button></div>
+        <div class="grid3" style="margin-bottom:11px">
+          <div><label>Category L1</label><select disabled><option>Legal &amp; Compliance</option></select></div>
+          <div><label>Category L2</label><select disabled><option>Trademark filing</option></select></div>
+          <div><label>Amount (net)</label><input type="text" value="8,000" disabled></div>
+        </div>
+        <div class="strip none">
+          <div class="seg"><span class="k">Budget · Aug</span><span class="v">—</span></div>
+          <div class="seg grow"><span class="verdict">No budget set for this line</span></div>
+        </div>
+      </div>
+
+      <button class="btn" style="margin-top:2px">+ Add item</button>
+    </div>
+  </div>
+
+  <!-- ══════ BUDGET PAGE ══════ -->
+  <div class="screen" id="s-budget">
+    <div class="page-head">
+      <div>
+        <h1>Editing wacharanan.j's budget · FY2026</h1>
+        <p class="sub">revision 3 · 9 lines across 6 segments · both BUs</p>
+      </div>
+      <div class="actions">
+        <button class="btn">Save draft</button>
+        <button class="btn btn-primary">Submit for CEO approval</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="label">Approved (live)</div><div class="val num">฿3,120,000</div><div class="foot">revision 2 · 4 Aug</div></div>
+      <div class="kpi"><div class="label">This draft</div><div class="val num">฿3,240,000</div><div class="foot">14 of 108 changed</div></div>
+      <div class="kpi"><div class="label">Change</div><div class="val num" style="color:var(--over)">+฿120,000</div><div class="foot">+3.8%</div></div>
+      <div class="kpi"><div class="label">Of revenue goal</div><div class="val num">3.4<span style="font-size:13px;color:var(--muted)">%</span></div><div class="foot">FY2026 · both BUs</div></div>
+    </div>
+
+    <div class="tbl-scroll"><table class="grid" id="bTable"></table></div>
+  </div>
+
+  <div class="note">
+    <b>Changes here:</b>
+    <ol>
+      <li class="new"><b>Revenue goals live inside the budget page</b> as the top row of the grid, expandable to channels. CEO and admin type into it; a BO sees it read-only and plans against it. No separate page.</li>
+      <li class="new"><b>All guidance text removed.</b> The paste/arrow-key line, the scope explainer, the "these are filters over this owner's lines" caption, the acting-on-behalf paragraph. Kept only the role chip next to the title, which is a fact rather than an instruction.</li>
+      <li class="new"><b>Employees see budget on the submit form.</b> A strip under each item shows that line's budget, spend, pending, and what this request would do to it. Over budget warns in red but never blocks.</li>
+      <li class="new"><b>A collapsible department panel</b> at the top shows every line in the employee's department — budget, spent, pending, remaining, used — collapsed by default.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Needs answering before this can be built:</b>
+    <ol>
+      <li><b>How does the portal know a plain employee's department?</b> BOs have dept_scope on their roles row; a requester may have none. If there is no mapping, the department panel has nothing to scope by — and the submit form's own department select could be used, though that lets anyone view any department by changing it.</li>
+      <li>The strip compares against <b>the month in Budget period</b>, not today. Filing in August against a September budget shows September's figures.</li>
+      <li>Spend shown is approved plus paid. Pending is separate, as in the spend report.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const K=1000;
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+const MINUS='\u2212';
+
+/* ---------- submit form strips ---------- */
+const LINES={
+  'Brand Building':{budget:160000,spent:104500,pending:18000},
+  'Marketing Influencer/KOLs':{budget:180000,spent:142300,pending:12000},
+  'E-Commerce':{budget:90000,spent:96800,pending:0},
+  'Content Production':{budget:120000,spent:98400,pending:0},
+  'CRM & Retention':{budget:70000,spent:44700,pending:0}
+};
+function band(p){ return p>100?'over':p>=80?'warn':'ok'; }
+function strip(id,cat,amt){
+  const L=LINES[cat]; const el=document.getElementById(id);
+  const after=L.spent+L.pending+amt;
+  const pct=L.budget? after/L.budget*100 : null;
+  const b=band(pct);
+  const nowPct=Math.min(L.spent/L.budget*100,100);
+  const addPct=Math.min(after/L.budget*100,100);
+  const over=after-L.budget;
+  el.className='strip '+b;
+  el.innerHTML=
+     '<div class="seg"><span class="k">Budget · Aug</span><span class="v">฿'+fmt(L.budget)+'</span></div>'
+    +'<div class="seg"><span class="k">Spent</span><span class="v">฿'+fmt(L.spent)+'</span></div>'
+    +'<div class="seg"><span class="k">Pending</span><span class="v">'+(L.pending?'฿'+fmt(L.pending):'—')+'</span></div>'
+    +'<div class="seg"><span class="k">This request</span><span class="v">฿'+fmt(amt)+'</span></div>'
+    +'<div class="seg grow"><span class="verdict">'
+      +(over>0
+        ? 'Would exceed the August budget by ฿'+fmt(over)+' <small>· '+Math.round(pct)+'% used</small>'
+        : 'Would reach '+Math.round(pct)+'% of the August budget <small>· ฿'+fmt(-over)+' left</small>')
+      +'</span>'
+      +'<div class="meter"><i class="now" style="width:'+nowPct+'%"></i>'
+      +'<i class="add" style="left:'+nowPct+'%;width:'+Math.max(addPct-nowPct,1.5)+'%"></i></div></div>';
+}
+function refresh(){
+  const parse=v=>parseFloat(String(v).replace(/[^0-9.]/g,''))||0;
+  strip('strip1',document.getElementById('c1').value,parse(document.getElementById('a1').value));
+  strip('strip2',document.getElementById('c2').value,parse(document.getElementById('a2').value));
+}
+['c1','c2','a1','a2'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener('change',refresh);
+  el.addEventListener('input',refresh);
+});
+document.querySelectorAll('details.deptpanel').forEach(d=>{
+  d.addEventListener('toggle',()=>{ d.querySelector('.tw').textContent = d.open?'▾':'▸'; });
+});
+
+/* ---------- budget grid with revenue row ---------- */
+const CH=[
+  ['Physical store · Owned store',[1300,1290,1380,1340,1420,1400,1470,1490,1520,1550,1580,1610]],
+  ['Physical store · Modern Trade',[1795,1760,1900,1840,1960,1930,2020,2050,2270,2310,2350,2390]],
+  ['Physical store · Pop-up',[95,94,100,97,103,101,106,107,109,111,113,115]],
+  ['Online · E-commerce',[2030,1990,2140,2080,2200,2170,2270,2300,2340,2380,2420,2460]],
+  ['Online · DTC-Thailand',[375,368,395,384,408,402,420,426,433,440,447,454]]
+];
+const ROWS=[
+  {dept:'COG',bu:'ONEST',l1:'HR Salary',l2:'Factory Management',ap:[62,62,62,62,62,62,62,62,62,62,62,62],pr:[62,62,62,62,62,62,68,68,68,68,68,68]},
+  {dept:'COG',bu:'SV',l1:'HR Salary',l2:'Factory Management',ap:[48,48,48,48,48,48,48,48,48,48,48,48],pr:[48,48,48,48,48,48,52,52,52,52,52,52]},
+  {dept:'Marketing',bu:'ONEST',l1:'HR Salary',l2:'Marketing team',ap:[38,38,38,38,38,38,38,38,38,38,38,38],pr:[38,38,38,38,38,38,38,38,38,38,38,38]},
+  {dept:'Retail',bu:'ONEST',l1:'HR Salary',l2:'Store staff',ap:[36,36,36,36,36,36,36,36,36,36,36,36],pr:[36,36,36,36,36,36,36,42,42,42,42,42]}
+];
+let revOpen=false;
+const revTotal=m=>CH.reduce((s,c)=>s+c[1][m],0);
+
+function renderBudget(){
+  let h='<thead><tr><th class="namecol l">Line</th>';
+  MONTHS.forEach(m=>h+='<th class="mo">'+m+'</th>');
+  h+='<th class="totcol">FY total</th></tr></thead><tbody>';
+
+  h+='<tr class="rev"><td class="namecol"><button class="twist" id="rtw">'+(revOpen?'▾':'▸')+'</button>Revenue goal<span class="rolechip">CEO / admin</span></td>';
+  MONTHS.forEach((_,m)=>h+='<td class="mo num">'+fmt(revTotal(m)*K)+'</td>');
+  h+='<td class="totcol num">'+fmt(MONTHS.reduce((s,_,m)=>s+revTotal(m),0)*K)+'</td></tr>';
+  CH.forEach(c=>{
+    h+='<tr class="revch'+(revOpen?'':' hide')+'"><td class="namecol">'+c[0]+'</td>';
+    c[1].forEach((v,m)=>h+='<td class="mo num">'+fmt(v*K)+'<span class="pctline">'+Math.round(v/revTotal(m)*100)+'%</span></td>');
+    h+='<td class="totcol num">'+fmt(c[1].reduce((s,v)=>s+v,0)*K)+'</td></tr>';
+  });
+
+  let d=null,l1=null;
+  ROWS.forEach((r,i)=>{
+    if(r.dept!==d){h+='<tr class="deptgrp"><td class="namecol" colspan="14">'+r.dept+'</td></tr>';d=r.dept;l1=null;}
+    const lk=r.dept+'|'+r.l1;
+    if(lk!==l1){h+='<tr class="l1grp"><td class="namecol" colspan="14">'+r.l1+'</td></tr>';l1=lk;}
+    h+='<tr><td class="namecol"><span class="l2name">'+r.l2+'</span><span style="color:#B9B4A7;font-size:11px;margin-left:6px">'+r.bu+'</span></td>';
+    r.pr.forEach((v,m)=>{
+      const ch=v!==r.ap[m], pct=v/revTotal(m)*100;
+      h+='<td class="mo"><div class="cellwrap'+(ch?' changed':'')+'">'
+       +'<input class="cell'+(ch?' changed':'')+'" data-i="'+i+'" data-m="'+m+'" value="'+fmt(v*K)+'">'
+       +'<button class="fill">→</button>'
+       +'<span class="pctline">'+pct.toFixed(2)+'%</span></div></td>';
+    });
+    h+='<td class="totcol num">'+fmt(r.pr.reduce((s,v)=>s+v,0)*K)+'</td></tr>';
+  });
+
+  h+='</tbody><tfoot><tr><td class="namecol">Total</td>';
+  MONTHS.forEach((_,m)=>{
+    const t=ROWS.reduce((s,r)=>s+r.pr[m],0);
+    h+='<td class="mo"><div class="cellwrap"><span class="num" style="font-size:13.5px">'+fmt(t*K)+'</span>'
+     +'<span class="pctline">'+(t/revTotal(m)*100).toFixed(2)+'%</span></div></td>';
+  });
+  const ty=ROWS.reduce((s,r)=>s+r.pr.reduce((a,v)=>a+v,0),0);
+  h+='<td class="totcol num">'+fmt(ty*K)+'</td></tr></tfoot>';
+  document.getElementById('bTable').innerHTML=h;
+
+  document.getElementById('rtw').addEventListener('click',()=>{revOpen=!revOpen;renderBudget();});
+  document.querySelectorAll('#bTable input.cell').forEach(inp=>{
+    inp.addEventListener('focus',()=>inp.select());
+    inp.addEventListener('change',()=>{
+      ROWS[+inp.dataset.i].pr[+inp.dataset.m]=Math.round((parseFloat(inp.value.replace(/[^0-9.]/g,''))||0)/K);
+      renderBudget();
+    });
+    inp.addEventListener('keydown',e=>{
+      const i=+inp.dataset.i,m=+inp.dataset.m;let t=null;
+      if(e.key==='ArrowRight'&&inp.selectionStart===inp.value.length)t=[i,m+1];
+      if(e.key==='ArrowLeft'&&inp.selectionStart===0)t=[i,m-1];
+      if(e.key==='ArrowDown')t=[i+1,m];
+      if(e.key==='ArrowUp')t=[i-1,m];
+      if(t){e.preventDefault();const el=document.querySelector('#bTable input.cell[data-i="'+t[0]+'"][data-m="'+t[1]+'"]');if(el)el.focus();}
+    });
+    inp.addEventListener('paste',e=>{
+      const txt=(e.clipboardData||window.clipboardData).getData('text');
+      const vals=txt.trim().split(/[\t,;]|\s{2,}/).map(s=>parseFloat(s.replace(/[^0-9.]/g,''))).filter(v=>!isNaN(v));
+      if(vals.length<2)return;
+      e.preventDefault();
+      const i=+inp.dataset.i;let m=+inp.dataset.m;
+      vals.forEach(v=>{if(m<12)ROWS[i].pr[m++]=Math.round(v/K);});
+      renderBudget();
+    });
+  });
+}
+
+document.querySelectorAll('.screens button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.screens button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-'+b.dataset.s).classList.add('on');
+}));
+refresh(); renderBudget();
+</script>
+</body>
+</html>

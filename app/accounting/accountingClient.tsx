@@ -338,7 +338,7 @@ export default function AccountingPage() {
                                           onClick={() => setSelected(r)}
                                           className="cursor-pointer hover:bg-[#FAFAF7]"
                                         >
-                                          <td className="py-1 pr-2 font-mono text-brand-dark">{r.request_id}</td>
+                                          <td className="py-1 pr-2 tabular-nums text-brand-dark">{r.request_id}</td>
                                           <td className="py-1 pr-2 text-brand-dark">{r.requester_name}</td>
                                           <td className="py-1 pr-2 text-brand-muted">{r.department}</td>
                                           <td className="py-1 text-right text-brand-dark">
@@ -397,7 +397,7 @@ export default function AccountingPage() {
                             onClick={() => setSelected(r)}
                             className="cursor-pointer hover:bg-[#FAFAF7]"
                           >
-                            <td className="py-1 pr-2 font-mono text-brand-dark">{r.request_id}</td>
+                            <td className="py-1 pr-2 tabular-nums text-brand-dark">{r.request_id}</td>
                             <td className="py-1 pr-2 text-brand-dark">{r.requester_name}</td>
                             <td className="py-1 pr-2 text-brand-muted">{r.department}</td>
                             <td className="py-1 text-right text-brand-dark">{formatCurrency(r.total)}</td>
@@ -464,7 +464,7 @@ export default function AccountingPage() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.request_id} onClick={() => setSelected(r)} className="cursor-pointer">
-                  <td className="font-mono text-xs">{r.request_id}</td>
+                  <td className="tabular-nums text-xs">{r.request_id}</td>
                   <td>{r.requester_name}</td>
                   <td>{r.department}</td>
                   <td>{r.due_date ? formatDate(r.due_date) : "-"}</td>

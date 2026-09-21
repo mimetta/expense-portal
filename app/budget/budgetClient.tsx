@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import BudgetGrid from "@/components/budget/BudgetGrid";
-import { thb } from "@/components/spend/format";
+import { thb, EM_DASH } from "@/components/spend/format";
 import type { BudgetOwnerOption, EditorData, EditorRow } from "@/lib/budget-editor";
+import type { RevenueNode } from "@/lib/revenue-goals";
 
 interface Props {
   fiscalYear: number;
@@ -106,6 +107,11 @@ export default function BudgetEditorClient({
   // never arrive at a populated grid without having said whose it is.
   const [selectedOwner, setSelectedOwner] = useState(() => (isAdmin && hasScope ? viewerEmail : ""));
 
+  // Revenue goals — the denominator the budget is planned against. Re-fetched
+  // when the BU filter changes, because "Both" means both BUs combined.
+  const [revenue, setRevenue] = useState<{ tree: RevenueNode; canEdit: boolean } | null>(null);
+  const [addingChannel, setAddingChannel] = useState(false);
+
   const dirtyRef = useRef<Map<string, EditorRow>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -152,6 +158,49 @@ export default function BudgetEditorClient({
       setLoading(false);
     }
   }, [isAdmin, selectedOwner, isOwner, hasScope, viewerEmail, load]);
+
+  const loadRevenue = useCallback(async () => {
+    try {
+      const qs = new URLSearchParams({ year: String(fiscalYear) });
+      if (buFilter) qs.set("bu", buFilter);
+      const res = await fetch(`/api/revenue/goals?${qs}`);
+      const d = await res.json();
+      if (res.ok) setRevenue({ tree: d.tree, canEdit: !!d.canEdit });
+    } catch {
+      // The budget page must still work if goals are unavailable.
+    }
+  }, [fiscalYear, buFilter]);
+
+  useEffect(() => { void loadRevenue(); }, [loadRevenue]);
+
+  const onRevenueChange = useCallback(
+    async (channelId: string, month: number, value: number | null) => {
+      try {
+        const res = await fetch("/api/revenue/goals", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fiscalYear, entries: [{ channelId, month, amount: value }] }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Could not save the goal");
+        await loadRevenue();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [fiscalYear, loadRevenue],
+  );
+
+  const onToggleChannel = useCallback(
+    async (channelId: string, active: boolean) => {
+      await fetch("/api/revenue/channels", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: channelId, active }),
+      });
+      await loadRevenue();
+    },
+    [loadRevenue],
+  );
 
   // --- autosave -------------------------------------------------------------
   // Debounced, and the state never claims "saved" until the write returns —
@@ -246,6 +295,16 @@ export default function BudgetEditorClient({
         (r) => (!deptFilter || r.department === deptFilter) && (!buFilter || r.bu === buFilter),
       ),
     [rows, deptFilter, buFilter],
+  );
+
+  // Null, not 0, when no goal exists anywhere: a percentage of nothing is not
+  // 0%, it is unanswerable.
+  const goalFyTotal = useMemo(
+    () =>
+      revenue
+        ? revenue.tree.months.reduce<number | null>((t, v) => (v === null ? t : (t ?? 0) + v), null)
+        : null,
+    [revenue],
   );
 
   const stats = useMemo(() => {
@@ -438,17 +497,18 @@ export default function BudgetEditorClient({
         </div>
       )}
 
+      {/* The prose explaining what acting-on-behalf means is gone (A3). The
+          fact that it IS on behalf stays, as a chip — the header already says
+          whose budget this is. */}
       {onBehalf && (
-        <div
-          className="rounded-[10px] px-4 py-3 text-[13px]"
-          style={{ background: "#FDF2EE", borderLeft: "4px solid #BD5A2E", color: "#7C3A1A" }}
-        >
-          <strong>
-            You are acting on behalf of {ownerEmail}, not editing your own budget.
-          </strong>{" "}
-          Anything you save or submit here is recorded against them as the owner and against{" "}
-          <strong>{viewerEmail}</strong> as the person who did it — budget history shows both. You
-          may save and submit; you may <strong>not</strong> then approve what you submitted.
+        <div className="flex items-center gap-2">
+          <span
+            className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+            style={{ background: "#FDF2EE", color: "#BD5A2E", border: "1px solid #F5C4A3" }}
+          >
+            on behalf of {ownerEmail}
+          </span>
+          <span className="text-[11px] text-brand-subtle">acting as {viewerEmail}</span>
         </div>
       )}
 
@@ -490,11 +550,6 @@ export default function BudgetEditorClient({
                 </span>
               ))}
             </div>
-            <p className="mt-2 text-[12px] text-brand-muted">
-              This revision covers only the lines {onBehalf ? `${shortName(ownerEmail)} owns` : "you own"} — one
-              revision spans several segments. Other budget owners raise their own revisions for the
-              rest of those segments.
-            </p>
           </div>
 
           <div className="mm-card">
@@ -520,9 +575,7 @@ export default function BudgetEditorClient({
                 </select>
               </label>
               <p className="text-[12px] text-brand-muted">
-                Showing {visible.length} of {rows.length} lines in{" "}
-                {onBehalf ? `${shortName(ownerEmail)}'s` : "your"} scope. These are filters over this
-                owner&apos;s lines — never a way to reach another owner&apos;s.
+                {visible.length} of {rows.length} lines
               </p>
             </div>
           </div>
@@ -536,15 +589,22 @@ export default function BudgetEditorClient({
               foot={stats.approvedTotal > 0 ? `${((stats.delta / stats.approvedTotal) * 100).toFixed(1)}% vs approved` : "no approved budget yet"}
               accent={stats.delta > 0 ? "#B23A2F" : "#2E7D52"}
             />
-            <Stat label="Segments touched" value={String(stats.changedSegments.length)} foot={stats.changedSegments.join(", ") || "none yet"} accent="#9CAE8C" />
+            <Stat
+              label="Of revenue goal"
+              value={
+                goalFyTotal && goalFyTotal > 0
+                  ? `${((stats.proposedTotal / goalFyTotal) * 100).toFixed(1)}%`
+                  : EM_DASH
+              }
+              foot={
+                goalFyTotal && goalFyTotal > 0
+                  ? `${thb(stats.proposedTotal)} of ${thb(goalFyTotal)}${buFilter ? ` · ${buFilter}` : " · both BUs"}`
+                  : "no revenue goal set for this year"
+              }
+              accent="#9CAE8C"
+            />
           </div>
 
-          <p className="text-[11px] text-brand-subtle">
-            Paste 12 values from Sheets into any row · <strong>→</strong> fills the rest of the year ·
-            <strong> ↑↓←→</strong> moves between cells · <strong>C</strong> copies the FY
-            {data.priorFiscalYear} actual into a row · changed cells are highlighted against the
-            approved figure.
-          </p>
 
           {!editable && (
             <div
@@ -563,6 +623,17 @@ export default function BudgetEditorClient({
             onCopyPriorYear={onCopyPriorYear}
             onClearRow={onClearRow}
             priorFiscalYear={data.priorFiscalYear}
+            revenue={
+              revenue
+                ? {
+                    tree: revenue.tree,
+                    editable: revenue.canEdit,
+                    onChange: onRevenueChange,
+                    onAddChannel: () => setAddingChannel(true),
+                    onToggleChannel,
+                  }
+                : null
+            }
           />
         </>
       )}
@@ -571,6 +642,19 @@ export default function BudgetEditorClient({
         <p className="text-sm text-brand-muted">
           Loading {onBehalf ? `${shortName(ownerEmail)}'s` : "your"} budget…
         </p>
+      )}
+
+      {addingChannel && (
+        <AddChannelModal
+          bus={revenue ? revenue.tree.children.map((b) => b.label) : []}
+          tree={revenue?.tree ?? null}
+          onClose={() => setAddingChannel(false)}
+          onAdded={async () => {
+            setAddingChannel(false);
+            await loadRevenue();
+          }}
+          onError={setError}
+        />
       )}
 
       {confirmSubmit && data?.revision && (
@@ -676,4 +760,115 @@ function SaveIndicator({ state }: { state: SaveState }) {
     );
   }
   return <span className="text-[12px]" style={{ color: map[state.kind].color }}>{map[state.kind].text}</span>;
+}
+
+/**
+ * Adds a channel, and with it its category and sub-category if those are new —
+ * which is what makes every level addable without a deployment. The three
+ * upper fields are free text with a datalist of what already exists, so
+ * picking an existing category and inventing a new one are the same gesture.
+ */
+function AddChannelModal({
+  bus,
+  tree,
+  onClose,
+  onAdded,
+  onError,
+}: {
+  bus: string[];
+  tree: RevenueNode | null;
+  onClose: () => void;
+  onAdded: () => void;
+  onError: (m: string) => void;
+}) {
+  const [bu, setBu] = useState(bus[0] ?? "ONEST");
+  const [category, setCategory] = useState("");
+  const [subCategory, setSubCategory] = useState("");
+  const [channel, setChannel] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const buNode = tree?.children.find((b) => b.label === bu) ?? null;
+  const categories = buNode ? buNode.children.map((c) => c.label) : [];
+  const subs =
+    buNode?.children.find((c) => c.label === category)?.children.map((sc) => sc.label) ?? [];
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/revenue/channels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bu, category, sub_category: subCategory, channel }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Could not add the channel");
+      onAdded();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ready = bu.trim() && category.trim() && subCategory.trim() && channel.trim();
+
+  return (
+    <div className="mm-modal-overlay" style={{ backdropFilter: "blur(2px)" }} onClick={onClose}>
+      <div className="mm-modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+        <div className="mm-modal-header">
+          <h2 className="mm-modal-title">Add a revenue channel</h2>
+        </div>
+        <div className="mm-modal-body space-y-3">
+          <label className="block">
+            <span className="mm-label mb-1 block">Business unit</span>
+            <select className="mm-input w-full" value={bu} onChange={(e) => setBu(e.target.value)}>
+              {(bus.length ? bus : ["ONEST", "SV"]).map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mm-label mb-1 block">Category</span>
+            <input
+              className="mm-input w-full"
+              list="rev-cats"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="Physical store"
+            />
+            <datalist id="rev-cats">
+              {categories.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </label>
+          <label className="block">
+            <span className="mm-label mb-1 block">Sub-category</span>
+            <input
+              className="mm-input w-full"
+              list="rev-subs"
+              value={subCategory}
+              onChange={(e) => setSubCategory(e.target.value)}
+              placeholder="Modern Trade"
+            />
+            <datalist id="rev-subs">
+              {subs.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </label>
+          <label className="block">
+            <span className="mm-label mb-1 block">Channel</span>
+            <input
+              className="mm-input w-full"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+              placeholder="Store or platform name"
+            />
+          </label>
+        </div>
+        <div className="mm-modal-footer">
+          <button className="mm-btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="mm-btn-primary" onClick={() => void submit()} disabled={busy || !ready}>
+            {busy ? "Adding…" : "Add channel"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
