@@ -120,6 +120,9 @@
       <li><b>Workflow menus follow the role and are locked.</b> BO Approvals, CEO Approvals, Accounting, Procurement and Petty Cash do things, so they're granted by holding the role — never ticked separately. Ticking one alone would open a page where the person can't act.</li>
       <li><b>Viewing and settings menus are a free checklist</b>, defaulting from the roles. An override — a grant the roles don't give, or a removal of one they do — is marked in terracotta, with a reset, so exceptions are visible rather than hidden.</li>
       <li>Submit and My Requests are always on for everyone, so they aren't listed.</li>
+      <li><b>Defaults match reality, so overrides stay rare.</b> Suppliers includes Accounting, Categories is SUPERADMIN-only, and the spend report is open to every role — all as they work today. If every holder of a role needs the same override, the default is wrong. The only overrides left after migration are the three former DEPT_HEAD holders keeping Products and Suppliers.</li>
+      <li><b>Settings opens only for people with at least one settings menu.</b> Today a BO can reach Settings and find no tabs; that empty page goes away.</li>
+      <li>Ten settings surfaces, not seven: Signature rules, Announcements and Petty cash custodians were missing from the first draft and are added with today's role defaults.</li>
       <li>This replaces three things: the scattered multi-row roles table, the separate People &amp; departments tab, and the settings_tab_permissions table.</li>
       <li>Scope written on non-BO rows today — nine Petty Cash Custodians carry detailed department lists — is read by nothing. It's dropped rather than migrated, and recorded in docs/access-baseline.md so nothing is lost.</li>
     </ol>
@@ -150,12 +153,15 @@ const WORKFLOW=[
 ];
 // viewing/settings menus: default from roles, overridable
 const FREE={
-  'Spend report':['EMPLOYEE','BO','CEO','ACCOUNTING'],
+  'Spend report':['EMPLOYEE','BO','CEO','ACCOUNTING','PROCUREMENT','PETTY_CASH_CUSTODIAN'],
   'Budget':['BO','CEO','ACCOUNTING'],
-  'Settings · Categories':['ACCOUNTING'],
+  'Settings · Categories':[],
   'Settings · Products':['PROCUREMENT'],
-  'Settings · Suppliers':['PROCUREMENT'],
+  'Settings · Suppliers':['PROCUREMENT','ACCOUNTING'],
   'Settings · Companies':['ACCOUNTING'],
+  'Settings · Signature rules':['CEO'],
+  'Settings · Announcements':['CEO','ACCOUNTING'],
+  'Settings · Petty cash custodians':['ACCOUNTING'],
   'Settings · Users & access':[]
 };
 
