@@ -64,6 +64,7 @@ export async function GET() {
         roles: (roles ?? []).filter((r) => r.email === email).map((r) => r.role),
         boScopes: (scopes ?? []).filter((s) => s.email === email),
         overrides: (ovr ?? []).filter((o) => o.email === email),
+        active: p.active !== false,
         fy_count: counts.get(email) ?? 0,
         duplicateOf: (byLocal.get(localPart(email)) ?? []).filter((e) => e !== email),
       };
@@ -242,6 +243,7 @@ export async function PUT(req: NextRequest) {
     const person: PersonV2 = {
       email, bu: body.bu, bu_defaulted: false, visible_departments: depts.join(","),
       chapter: (before.chapter as string | null) ?? null,
+      active: before.active !== false,
       roles: nextRoles, boScopes: wantScopes, overrides: {},
     };
     await admin.from("person_menu_overrides").delete().eq("email", email);

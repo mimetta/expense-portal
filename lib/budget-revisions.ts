@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError } from "@/lib/request-repo";
 import { boScopeMatchesRequest, hasRole, isSuperadmin } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { synthRows } from "@/lib/roles-compat";
+import { activeEmailsWithRole } from "@/lib/person";
 import {
   notifyBudgetApproved,
   notifyBudgetRejected,
@@ -624,10 +625,7 @@ export async function listRevisions(
 
 /** Owners whose BO scope covers at least one category line — the candidates. */
 export async function listBudgetOwners(): Promise<string[]> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("person_roles").select("email").eq("role", "BO");
-  if (error) throw error;
-  // Array.from, not [...Set] — this tsconfig targets below es2015 for
-  // iteration (see commit 6fa230f, same fix).
-  return Array.from(new Set((data ?? []).map((r) => r.email as string))).sort();
+  // Active BOs only: a deactivated owner must not appear in the budget
+  // editor's owner selector.
+  return (await activeEmailsWithRole(["BO"])).sort();
 }

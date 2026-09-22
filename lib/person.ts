@@ -58,6 +58,7 @@ export async function loadPerson(email: string): Promise<PersonV2 | null> {
     bu_defaulted: !!person.bu_defaulted,
     visible_departments: String(person.visible_departments ?? ""),
     chapter: (person.chapter as string | null) ?? null,
+    active: person.active !== false,
     roles: (roles ?? []).map((r) => r.role as RoleV2),
     boScopes: (scopes ?? []) as PersonV2["boScopes"],
     overrides: Object.fromEntries((overrides ?? []).map((o) => [o.menu as string, !!o.allowed])),
@@ -72,6 +73,17 @@ export async function loadPerson(email: string): Promise<PersonV2 | null> {
  * Upsert with ignoreDuplicates, not insert: a first page load fires several
  * parallel requireUser() calls that would otherwise race.
  */
+/**
+ * Thrown when a deactivated person tries to sign in. Distinct from "no such
+ * person", which auto-registers.
+ */
+export class DeactivatedPersonError extends Error {
+  constructor(email: string) {
+    super(`${email} has been deactivated in the expense portal.`);
+    this.name = "DeactivatedPersonError";
+  }
+}
+
 export async function autoRegisterPerson(email: string): Promise<PersonV2> {
   const admin = createAdminClient();
   const { error: pErr } = await admin
@@ -94,4 +106,20 @@ export async function autoRegisterPerson(email: string): Promise<PersonV2> {
   const p = await loadPerson(email);
   if (!p) throw new Error(`Auto-registration of ${email} produced no row`);
   return p;
+}
+
+/**
+ * Emails of ACTIVE people holding any of these roles. The single source for
+ * "who should appear in a picker / get notified / own a budget" — a
+ * deactivated person must vanish from all of them, and doing the filter per
+ * call site guarantees one gets missed.
+ */
+export async function activeEmailsWithRole(roles: string[]): Promise<string[]> {
+  const admin = createAdminClient();
+  const [{ data: pr }, { data: people }] = await Promise.all([
+    admin.from("person_roles").select("email, role").in("role", roles),
+    admin.from("people").select("email, active"),
+  ]);
+  const inactive = new Set((people ?? []).filter((p) => p.active === false).map((p) => p.email as string));
+  return Array.from(new Set((pr ?? []).map((r) => r.email as string).filter((e) => !inactive.has(e))));
 }

@@ -21,6 +21,7 @@ export interface PersonV2 {
   bu_defaulted: boolean;
   visible_departments: string;
   chapter: string | null;
+  active: boolean;
   roles: RoleV2[];
   boScopes: { bu_scope: string; dept_scope: string; cat_l1_scope: string }[];
   overrides: Record<string, boolean>;
