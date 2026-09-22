@@ -15,6 +15,16 @@ export type RoleV2 =
   | "SUPERADMIN" | "CEO" | "ACCOUNTING" | "BO"
   | "PROCUREMENT" | "PETTY_CASH_CUSTODIAN" | "EMPLOYEE";
 
+/**
+ * The roles a person can be GRANTED. EMPLOYEE is deliberately absent: it is
+ * implicit for every active person (see hasRoleV2), so offering it as a
+ * checkbox would be offering to turn off something that cannot be turned
+ * off. The person card renders exactly this list.
+ */
+export const ASSIGNABLE_ROLES: RoleV2[] = [
+  "SUPERADMIN", "CEO", "ACCOUNTING", "BO", "PROCUREMENT", "PETTY_CASH_CUSTODIAN",
+];
+
 export interface PersonV2 {
   email: string;
   bu: "ONEST" | "SV" | "BOTH";
@@ -70,7 +80,23 @@ export const ALL_MENUS = [
   ...Object.keys(FREE_MENU_DEFAULTS),
 ];
 
-export const hasRoleV2 = (p: PersonV2, r: RoleV2) => p.roles.includes(r);
+/**
+ * EMPLOYEE IS IMPLICIT. Every active person is one; it is not a checkbox and
+ * no longer a person_roles row (migration 037 removed them).
+ *
+ * The single place that is expressed. Because hasRoleV2 answers true for it,
+ * FREE_MENU_DEFAULTS, menuDefault and canAccessPageV2 keep working verbatim —
+ * an "EMPLOYEE" entry in a defaults list now reads as "everyone", which is
+ * exactly what it already meant in practice: EMPLOYEE granted spend-report
+ * and nothing else, and every other role already carried spend-report too.
+ *
+ * Gated on `active` so a deactivated person inherits nothing. They cannot
+ * sign in (lib/auth.ts and the middleware both refuse them), so this is
+ * belt-and-braces rather than the enforcement point.
+ */
+export const hasRoleV2 = (p: PersonV2, r: RoleV2) =>
+  r === "EMPLOYEE" ? p.active : p.roles.includes(r);
+
 export const isSuperadminV2 = (p: PersonV2) => p.roles.includes("SUPERADMIN");
 
 /** What the roles alone would give, before any override. */

@@ -43,7 +43,12 @@ const MENU_LABEL: Record<string, string> = {
   "settings.users": "Settings · Users & access", "settings.people": "Settings · Users & access (people)",
   "settings.permissions": "Settings · Users & access (permissions)",
 };
-const FILTERS = ["All", "Unassigned", "BU defaulted", "BO", "EMPLOYEE", "Overrides", "Inactive"];
+// "No department" replaces "Unassigned", which read as "has no role" but has
+// always filtered on visible_departments. With EMPLOYEE implicit for every
+// active person, "unassigned" would have become true of nobody and the label
+// actively misleading, so it now says what it does. The EMPLOYEE filter is
+// gone for the same reason: it would match everyone.
+const FILTERS = ["All", "No department", "BU defaulted", "BO", "Overrides", "Inactive"];
 const split = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
 
 function Flag({ tone, children }: { tone: "warn" | "bad"; children: React.ReactNode }) {
@@ -207,10 +212,9 @@ export default function UsersAccessTab() {
       // so the list reads as "who works here" by default.
       if (filter === "Inactive") return !p.active;
       if (!p.active) return false;
-      if (filter === "Unassigned") return split(p.visible_departments).length === 0;
+      if (filter === "No department") return split(p.visible_departments).length === 0;
       if (filter === "BU defaulted") return p.bu_defaulted;
       if (filter === "BO") return p.roles.includes("BO");
-      if (filter === "EMPLOYEE") return p.roles.includes("EMPLOYEE");
       if (filter === "Overrides") return p.overrides.length > 0;
       return true;
     });
@@ -376,7 +380,7 @@ export default function UsersAccessTab() {
               <label className="mm-label mb-1 block">Email</label>
               <input className="mm-input w-full" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@mimetta.co" />
               <p className="mt-2 text-[12px] text-brand-muted">
-                Created with EMPLOYEE, business unit ONEST and flagged as defaulted, so it gets confirmed rather than inherited.
+                Created with no roles — they can submit requests and see their own, like everyone. Business unit ONEST, flagged as defaulted, so it gets confirmed rather than inherited.
               </p>
             </div>
             <div className="mm-modal-footer">
@@ -437,6 +441,11 @@ function PersonCard({
               onClick={() => setDraft({ ...draft, roles: draft.roles.includes(r) ? draft.roles.filter((x) => x !== r) : [...draft.roles, r] })}>{r}</Chip>
           ))}
         </div>
+        {/* In place of the removed EMPLOYEE chip. The six above are additions
+            to this, never alternatives to it. */}
+        <p className="mt-2 text-[12px] text-brand-muted">
+          Everyone can submit requests and see their own. These roles add to that.
+        </p>
       </Section>
 
       <Section title="Business unit">

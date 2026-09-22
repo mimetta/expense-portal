@@ -64,6 +64,16 @@ export async function synthRows(admin: Admin, includeInactive = false): Promise<
     out.push(...build(r.email as string, r.role as string, p,
       (scopes ?? []).filter((s) => s.email === r.email) as never));
   }
+  // EMPLOYEE IS IMPLICIT (migration 037): it is no longer a person_roles row,
+  // so a person holding no other role would produce NO rows here at all and
+  // vanish from everything this feeds — including /submit's Slip Payment
+  // Receiver picker, which is the whole reason GET /api/roles was kept.
+  // 17 of 38 people held EMPLOYEE and nothing else when the rows were
+  // migrated out, so without this the picker loses them.
+  for (const p of people) {
+    if ((roles ?? []).some((r) => r.email === p.email && r.role === "EMPLOYEE")) continue;
+    out.push(...build(p.email as string, "EMPLOYEE", p, []));
+  }
   return out.sort((a, b) => a.email.localeCompare(b.email) || a.role.localeCompare(b.role));
 }
 

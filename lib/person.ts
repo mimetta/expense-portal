@@ -66,9 +66,13 @@ export async function loadPerson(email: string): Promise<PersonV2 | null> {
 }
 
 /**
- * First-ever sign-in: create the person with EMPLOYEE, BU defaulted to ONEST
- * and FLAGGED, so an admin confirms it rather than inheriting a guess. Same
- * intent as the old roles auto-registration, against the new tables.
+ * First-ever sign-in: create the person with NO role rows, BU defaulted to
+ * ONEST and FLAGGED, so an admin confirms it rather than inheriting a guess.
+ *
+ * No EMPLOYEE row is written any more — every active person is implicitly an
+ * employee (lib/access-v2.ts#hasRoleV2), so writing one would record as data
+ * something that is now true by definition, and would immediately drift from
+ * the 21 rows migration 037 removed.
  *
  * Upsert with ignoreDuplicates, not insert: a first page load fires several
  * parallel requireUser() calls that would otherwise race.
@@ -91,17 +95,13 @@ export async function autoRegisterPerson(email: string): Promise<PersonV2> {
     .upsert({ email, bu: "ONEST", bu_defaulted: true, visible_departments: "", is_auto_registered: true },
             { onConflict: "email", ignoreDuplicates: true });
   if (pErr) throw new Error(`Failed to auto-register ${email}: ${pErr.message}`);
-  const { error: rErr } = await admin
-    .from("person_roles")
-    .upsert({ email, role: "EMPLOYEE" }, { onConflict: "email,role", ignoreDuplicates: true });
-  if (rErr) throw new Error(`Failed to auto-register ${email}: ${rErr.message}`);
   // Same shape as PERSON_ACCESS_UPDATED so the two read alike in the log.
   // The actor is the person themselves: this is triggered by their own first
   // sign-in, not by an admin.
   await logAudit(email, null, "AUTO_REGISTERED", {
     email,
     from: { roles: [], bu: null, bu_defaulted: null, visible_departments: null, boScopes: [], overrides: [] },
-    to: { roles: ["EMPLOYEE"], bu: "ONEST", bu_defaulted: true, visible_departments: "", boScopes: [], overrides: [] },
+    to: { roles: [], bu: "ONEST", bu_defaulted: true, visible_departments: "", boScopes: [], overrides: [] },
   });
   const p = await loadPerson(email);
   if (!p) throw new Error(`Auto-registration of ${email} produced no row`);
@@ -116,6 +116,13 @@ export async function autoRegisterPerson(email: string): Promise<PersonV2> {
  */
 export async function activeEmailsWithRole(roles: string[]): Promise<string[]> {
   const admin = createAdminClient();
+  // EMPLOYEE is implicit and has no rows, so asking person_roles for it would
+  // return nobody rather than everybody. No caller does today; this keeps the
+  // answer right if one ever does.
+  if (roles.includes("EMPLOYEE")) {
+    const { data } = await admin.from("people").select("email, active");
+    return (data ?? []).filter((p) => p.active !== false).map((p) => p.email as string);
+  }
   const [{ data: pr }, { data: people }] = await Promise.all([
     admin.from("person_roles").select("email, role").in("role", roles),
     admin.from("people").select("email, active"),
