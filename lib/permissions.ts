@@ -136,7 +136,6 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
 
 export type SettingsTab =
   | "suppliers"
-  | "users"
   | "products"
   | "categories"
   | "deptconfig"
@@ -159,7 +158,6 @@ export type ManagedSettingsTab = Exclude<SettingsTab, "usersaccess">;
 
 export const SETTINGS_TABS: SettingsTab[] = [
   "suppliers",
-  "users",
   "products",
   "categories",
   "deptconfig",
@@ -188,7 +186,6 @@ export const DEFAULT_SETTINGS_TAB_ROLES: Record<ManagedSettingsTab, Role[]> = {
   // Settings > Permissions first — same reasoning as every other role
   // already listed below.
   suppliers: ["ACCOUNTING", "PROCUREMENT", "SUPPLIER_MANAGER"],
-  users: [],
   products: ["PROCUREMENT", "PRODUCT_MANAGER"],
   categories: [],
   deptconfig: ["CEO"],

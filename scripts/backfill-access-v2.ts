@@ -118,6 +118,39 @@ async function main() {
 
   if (!APPLY) { console.log("\nDRY RUN — nothing written. Pass --apply."); return; }
 
+  // ---- REFUSE-TO-RUN GUARD ----------------------------------------------
+  // This was a ONE-TIME migration. Since the stage 2b switch-over the app
+  // writes only the new tables and `roles` is frozen, so re-running --apply
+  // would DELETE all four tables and rebuild them from stale data — silently
+  // reverting every access change made since. Verified at the time of
+  // writing: it would revert panwipa.s from ACCOUNTING to EMPLOYEE and wipe
+  // thannaporn.s's department.
+  //
+  // It refuses whenever the live tables have diverged from what it would
+  // produce. --force exists for a genuine re-migration, and says what it is.
+  const liveRoles = new Map<string, string[]>();
+  for (const r of (await a.from("person_roles").select("email, role")).data ?? []) {
+    liveRoles.set(r.email as string, [...(liveRoles.get(r.email as string) ?? []), r.role as string].sort());
+  }
+  const wouldBe = new Map<string, string[]>();
+  for (const r of roleAssign) wouldBe.set(r.email, [...(wouldBe.get(r.email) ?? []), r.role].sort());
+  const drift: string[] = [];
+  for (const [email, live] of Array.from(liveRoles.entries())) {
+    const want = wouldBe.get(email) ?? [];
+    if (JSON.stringify(live) !== JSON.stringify(want)) drift.push(`  ${email}: live=${live.join(",")} backfill=${want.join(",") || "(none)"}`);
+  }
+  const { count: liveOverrides } = await a.from("person_menu_overrides").select("*", { count: "exact", head: true });
+  if ((drift.length > 0 || (liveOverrides ?? 0) !== overrides.length) && !process.argv.includes("--force")) {
+    console.error("\nREFUSING TO APPLY — the live tables have diverged from this backfill.");
+    console.error("This is a one-time migration. The app writes these tables now and `roles` is");
+    console.error("frozen, so applying would revert real changes made since the switch:\n");
+    if (drift.length) { console.error("  roles that would revert:"); drift.forEach((d) => console.error(d)); }
+    console.error(`  overrides: ${liveOverrides} live vs ${overrides.length} this run would write`);
+    console.error("\nUse Settings > Users & access to change access. Pass --force only for a");
+    console.error("deliberate re-migration, knowing the above will be overwritten.");
+    process.exit(1);
+  }
+
   await a.from("person_menu_overrides").delete().neq("email", "");
   await a.from("bo_scopes").delete().neq("email", "");
   await a.from("person_roles").delete().neq("email", "");
@@ -126,6 +159,20 @@ async function main() {
   { const { error } = await a.from("person_roles").insert(roleAssign); if (error) throw error; }
   { const { error } = await a.from("bo_scopes").insert(boScopes); if (error) throw error; }
   if (overrides.length) { const { error } = await a.from("person_menu_overrides").insert(overrides); if (error) throw error; }
-  console.log("\nWRITTEN.");
+  // Audited like every other write to these tables. One summary row rather
+  // than 38: this is a single bulk operation, and the per-person detail is
+  // reproducible from the counts plus the frozen source table.
+  await a.from("audit_log").insert({
+    actor_email: process.env.USER ? `script:${process.env.USER}` : "script",
+    request_id: null,
+    action: "ACCESS_BACKFILL_APPLIED",
+    detail_json: {
+      people: peopleRows.length, person_roles: roleAssign.length,
+      bo_scopes: boScopes.length, overrides: overrides.length,
+      forced: process.argv.includes("--force"),
+      note: "Bulk rebuild of people/person_roles/bo_scopes/person_menu_overrides from the frozen roles table.",
+    },
+  });
+  console.log("\nWRITTEN (audited as ACCESS_BACKFILL_APPLIED).");
 }
 main().catch(e => { console.error(e); process.exit(1); });
