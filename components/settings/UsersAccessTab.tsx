@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // Settings > Users & access. Replaces User Management, People & departments
 // and the read-only Permissions tab: one record per person, one Save.
@@ -61,6 +61,7 @@ export default function UsersAccessTab() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const [newEmail, setNewEmail] = useState("");
 
   const load = async () => {
@@ -147,6 +148,17 @@ export default function UsersAccessTab() {
     finally { setBusy(false); }
   };
 
+  // Below the side-by-side breakpoint the card stacks under the list, so
+  // bring it into view rather than leaving the click looking inert — which
+  // is exactly how this page failed before.
+  useEffect(() => {
+    if (!openEmail || !cardRef.current) return;
+    const r = cardRef.current.getBoundingClientRect();
+    if (r.top < 0 || r.top > window.innerHeight - 120) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [openEmail]);
+
   const visible = useMemo(() => {
     if (!data) return [];
     return data.people.filter((p) => {
@@ -178,8 +190,8 @@ export default function UsersAccessTab() {
           always next to the person being edited. It previously sat BELOW all
           38 rows — ~2,200px below the fold — so clicking Edit flipped the
           button to "Close" and appeared to do nothing. */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[360px_1fr]">
-        <div className="mm-table-wrap lg:sticky lg:top-3">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[320px_1fr]">
+        <div className="mm-table-wrap md:sticky md:top-3">
           <div className="space-y-2 border-b border-brand-border p-3" style={{ background: "#FDFCFA" }}>
             <input className="mm-input w-full" placeholder="Search by email" value={q} onChange={(e) => setQ(e.target.value)} />
             <div className="flex flex-wrap gap-1.5">
@@ -223,7 +235,7 @@ export default function UsersAccessTab() {
           </div>
         </div>
 
-        <div>
+        <div ref={cardRef} className="scroll-mt-3">
           {draft && openEmail ? (
             <PersonCard
               draft={draft} setDraft={setDraft} data={data}
