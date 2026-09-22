@@ -1480,6 +1480,50 @@ stage 2c precisely because they wrote these tables with no audit row — which
 is how one promotion reached production with no record of who made it. `GET
 /api/roles` is kept: /submit's Slip Payment Receiver picker reads it.
 
+Deactivation adds `PERSON_DEACTIVATED` / `PERSON_REACTIVATED` / `PERSON_DELETED`
+(`POST /api/users-access/lifecycle`). The deactivate row carries the consequences
+snapshot that was shown to the admin; the delete row carries the zero-history
+proof that allowed it.
+
+### EMPLOYEE is implicit — it is not a role you can hold (migration 037)
+
+Every **active** person is an employee. There is no `person_roles` row for it,
+no checkbox on the person card, and six assignable roles, not seven
+(`lib/access-v2.ts#ASSIGNABLE_ROLES`).
+
+**It is expressed in exactly one line** — `hasRoleV2` answers true for
+`EMPLOYEE` when `p.active`. Everything downstream is unchanged: an `"EMPLOYEE"`
+entry in `FREE_MENU_DEFAULTS` now reads as "everyone", which is what it already
+meant in practice.
+
+**Why this changed nobody's access.** EMPLOYEE granted exactly one menu,
+`spend-report`. Submit and My Requests never consulted roles at all. And
+`spend-report`'s default already listed *every* other role, so anyone holding
+any role row already had it. Proven, not argued: `scripts/snapshot-access-matrix.ts`
+dumps the live matrix by calling the app's own permission functions, and the
+before/after diff across 38 people was **zero** on pages, tabs, actions, spend
+scope and BU — the only movements were the roles list itself and request-reach
+counts, which moved because two requests were submitted mid-run.
+
+**`scripts/snapshot-access-matrix.ts` exists because `verify-old-vs-new.ts` and
+the committed `docs/access-baseline.md` cannot answer this.** The baseline
+legitimately drifts every time an admin assigns a department, so its diff is
+never empty and it cannot isolate one change. The snapshot script is run
+before and after instead.
+
+Two consequences worth knowing:
+- `lib/roles-compat.ts#synthRows` **synthesises** an EMPLOYEE row per active
+  person. Without it, the 17 people who held EMPLOYEE and nothing else would
+  produce no rows and vanish from `GET /api/roles` — i.e. from /submit's Slip
+  Payment Receiver picker.
+- The `person_roles` CHECK still permits `'EMPLOYEE'`, deliberately, so the
+  rollback in migration 037's header can run. The *application* is what refuses
+  to write it.
+
+The Users & access filter formerly called "Unassigned" is now **"No department"**.
+It always filtered on `visible_departments`; with EMPLOYEE implicit, "unassigned"
+would have been true of nobody.
+
 
 ## Verification
 
@@ -2073,3 +2117,33 @@ cron; same env var name, different job).
   `lib/permissions.ts#canViewRequest` — one shared function used by `GET /api/requests/[id]`
   and the homepage's `/api/dashboard/home-stats` and `/api/dashboard/payment-calendar`. Don't
   re-duplicate this role-visibility logic inline in a new route.
+
+---
+
+## wacharanan.j: one person, two addresses (migration 038)
+
+`wacharanan.j@plantae.co` was the same person as `wacharanan.j@mimetta.co` — the
+address changed at the domain migration and the old one was never swept. It filed
+25 requests (Feb–Jul 2026) and approved 86; the @mimetta.co address picks up in
+August, with **no overlapping activity day**. Migration 038 moved the operational
+history across.
+
+**`audit_log` was deliberately not touched.** It records what happened under the
+address in use at the time; rewriting it would make the log lie about the past. It
+held zero rows for the old address anyway — the rule is stated because it is the
+rule, not because it cost anything here.
+
+**The old `people` row is deactivated, not deleted.** Deleting it would let auth
+re-create it on a sign-in attempt, and the append-only log must keep resolving to
+a real row. (`isAllowedDomain` also refuses `@plantae.co`, so it could never sign
+in regardless.)
+
+Rollback is one statement, in that migration's header, against
+`request_email_reassignment_038` — a pre-image of all 103 affected requests.
+
+**The address inventory was taken by scanning all 179 text columns of all 36
+exposed tables plus every JSONB body, not by reading `types/database.ts`.** That
+is what found the two remaining "plantae" strings to be attachment filenames
+naming the *supplier* บริษัท แพลนเต้ ไลฟ์ จำกัด, and `payment_presets.name =
+'Plantae'` likewise — none of them this person. Do the same before any future
+address reassignment.

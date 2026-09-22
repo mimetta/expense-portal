@@ -7,8 +7,8 @@ import { ConflictError } from "@/lib/request-repo";
 import { logAudit } from "@/lib/audit";
 import { DEPARTMENTS } from "@/lib/constants";
 import { boScopeMatchesRequest } from "@/lib/scope-match";
-import { ROLES_V2, type RoleV2Name } from "@/lib/roles-compat";
-import { WORKFLOW_MENUS, FREE_MENU_DEFAULTS, menuDefault, type PersonV2 } from "@/lib/access-v2";
+import { type RoleV2Name } from "@/lib/roles-compat";
+import { WORKFLOW_MENUS, FREE_MENU_DEFAULTS, ASSIGNABLE_ROLES, menuDefault, type PersonV2 } from "@/lib/access-v2";
 import type { ExpenseRequest, RoleRow } from "@/types/database";
 
 // Settings > Users & access. SUPERADMIN only, both verbs.
@@ -84,7 +84,7 @@ export async function GET() {
     return NextResponse.json({
       people: rows,
       departments: DEPARTMENTS,
-      roles: ROLES_V2,
+      roles: ASSIGNABLE_ROLES,
       workflowMenus: WORKFLOW_MENUS,
       freeMenus: Object.keys(FREE_MENU_DEFAULTS),
       freeMenuDefaults: FREE_MENU_DEFAULTS,
@@ -121,11 +121,12 @@ export async function POST(req: NextRequest) {
       email: clean, bu: "ONEST", bu_defaulted: true, visible_departments: "",
     });
     if (error) throw error;
-    await admin.from("person_roles").insert({ email: clean, role: "EMPLOYEE" });
+    // No EMPLOYEE row: it is implicit for every active person, exactly as in
+    // autoRegisterPerson. A new person starts with no roles at all.
     await logAudit(actor.email, null, "PERSON_CREATED", {
       email: clean,
       from: { roles: [], bu: null, bu_defaulted: null, visible_departments: null, boScopes: [], overrides: [] },
-      to: { roles: ["EMPLOYEE"], bu: "ONEST", bu_defaulted: true, visible_departments: "", boScopes: [], overrides: [] },
+      to: { roles: [], bu: "ONEST", bu_defaulted: true, visible_departments: "", boScopes: [], overrides: [] },
     });
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {
@@ -141,7 +142,11 @@ export async function PUT(req: NextRequest) {
     if (!email) return NextResponse.json({ error: "email is required" }, { status: 400 });
 
     const admin = createAdminClient();
-    const nextRoles = Array.from(new Set((body.roles ?? []).filter((r) => (ROLES_V2 as readonly string[]).includes(r)))) as RoleV2Name[];
+    // ASSIGNABLE_ROLES, not every role: EMPLOYEE is implicit for every active
+    // person, so a client sending it must not be able to re-create the rows
+    // migration 037 removed. Anything unrecognised is dropped silently, as
+    // before.
+    const nextRoles = Array.from(new Set((body.roles ?? []).filter((r) => (ASSIGNABLE_ROLES as readonly string[]).includes(r)))) as RoleV2Name[];
 
     // ---- before state, for the audit row and the safety checks ------------
     const [{ data: before }, { data: beforeRoles }, { data: beforeScopes }, { data: beforeOvr }] = await Promise.all([
