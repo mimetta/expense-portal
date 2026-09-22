@@ -47,5 +47,39 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // DEACTIVATION. lib/auth.ts#getCurrentUser also refuses a deactivated
+  // person, which makes every API route 401 — but this middleware never
+  // calls it, so without this check they still reach page shells instead of
+  // being bounced to /login. "Cannot sign in" has to be enforced where
+  // sign-in is actually gated, which is here.
+  //
+  // A direct REST fetch rather than lib/supabase/admin.ts: this file runs in
+  // the Edge runtime, and it is deliberately dependency-free (see the note on
+  // isAllowedDomain above). Fails OPEN on a network/config error — the API
+  // layer still refuses them, so a transient failure here degrades to "can
+  // load an empty shell", not "everyone is locked out".
+  if (!isPublicPath && user?.email) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (url && key) {
+      try {
+        const res = await fetch(
+          `${url}/rest/v1/people?select=active&email=eq.${encodeURIComponent(user.email)}`,
+          { headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: "no-store" },
+        );
+        if (res.ok) {
+          const rows = (await res.json()) as { active?: boolean }[];
+          if (rows.length > 0 && rows[0].active === false) {
+            const loginUrl = new URL("/login", request.url);
+            loginUrl.searchParams.set("reason", "deactivated");
+            return NextResponse.redirect(loginUrl);
+          }
+        }
+      } catch {
+        // Fail open — see above.
+      }
+    }
+  }
+
   return response;
 }
