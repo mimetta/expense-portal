@@ -29,14 +29,27 @@ async function main() {
 
   const emails = Array.from(new Set(roleRows!.map(r => r.email as string))).sort();
   const PAGES = P.PAGES;
-  const TABS = ["suppliers","users","products","categories","deptconfig","announcements","pettycash","companies","people","permissions"];
+  // Stage 2c merged users/people/permissions into one `usersaccess` menu.
+  // The three always moved together and were all SUPERADMIN-only, so the old
+  // `users` answer is the right thing to compare the merged one against.
+  const TABS = ["suppliers","products","categories","deptconfig","announcements","pettycash","companies"];
 
-  const diffs: string[] = [], intended: string[] = [];
+  const diffs: string[] = [], intended: string[] = [], changedSince: string[] = [];
   for (const email of emails) {
     // OLD: no `person`, so every delegating function takes its legacy branch.
     const oldU = { email, name: email, allRoles: roleRows!.filter(r => r.email === email) } as never;
     const person = await loadPerson(email);
     if (!person) { diffs.push(`${email} | MISSING from people`); continue; }
+    // The legacy `roles` table is FROZEN as of stage 2b: the app writes only
+    // the new tables now. So anyone whose access has genuinely been changed
+    // since the switch will differ here BY DESIGN, and comparing them would
+    // report a real admin action as a regression. Skip and report them.
+    const legacyRoles = Array.from(new Set((roleRows!.filter(r => r.email === email)).map(r => String(r.role)))).sort();
+    const liveRoles = [...person.roles].sort();
+    if (JSON.stringify(legacyRoles) !== JSON.stringify(liveRoles)) {
+      changedSince.push(`${email} | legacy=${legacyRoles.join(",") || "(none)"} | now=${liveRoles.join(",") || "(none)"}`);
+      continue;
+    }
     const newU = { email, name: email, allRoles: projectAllRoles(person), chapter: person.chapter, person } as never;
 
     const cmp = (what: string, o: unknown, n: unknown) => {
@@ -45,6 +58,9 @@ async function main() {
     };
     for (const p of PAGES) cmp(`page:${p}`, P.canAccessPage(oldU, p), P.canAccessPage(newU, p));
     for (const t of TABS) cmp(`tab:${t}`, P.canAccessSettingsTab(oldU, t as never, cfg), P.canAccessSettingsTab(newU, t as never));
+    cmp("tab:usersaccess (was users/people/permissions)",
+        P.canAccessSettingsTab(oldU, "users" as never, cfg),
+        P.canAccessSettingsTab(newU, "usersaccess" as never));
     cmp("canManageProducts", P.canManageProducts(oldU, cfg), P.canManageProducts(newU));
     cmp("bo-reach", reqs.filter(r => P.canBoActOnRequest(oldU, r)).length, reqs.filter(r => P.canBoActOnRequest(newU, r)).length);
     cmp("pettycash-reach", reqs.filter(r => P.canPettyCashActOnRequest(oldU, r)).length, reqs.filter(r => P.canPettyCashActOnRequest(newU, r)).length);
@@ -52,7 +68,11 @@ async function main() {
     cmp("spend-departments", S.viewerDepartments(oldU).sort().join(","), S.viewerDepartments(newU).sort().join(","));
   }
 
-  console.log(`\ncompared ${emails.length} people, identical inputs`);
+  console.log(`\ncompared ${emails.length - changedSince.length} of ${emails.length} people on identical inputs`);
+  if (changedSince.length) {
+    console.log(`\nSKIPPED — access genuinely changed since the switch, so the frozen legacy row is stale (expected):`);
+    changedSince.forEach(d => console.log("  " + d));
+  }
   console.log(`INTENDED (Settings page): ${intended.length}`);
   intended.forEach(d => console.log("  " + d));
   if (diffs.length === 0) { console.log("\nUNINTENDED: NONE ✓"); return; }

@@ -143,8 +143,7 @@ export type SettingsTab =
   | "announcements"
   | "pettycash"
   | "companies"
-  | "people"
-  | "permissions";
+  | "usersaccess";
 
 // The 8 tabs whose access is governed by the DB-backed
 // settings_tab_permissions table (edited via the "permissions" tab itself).
@@ -156,7 +155,7 @@ export type SettingsTab =
 // "people" joins "permissions" as SUPERADMIN-only and DB-unconfigurable:
 // it assigns the department that decides what each person can see in the
 // spend report, so who may edit it must not itself be editable from a tab.
-export type ManagedSettingsTab = Exclude<SettingsTab, "permissions" | "people">;
+export type ManagedSettingsTab = Exclude<SettingsTab, "usersaccess">;
 
 export const SETTINGS_TABS: SettingsTab[] = [
   "suppliers",
@@ -167,12 +166,11 @@ export const SETTINGS_TABS: SettingsTab[] = [
   "announcements",
   "pettycash",
   "companies",
-  "people",
-  "permissions",
+  "usersaccess",
 ];
 
 export const MANAGED_SETTINGS_TABS: ManagedSettingsTab[] = SETTINGS_TABS.filter(
-  (t): t is ManagedSettingsTab => t !== "permissions" && t !== "people",
+  (t): t is ManagedSettingsTab => t !== "usersaccess",
 );
 
 // Fallback default when the settings_tab_permissions table doesn't exist
@@ -214,7 +212,7 @@ export function canAccessSettingsTab(
   // but it is ignored when a `person` is present.
   if (user.person) return canAccessSettingsTabV2(user.person, tab);
   if (isSuperadmin(user)) return true;
-  if (tab === "permissions" || tab === "people") return false;
+  if (tab === "usersaccess") return false;
   if (tab === "products") return canManageProducts(user, config);
   return hasAnyRole(user, config[tab]);
 }
