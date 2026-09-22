@@ -58,6 +58,14 @@ export async function requireSettingsTabRole(
   tab: ManagedSettingsTab,
 ): Promise<void> {
   if (isSuperadmin(user)) return;
+  // STAGE 2b: no longer reads settings_tab_permissions. canAccessSettingsTab
+  // delegates to lib/access-v2.ts when the user carries a `person`, which
+  // every getCurrentUser-derived caller does; the fetch below is kept only
+  // for the legacy path and is skipped entirely in the normal case.
+  if (user.person) {
+    if (!canAccessSettingsTab(user, tab)) throw new ForbiddenError();
+    return;
+  }
   const config = await getSettingsTabPermissions();
   if (!canAccessSettingsTab(user, tab, config)) throw new ForbiddenError();
 }

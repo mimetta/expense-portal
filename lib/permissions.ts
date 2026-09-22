@@ -1,5 +1,9 @@
 import type { CurrentUser, DeptConfigRow, ExpenseRequest, RejectionHistoryEntry, RoleRow } from "@/types/database";
 import type { Role } from "@/lib/constants";
+import { canAccessPageV2, canAccessSettingsTabV2, canManageProductsV2 } from "@/lib/access-v2";
+// A re-export alone does not bring these into local scope, and this file
+// uses both internally.
+import { scopeMatches, boScopeMatchesRequest } from "@/lib/scope-match";
 
 // --- role helpers ------------------------------------------------------
 // Always check against the full all_roles array. A user's "primary" role is
@@ -68,6 +72,12 @@ export const PAGES = Object.keys(ALL_PAGES) as Page[];
 // spelled out per-role in the requirements, but it's the natural reading of
 // "budget dashboard" alongside the finance-facing roles.
 export function canAccessPage(user: CurrentUser, page: Page): boolean {
+  // STAGE 2b: decided by role-to-menu defaults plus per-person overrides in
+  // lib/access-v2.ts, reading the `people` tables. The switch below is the
+  // pre-2b implementation, kept only for the (unreachable in the app) case
+  // of a CurrentUser built without a `person` — every caller goes through
+  // getCurrentUser, which always sets it.
+  if (user.person) return canAccessPageV2(user.person, page);
   if (isSuperadmin(user)) return true;
 
   switch (page) {
@@ -199,6 +209,10 @@ export function canAccessSettingsTab(
   tab: SettingsTab,
   config: Record<ManagedSettingsTab, Role[]> = DEFAULT_SETTINGS_TAB_ROLES,
 ): boolean {
+  // STAGE 2b: settings_tab_permissions is no longer consulted; the `config`
+  // parameter is retained so the ~20 existing call sites compile unchanged,
+  // but it is ignored when a `person` is present.
+  if (user.person) return canAccessSettingsTabV2(user.person, tab);
   if (isSuperadmin(user)) return true;
   if (tab === "permissions" || tab === "people") return false;
   if (tab === "products") return canManageProducts(user, config);
@@ -224,10 +238,12 @@ export function canManageProducts(
   user: CurrentUser,
   config: Record<ManagedSettingsTab, Role[]> = DEFAULT_SETTINGS_TAB_ROLES,
 ): boolean {
+  // STAGE 2b: the DEPT_HEAD-scoped-to-R&D carve-out is gone. DEPT_HEAD is a
+  // retired role and its three holders carry an explicit
+  // settings.products override instead, so the grant is visible per person
+  // rather than implied by a scope string.
+  if (user.person) return canManageProductsV2(user.person);
   if (isSuperadmin(user)) return true;
-  if (rolesOf(user, "DEPT_HEAD").some((scope) => scopeMatches(scope.dept_scope, "R&D"))) {
-    return true;
-  }
   return hasAnyRole(user, config.products);
 }
 
@@ -245,22 +261,10 @@ export function firstAccessibleSettingsTab(
 
 // --- BO scope matching ---------------------------------------------------
 
-function scopeMatches(scope: string, value: string | null | undefined): boolean {
-  if (scope === "*") return true;
-  if (!value) return false;
-  return scope
-    .split(",")
-    .map((s) => s.trim())
-    .includes(value);
-}
-
-export function boScopeMatchesRequest(scope: RoleRow, request: ExpenseRequest): boolean {
-  return (
-    scopeMatches(scope.bu_scope, request.bu) &&
-    scopeMatches(scope.dept_scope, request.department) &&
-    scopeMatches(scope.cat_l1_scope, request.cat_l1)
-  );
-}
+// Moved to lib/scope-match.ts in stage 2b so lib/access-v2.ts can use the
+// same implementation without a circular import. Re-exported here because
+// several modules already import it from this file.
+export { scopeMatches, boScopeMatchesRequest } from "@/lib/scope-match";
 
 // A user can hold several BO rows (different scopes). They can see/act on a
 // request if ANY of their BO scope rows matches it.

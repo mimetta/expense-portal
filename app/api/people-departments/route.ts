@@ -40,10 +40,17 @@ const splitList = (v: unknown) =>
 async function assemble(): Promise<PersonRow[]> {
   const admin = createAdminClient();
 
-  const { data: roleRows, error: roleErr } = await admin
-    .from("roles")
-    .select("id, email, role, department");
-  if (roleErr) throw roleErr;
+  // STAGE 2b: people / person_roles, not the legacy roles table.
+  const [{ data: peopleRows, error: pErr }, { data: prRows, error: rErr }] = await Promise.all([
+    admin.from("people").select("email, visible_departments"),
+    admin.from("person_roles").select("email, role"),
+  ]);
+  if (pErr) throw pErr;
+  if (rErr) throw rErr;
+  const roleRows = (prRows ?? []).map((r) => ({
+    id: `${r.email}|${r.role}`, email: r.email, role: r.role,
+    department: (peopleRows ?? []).find((p) => p.email === r.email)?.visible_departments ?? "",
+  }));
 
   // Paged: PostgREST caps at 1000 and there are >1100 requests.
   const reqs: { requester_email: string; department: string; timestamp: string; budget_period: string }[] = [];
@@ -152,35 +159,37 @@ export async function PUT(req: NextRequest) {
     const value = chosen.join(",");
 
     const admin = createAdminClient();
-    const { data: existing, error: exErr } = await admin.from("roles").select("id").eq("email", email);
+    // STAGE 2b: writes people.visible_departments, which is what
+    // lib/spend.ts#scopeFilter now reads. The legacy roles.department column
+    // is no longer written — an edit landing there would silently vanish.
+    const { data: existing, error: exErr } = await admin
+      .from("people").select("email").eq("email", email).maybeSingle();
     if (exErr) throw exErr;
 
     let created = false;
-    if ((existing ?? []).length === 0) {
-      // Someone who has filed requests but never had a row. Give them the
-      // same shape auto-registration would: EMPLOYEE, unrestricted approval
-      // scopes (which grant nothing on their own), plus the department.
-      const { error } = await admin.from("roles").insert({
-        email,
-        role: "EMPLOYEE",
-        bu_scope: "*",
-        dept_scope: "*",
-        cat_l1_scope: "*",
-        department: value,
+    if (!existing) {
+      // Someone who has filed requests but was never added. Same shape
+      // auto-registration gives: EMPLOYEE, BU defaulted AND flagged so it is
+      // confirmed rather than inherited.
+      const { error } = await admin.from("people").insert({
+        email, bu: "ONEST", bu_defaulted: true, visible_departments: value,
       });
       if (error) throw error;
+      const { error: rErr } = await admin
+        .from("person_roles")
+        .upsert({ email, role: "EMPLOYEE" }, { onConflict: "email,role", ignoreDuplicates: true });
+      if (rErr) throw rErr;
       created = true;
     } else {
-      // Every row for this person — department is a property of the person,
-      // not of one role they happen to hold.
-      const { error } = await admin.from("roles").update({ department: value }).eq("email", email);
+      const { error } = await admin
+        .from("people")
+        .update({ visible_departments: value, updated_at: new Date().toISOString() })
+        .eq("email", email);
       if (error) throw error;
     }
 
     await logAudit(user.email, null, created ? "DEPARTMENT_ASSIGNED_NEW_ROW" : "DEPARTMENT_ASSIGNED", {
-      email,
-      departments: chosen,
-      created_employee_row: created,
+      email, departments: chosen, created_person_row: created,
     });
     return NextResponse.json({ ok: true, created, departments: chosen });
   } catch (err) {

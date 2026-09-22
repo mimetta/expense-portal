@@ -22,7 +22,12 @@ export async function GET() {
     const badges = { budget: access.budget ? await pendingBudgetApprovals(user) : 0 };
 
     return NextResponse.json({
-      user: { email: user.email, name: user.name, allRoles: user.allRoles, chapter: user.chapter },
+      user: {
+        email: user.email, name: user.name, allRoles: user.allRoles, chapter: user.chapter,
+        // STAGE 2b: the submit form reads this instead of scanning bu_scope.
+        bu: user.person?.bu ?? null,
+        buDefaulted: user.person?.bu_defaulted ?? false,
+      },
       access,
       badges,
     });

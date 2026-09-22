@@ -25,7 +25,7 @@ const short = (email: string) => email.replace("@mimetta.co", "");
 async function approverEmails(): Promise<string[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("roles")
+    .from("person_roles")
     .select("email, role")
     .in("role", ["CEO", "SUPERADMIN"]);
   if (error) {

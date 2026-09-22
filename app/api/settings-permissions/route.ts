@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { canAccessPage, isSuperadmin, MANAGED_SETTINGS_TABS, type ManagedSettingsTab } from "@/lib/permissions";
-import { getSettingsTabPermissions } from "@/lib/settings-permissions";
-import { ROLES, type Role } from "@/lib/constants";
+import { FREE_MENU_DEFAULTS } from "@/lib/access-v2";
+import { canAccessPage, isSuperadmin } from "@/lib/permissions";
 
 // PostgREST's code for "this table isn't in my schema cache" — what you get
 // before supabase/migrations/024_settings_tab_permissions.sql has been
 // applied. Same code every other not-yet-applied-migration route in this
 // app checks (announcements/calendar_events/companies).
-const TABLE_NOT_FOUND = "PGRST205";
 
 // Readable by any signed-in user who can reach /settings at all (any role
 // except a pure EMPLOYEE) — settingsClient.tsx needs this to compute which
@@ -21,16 +18,18 @@ export async function GET() {
   try {
     const user = await requireUser();
     if (!canAccessPage(user, "settings")) throw new ForbiddenError();
-    const permissions = await getSettingsTabPermissions();
+    // STAGE 2b: report the defaults actually in force (code), not the stale
+    // table, so the Permissions tab cannot show a configuration that no
+    // longer decides anything.
+    const permissions = Object.fromEntries(
+      Object.entries(FREE_MENU_DEFAULTS)
+        .filter(([m]) => m.startsWith("settings."))
+        .map(([m, roles]) => [m.slice("settings.".length), roles]),
+    );
     return NextResponse.json({ permissions });
   } catch (err) {
     return handleApiError(err);
   }
-}
-
-interface UpdatePermissionBody {
-  tab?: string;
-  roles?: string[];
 }
 
 // SUPERADMIN-only — backs the new Settings > Permissions tab. Saves the
@@ -43,38 +42,29 @@ export async function PATCH(request: Request) {
   try {
     const user = await requireUser();
     if (!isSuperadmin(user)) throw new ForbiddenError();
+    await request.json().catch(() => ({}));
 
-    const body = (await request.json()) as UpdatePermissionBody;
-    if (!body.tab || !MANAGED_SETTINGS_TABS.includes(body.tab as ManagedSettingsTab)) {
-      return NextResponse.json(
-        { error: "tab must be one of: " + MANAGED_SETTINGS_TABS.join(", ") },
-        { status: 400 },
-      );
-    }
-    const roles = Array.isArray(body.roles)
-      ? body.roles.filter(
-          (r): r is Role => (ROLES as readonly string[]).includes(r) && r !== "SUPERADMIN" && r !== "EMPLOYEE",
-        )
-      : [];
-
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("settings_tab_permissions")
-      .upsert({ tab: body.tab, roles: roles.join(",") }, { onConflict: "tab" })
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === TABLE_NOT_FOUND) {
-        return NextResponse.json(
-          { error: "Migration 024_settings_tab_permissions.sql hasn't been applied yet" },
-          { status: 503 },
-        );
-      }
-      throw error;
-    }
-    return NextResponse.json({ permission: data });
+    // STAGE 2b: DISABLED, deliberately.
+    //
+    // settings_tab_permissions is no longer read by anything —
+    // canAccessSettingsTab delegates to lib/access-v2.ts, which uses role
+    // defaults in code plus per-person overrides. Accepting a write here
+    // would store a value nobody consults, so an admin would change a
+    // permission, see it saved, and have nothing happen. Refusing is the
+    // honest failure.
+    //
+    // The table itself is untouched and still holds its pre-switch rows, so
+    // reverting the stage 2b commit restores this endpoint's effect exactly.
+    return NextResponse.json(
+      {
+        error:
+          "Tab permissions are no longer configured per role. Role defaults live in code " +
+          "(lib/access-v2.ts) and exceptions are set per person in Settings > People & departments.",
+      },
+      { status: 410 },
+    );
   } catch (err) {
     return handleApiError(err);
   }
 }
+

@@ -17,7 +17,8 @@
     "check:duplicate-segments": "tsx scripts/check-duplicate-segments.ts",
     "check:bo-coverage": "tsx scripts/check-bo-coverage.ts",
     "backfill:access-v2": "tsx scripts/backfill-access-v2.ts",
-    "check:access-parity": "tsx scripts/parity-check-access-v2.ts"
+    "check:access-parity": "tsx scripts/parity-check-access-v2.ts",
+    "check:access-rewired": "tsx scripts/verify-old-vs-new.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

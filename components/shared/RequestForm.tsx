@@ -376,7 +376,7 @@ export default function RequestForm({
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [custodians, setCustodians] = useState<PettyCashCustodianRow[]>([]);
   const [currentUser, setCurrentUser] = useState<
-    { email: string; name: string; chapter?: string | null; allRoles?: RoleRow[] } | null
+    { email: string; name: string; chapter?: string | null; allRoles?: RoleRow[]; bu?: string | null } | null
   >(null);
   const [submitting, setSubmitting] = useState(false);
   const [secondaryBusy, setSecondaryBusy] = useState(false);
@@ -410,18 +410,16 @@ export default function RequestForm({
   // hidden PO section, etc.) stays scoped to isPettyCash alone.
   const usesPerItemSegment = isPettyCash || isPaidExpense;
 
-  // Business Unit is always auto-filled and read-only — never a free
-  // choice. Resolution: the first non-"*" bu_scope value across the user's
-  // roles (covers both "one specific value everywhere" and "several roles,
-  // some scoped to a specific BU" — same rule either way), or "ONEST" as
-  // the default if every role is genuinely unrestricted ("*").
+  // Business Unit is auto-filled and read-only. STAGE 2b: it is the
+  // person's own `people.bu`, not a scan of bu_scope across role rows.
+  //
+  // The old rule took the first non-"*" bu_scope across ALL roles in
+  // whatever order Postgres returned them, so a person holding rows that
+  // disagreed got an arbitrary answer. 'BOTH' means the person picks per
+  // request, so it does not pin the field.
   const resolvedBu = useMemo((): string => {
-    const scopes = currentUser?.allRoles?.map((r) => r.bu_scope) ?? [];
-    for (const scope of scopes) {
-      if (scope === "*") continue;
-      const first = scope.split(",").map((s) => s.trim()).filter(Boolean)[0];
-      if (first) return first;
-    }
+    const bu = currentUser?.bu;
+    if (bu === "ONEST" || bu === "SV") return bu;
     return "ONEST";
   }, [currentUser]);
 

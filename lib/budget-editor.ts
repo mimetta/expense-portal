@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { synthRows } from "@/lib/roles-compat";
 import { ForbiddenError } from "@/lib/auth";
 import { hasRole, isSuperadmin } from "@/lib/permissions";
 import {
@@ -173,12 +174,10 @@ export async function coOwnersFor(
 ): Promise<{ email: string; departments: string[] }[]> {
   if (departments.length === 0) return [];
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("roles")
-    .select("email, bu_scope, dept_scope, cat_l1_scope")
-    .eq("role", "BO")
-    .neq("email", ownerEmail);
-  if (error) throw error;
+  // STAGE 2b: person_roles + bo_scopes (see lib/roles-compat.ts).
+  const data = (await synthRows(admin)).filter(
+    (r) => r.role === "BO" && r.email !== ownerEmail,
+  );
 
   const out: { email: string; departments: string[] }[] = [];
   for (const r of data ?? []) {
@@ -262,11 +261,7 @@ function summariseScope(rows: { bu_scope: unknown; dept_scope: unknown; cat_l1_s
  */
 export async function listBudgetOwnerOptions(): Promise<BudgetOwnerOption[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("roles")
-    .select("email, bu_scope, dept_scope, cat_l1_scope")
-    .eq("role", "BO");
-  if (error) throw error;
+  const data = (await synthRows(admin)).filter((r) => r.role === "BO");
 
   const byEmail = new Map<string, { bu_scope: unknown; dept_scope: unknown; cat_l1_scope: unknown }[]>();
   for (const r of data ?? []) {
@@ -285,7 +280,7 @@ export async function listBudgetOwnerOptions(): Promise<BudgetOwnerOption[]> {
  */
 export async function listAdminContacts(): Promise<string[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin.from("roles").select("email").eq("role", "SUPERADMIN");
+  const { data, error } = await admin.from("person_roles").select("email").eq("role", "SUPERADMIN");
   if (error) throw error;
   return Array.from(new Set((data ?? []).map((r) => r.email as string))).sort();
 }
@@ -318,8 +313,8 @@ export async function pendingBudgetApprovals(viewer: CurrentUser): Promise<numbe
 export async function viewerHasBudgetScope(viewer: CurrentUser): Promise<boolean> {
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("roles")
-    .select("id")
+    .from("person_roles")
+    .select("email")
     .eq("email", viewer.email)
     .eq("role", "BO")
     .limit(1);

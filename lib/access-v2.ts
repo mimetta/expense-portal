@@ -1,4 +1,4 @@
-import { boScopeMatchesRequest } from "@/lib/permissions";
+import { boScopeMatchesRequest } from "@/lib/scope-match";
 import type { ExpenseRequest, RoleRow } from "@/types/database";
 
 // Users & access rebuild, stage 2a — the NEW permission logic.
@@ -20,6 +20,7 @@ export interface PersonV2 {
   bu: "ONEST" | "SV" | "BOTH";
   bu_defaulted: boolean;
   visible_departments: string;
+  chapter: string | null;
   roles: RoleV2[];
   boScopes: { bu_scope: string; dept_scope: string; cat_l1_scope: string }[];
   overrides: Record<string, boolean>;
@@ -40,33 +41,29 @@ export const WORKFLOW_MENUS: Record<string, RoleV2> = {
 /**
  * Viewing and settings menus: default from roles, overridable per person.
  *
- * The first two blocks are the mockup's own defaults. The last three
- * (deptconfig, announcements, pettycash) are NOT in the mockup — it lists
- * seven menus while the app has ten settings surfaces. Omitting them would
- * remove CEO's signature rules and announcements, and Accounting's
- * announcements and custodians, with no way for an override to restore a menu
- * that does not exist. Their defaults below are today's live
- * settings_tab_permissions role sets, so parity holds without inventing a
- * per-person exception for something that is really a missing menu.
- * FLAGGED FOR THE DESIGN — see the stage 2a report.
+ * These are the mockup's defaults verbatim. Stage 2a set several of them
+ * narrower than reality and absorbed the difference into per-person
+ * overrides — which was wrong: when every ACCOUNTING holder carries the same
+ * two exceptions, the default is wrong, not the people. Corrected here, and
+ * the three menus the mockup originally omitted (signature rules,
+ * announcements, petty cash custodians) are now part of the approved design.
  */
 export const FREE_MENU_DEFAULTS: Record<string, RoleV2[]> = {
-  "spend-report": ["EMPLOYEE", "BO", "CEO", "ACCOUNTING"],
+  "spend-report": ["EMPLOYEE", "BO", "CEO", "ACCOUNTING", "PROCUREMENT", "PETTY_CASH_CUSTODIAN"],
   budget: ["BO", "CEO", "ACCOUNTING"],
-  "settings.categories": ["ACCOUNTING"],
+  // Nobody: SUPERADMIN only, via the unconditional grant in menuDefault.
+  "settings.categories": [],
   "settings.products": ["PROCUREMENT"],
-  "settings.suppliers": ["PROCUREMENT"],
+  "settings.suppliers": ["PROCUREMENT", "ACCOUNTING"],
   "settings.companies": ["ACCOUNTING"],
-  // Merged in the mockup as one "Users & access" control; kept as three keys
-  // here so each maps 1:1 to a baseline column. All three are SUPERADMIN-only,
-  // so they always move together.
-  "settings.users": [],
-  "settings.people": [],
-  "settings.permissions": [],
-  // Not in the mockup — see above.
   "settings.deptconfig": ["CEO"],
   "settings.announcements": ["CEO", "ACCOUNTING"],
   "settings.pettycash": ["ACCOUNTING"],
+  // Merged in the mockup as one "Users & access" control; three keys here so
+  // each maps 1:1 to a baseline column. All SUPERADMIN-only, always together.
+  "settings.users": [],
+  "settings.people": [],
+  "settings.permissions": [],
 };
 
 export const ALL_MENUS = [
@@ -109,10 +106,14 @@ export function canAccessPageV2(p: PersonV2, page: string): boolean {
     case "dashboard":
       return hasRoleV2(p, "CEO") || hasRoleV2(p, "ACCOUNTING");
     case "settings":
-      // Today: any role other than a pure EMPLOYEE, which is why a BO-only
-      // person reaches Settings and then matches no tab. Preserved verbatim
-      // rather than re-derived from menus, which would drop that case.
-      return p.roles.some((r) => r !== "EMPLOYEE");
+      // DELIBERATE CHANGE from the old rule ("any role that is not
+      // EMPLOYEE"), which let a BO-only person open Settings and find no
+      // tabs at all. Access now means holding at least one settings menu, so
+      // that empty page goes away. This is the one intended parity
+      // difference in stage 2b.
+      return Object.keys(FREE_MENU_DEFAULTS)
+        .filter((m) => m.startsWith("settings."))
+        .some((m) => canOpenMenu(p, m));
     case "bo-approvals":
     case "ceo-approvals":
     case "accounting":

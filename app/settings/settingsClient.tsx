@@ -2661,7 +2661,14 @@ function PermissionsTab() {
   };
   useEffect(load, []);
 
+  // STAGE 2b: read-only. Role-to-menu defaults live in code
+  // (lib/access-v2.ts) and exceptions are per person, so there is nothing
+  // here to save — the endpoint returns 410. Showing the defaults but
+  // refusing edits is clearer than a toggle that silently does nothing.
+  const READ_ONLY = true;
+
   const toggleRole = async (tab: ManagedSettingsTab, role: Role) => {
+    if (READ_ONLY) return;
     if (!config) return;
     const current = config[tab];
     const nextRoles = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
@@ -2696,6 +2703,14 @@ function PermissionsTab() {
 
   return (
     <div>
+      <div
+        className="mb-3 rounded-[10px] px-4 py-3 text-[13px]"
+        style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+      >
+        <strong>Read-only.</strong> Tab access is no longer configured per role here. Role
+        defaults are in code, and per-person exceptions are set in{" "}
+        <strong>People &amp; departments</strong>. This shows the defaults now in force.
+      </div>
       <p className="mb-4 text-xs text-brand-subtle">
         Controls which roles can see and manage each Settings tab below. SUPERADMIN always has
         full access to everything and isn&apos;t shown as a toggle. This Permissions tab itself
