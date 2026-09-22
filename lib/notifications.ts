@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { synthRows } from "@/lib/roles-compat";
 import { boScopeMatchesRequest } from "@/lib/permissions";
 import {
   isAccountingActionable,
@@ -77,7 +78,9 @@ export async function notifyInApp(event: string, request: ExpenseRequest) {
   }
 
   const admin = createAdminClient();
-  const { data: roleRows, error } = await admin.from("roles").select("*");
+  // STAGE 2b: recipients come from person_roles, not the frozen roles table.
+  const roleRows = await synthRows(admin);
+  const error = null;
   if (error) {
     console.error("[notifications] failed to load roles:", error);
   } else {

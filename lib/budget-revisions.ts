@@ -3,6 +3,7 @@ import { ForbiddenError } from "@/lib/auth";
 import { ConflictError, NotFoundError } from "@/lib/request-repo";
 import { boScopeMatchesRequest, hasRole, isSuperadmin } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import { synthRows } from "@/lib/roles-compat";
 import {
   notifyBudgetApproved,
   notifyBudgetRejected,
@@ -101,13 +102,11 @@ const dimKey = (l: { bu: string; department: string; cat_l1: string; cat_l2: str
  */
 async function scopeRowsFor(ownerEmail: string): Promise<RoleRow[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("roles")
-    .select("id, email, role, bu_scope, dept_scope, cat_l1_scope, created_at, is_auto_registered, chapter")
-    .eq("email", ownerEmail)
-    .eq("role", "BO");
-  if (error) throw error;
-  return (data ?? []) as RoleRow[];
+  // STAGE 2b: person_roles + bo_scopes, projected into the row shape
+  // boScopeMatchesRequest expects. The legacy `roles` table is frozen, so
+  // reading it here would miss every BO added after the switch.
+  const rows = await synthRows(admin);
+  return rows.filter((r) => r.email === ownerEmail && r.role === "BO");
 }
 
 /** ORs across the owner's BO rows — a line is in scope if ANY row matches. */
@@ -187,13 +186,9 @@ async function assertLinesAreRealCategories(lines: LineKey[]): Promise<void> {
 async function assertNoScopeOverlap(ownerEmail: string, dims: LineKey[]): Promise<void> {
   if (dims.length === 0) return;
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("roles")
-    .select("id, email, role, bu_scope, dept_scope, cat_l1_scope, created_at, is_auto_registered, chapter")
-    .eq("role", "BO")
-    .neq("email", ownerEmail);
-  if (error) throw error;
-  const others = (data ?? []) as RoleRow[];
+  const others = (await synthRows(admin)).filter(
+    (r) => r.role === "BO" && r.email !== ownerEmail,
+  );
 
   const clashes: string[] = [];
   const seen = new Set<string>();
@@ -630,7 +625,7 @@ export async function listRevisions(
 /** Owners whose BO scope covers at least one category line — the candidates. */
 export async function listBudgetOwners(): Promise<string[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin.from("roles").select("email").eq("role", "BO");
+  const { data, error } = await admin.from("person_roles").select("email").eq("role", "BO");
   if (error) throw error;
   // Array.from, not [...Set] — this tsconfig targets below es2015 for
   // iteration (see commit 6fa230f, same fix).

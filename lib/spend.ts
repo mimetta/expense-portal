@@ -239,15 +239,22 @@ function scopeFilter(viewer: CurrentUser): ((row: {
  * spend is not a failure mode worth supporting.
  */
 export function viewerDepartments(viewer: CurrentUser): string[] {
+  // STAGE 2b: sourced from people.visible_departments. The pre-2b path read
+  // roles.department off each role row; kept below only for a CurrentUser
+  // built without a `person`.
+  const raw = viewer.person
+    ? [viewer.person.visible_departments]
+    : (viewer.allRoles ?? []).map((r) => String(r.department ?? ""));
   const out = new Set<string>();
-  for (const r of viewer.allRoles ?? []) {
-    for (const d of String(r.department ?? "").split(",")) {
+  for (const v of raw) {
+    for (const d of String(v ?? "").split(",")) {
       const t = d.trim();
       if (t && t !== "*") out.add(t);
     }
   }
   return Array.from(out);
 }
+
 
 // --- tree building ---------------------------------------------------------
 

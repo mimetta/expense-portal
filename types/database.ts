@@ -205,6 +205,12 @@ export interface CurrentUser {
   // chapter across the user's roles rows) — not a column on any table
   // this type otherwise mirrors 1:1.
   chapter: string | null;
+  /**
+   * Stage 2b: the person as stored in the new tables. `allRoles` above is a
+   * projection of this (lib/person.ts#projectAllRoles) kept so existing
+   * hasRole/rolesOf callers work unchanged.
+   */
+  person?: import("@/lib/access-v2").PersonV2;
 }
 
 export interface SupplierRow {

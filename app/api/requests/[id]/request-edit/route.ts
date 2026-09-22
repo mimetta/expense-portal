@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, ForbiddenError } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { synthRows } from "@/lib/roles-compat";
 import { handleApiError } from "@/lib/api-helpers";
 import { boScopeMatchesRequest, isSuperadmin } from "@/lib/permissions";
 import { canRequestEdit } from "@/lib/status";
@@ -82,7 +83,7 @@ export async function PATCH(
     // In-app bell notification for whichever role approves at this stage —
     // BO is scope-matched (same as everywhere else BO recipients are
     // computed), CEO/Accounting are role-wide.
-    const { data: roleRows } = await admin.from("roles").select("*");
+    const roleRows = await synthRows(admin);
     const roles = (roleRows ?? []) as RoleRow[];
     const recipients =
       existing.status === "BO_APPROVED"
