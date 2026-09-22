@@ -72,6 +72,7 @@ export default function UsersAccessTab() {
   const [adding, setAdding] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const [lifecycle, setLifecycle] = useState<{ person: Person; c: Consequences } | null>(null);
+  const [checking, setChecking] = useState(false);
   const [newEmail, setNewEmail] = useState("");
 
   const load = async () => {
@@ -145,13 +146,16 @@ export default function UsersAccessTab() {
   };
 
   const openLifecycle = async (p: Person) => {
-    setBusy(true); setError(null);
+    // Its own flag, not `busy`: this reads the whole request table to work
+    // out the consequences, so the button must say what it is doing rather
+    // than sit on "Saving…".
+    setChecking(true); setError(null);
     try {
       const c = await fetch(`/api/users-access/lifecycle?email=${encodeURIComponent(p.email)}`).then((r) => r.json());
       if (c.error) throw new Error(c.error);
       setLifecycle({ person: p, c });
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+    finally { setChecking(false); }
   };
 
   const runLifecycle = async (email: string, action: "deactivate" | "reactivate" | "delete") => {
@@ -283,6 +287,7 @@ export default function UsersAccessTab() {
               menuDraft={menuDraft} setMenuDraft={setMenuDraft} defaultFor={defaultFor}
               busy={busy} onSave={() => void save()}
               onCancel={() => { setOpenEmail(null); setDraft(null); }}
+              checking={checking}
               onDeactivate={() => void openLifecycle(draft)}
               onReactivate={() => void runLifecycle(draft.email, "reactivate")}
             />
@@ -386,13 +391,13 @@ export default function UsersAccessTab() {
 }
 
 function PersonCard({
-  draft, setDraft, data, menuDraft, setMenuDraft, defaultFor, busy, onSave, onCancel,
+  draft, setDraft, data, menuDraft, setMenuDraft, defaultFor, busy, checking, onSave, onCancel,
   onDeactivate, onReactivate,
 }: {
   draft: Person; setDraft: (p: Person) => void; data: Data;
   menuDraft: Record<string, boolean>; setMenuDraft: (m: Record<string, boolean>) => void;
   defaultFor: (p: Person, menu: string) => boolean;
-  busy: boolean; onSave: () => void; onCancel: () => void;
+  busy: boolean; checking: boolean; onSave: () => void; onCancel: () => void;
   onDeactivate: () => void; onReactivate: () => void;
 }) {
   const depts = split(draft.visible_departments);
@@ -405,8 +410,10 @@ function PersonCard({
         <h3 className="text-[15px] font-semibold text-brand-dark">{draft.email}</h3>
         <div className="flex shrink-0 gap-2">
           {draft.active ? (
-            <button className="mm-btn-secondary mm-btn-sm" onClick={onDeactivate} disabled={busy}
-              title="Block sign-in and remove from every picker. History is kept.">Deactivate…</button>
+            <button className="mm-btn-secondary mm-btn-sm" onClick={onDeactivate} disabled={busy || checking}
+              title="Block sign-in and remove from every picker. History is kept.">
+              {checking ? "Checking…" : "Deactivate…"}
+            </button>
           ) : (
             <button className="mm-btn-secondary mm-btn-sm" onClick={onReactivate} disabled={busy}>Reactivate</button>
           )}

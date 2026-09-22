@@ -65,8 +65,17 @@ async function consequencesFor(email: string): Promise<Consequences> {
   // Requests waiting on THIS person specifically.
   const reqs: ExpenseRequest[] = [];
   for (let f = 0; ; f += 1000) {
-    const { data } = await admin.from("requests").select("*").range(f, f + 999);
-    reqs.push(...((data ?? []) as ExpenseRequest[]));
+    // Named columns, NOT select("*"): the full row drags items_json and
+    // files_json along, which made this dialog take 8s over 1,166 requests.
+    const { data } = await admin
+      .from("requests")
+      .select(
+        "request_id, total, status, expense_type, skip_bo, bu, department, cat_l1, " +
+        "requester_email, bo_approver, ceo_approver, accounting_user, " +
+        "petty_cash_holder_email, petty_cash_approved_by",
+      )
+      .range(f, f + 999);
+    reqs.push(...((data ?? []) as unknown as ExpenseRequest[]));
     if ((data ?? []).length < 1000) break;
   }
   const { data: roles } = await admin.from("person_roles").select("role").eq("email", email);
