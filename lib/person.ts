@@ -83,7 +83,14 @@ export async function autoRegisterPerson(email: string): Promise<PersonV2> {
     .from("person_roles")
     .upsert({ email, role: "EMPLOYEE" }, { onConflict: "email,role", ignoreDuplicates: true });
   if (rErr) throw new Error(`Failed to auto-register ${email}: ${rErr.message}`);
-  await logAudit(email, null, "AUTO_REGISTERED", { role: "EMPLOYEE", bu: "ONEST", bu_defaulted: true });
+  // Same shape as PERSON_ACCESS_UPDATED so the two read alike in the log.
+  // The actor is the person themselves: this is triggered by their own first
+  // sign-in, not by an admin.
+  await logAudit(email, null, "AUTO_REGISTERED", {
+    email,
+    from: { roles: [], bu: null, bu_defaulted: null, visible_departments: null, boScopes: [], overrides: [] },
+    to: { roles: ["EMPLOYEE"], bu: "ONEST", bu_defaulted: true, visible_departments: "", boScopes: [], overrides: [] },
+  });
   const p = await loadPerson(email);
   if (!p) throw new Error(`Auto-registration of ${email} produced no row`);
   return p;

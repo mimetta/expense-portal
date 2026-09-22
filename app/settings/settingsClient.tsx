@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RequiredMark from "@/components/shared/RequiredMark";
 import UsersAccessTab from "@/components/settings/UsersAccessTab";
-import { BANK_OPTIONS, BUSINESS_UNITS, DEPARTMENTS, PAYMENT_METHODS, ROLES, type Role } from "@/lib/constants";
+import { BANK_OPTIONS, BUSINESS_UNITS, DEPARTMENTS, PAYMENT_METHODS, type Role } from "@/lib/constants";
 import {
   canAccessSettingsTab,
   firstAccessibleSettingsTab,
@@ -21,7 +21,6 @@ import type {
   DeptConfigRow,
   PettyCashCustodianRow,
   ProductRow,
-  RoleRow,
   SupplierRow,
 } from "@/types/database";
 
@@ -29,7 +28,6 @@ type Tab = SettingsTab;
 
 const TAB_LABELS: Record<Tab, string> = {
   suppliers: "Supplier Management",
-  users: "User Management",
   products: "Product/SKU Management",
   categories: "Category L1/L2 Management",
   deptconfig: "CEO Signature Rules",
@@ -53,21 +51,7 @@ const TABS: { key: Tab; label: string }[] = SETTINGS_TABS.map((key) => ({ key, l
 // lightweight roles fetch in SettingsClient below) and the Pending Users
 // section inside UserTab (which already loads the full roles list for its
 // own table).
-const PENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-function getPendingUsers(roles: RoleRow[]): RoleRow[] {
-  const rowCountByEmail = new Map<string, number>();
-  for (const r of roles) {
-    rowCountByEmail.set(r.email, (rowCountByEmail.get(r.email) ?? 0) + 1);
-  }
-  return roles.filter(
-    (r) =>
-      r.is_auto_registered === true &&
-      rowCountByEmail.get(r.email) === 1 &&
-      !!r.created_at &&
-      Date.now() - new Date(r.created_at).getTime() < PENDING_WINDOW_MS,
-  );
-}
 
 const inputClass = "mm-input";
 const labelClass = "mb-1.5 block text-[13px] font-medium text-[#374151]";
@@ -118,7 +102,6 @@ function SettingsClientInner() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [userLoading, setUserLoading] = useState(true);
   const [tab, setTabState] = useState<Tab | null>(null);
-  const [pendingCount, setPendingCount] = useState(0);
   // DB-backed settings_tab_permissions config, replacing the old hardcoded
   // SETTINGS_TAB_ROLES — null while still loading, in which case every
   // canAccessSettingsTab/firstAccessibleSettingsTab call below falls back
@@ -169,16 +152,6 @@ function SettingsClientInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, effectiveTabConfig]);
 
-  // Lightweight, badge-only roles fetch — independent of UserTab's own
-  // fetch for its table, so the "New (X)" count is visible on the tab
-  // button regardless of which tab is currently open.
-  useEffect(() => {
-    if (!currentUser || !canAccessSettingsTab(currentUser, "users", effectiveTabConfig)) return;
-    fetch("/api/roles")
-      .then((res) => res.json())
-      .then((data) => setPendingCount(getPendingUsers(data.roles ?? []).length));
-  }, [currentUser, effectiveTabConfig]);
-
   const selectTab = (key: Tab) => {
     setTabState(key);
     window.history.replaceState(null, "", `/settings?tab=${key}`);
@@ -210,17 +183,11 @@ function SettingsClientInner() {
             className={`mm-tab ${tab === t.key ? "mm-tab-active" : ""}`}
           >
             {t.label}
-            {t.key === "users" && pendingCount > 0 && (
-              <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-xs font-semibold text-white">
-                New ({pendingCount})
-              </span>
-            )}
           </button>
         ))}
       </div>
 
       {tab === "suppliers" && <SupplierTab />}
-      {tab === "users" && <UserTab />}
       {tab === "products" && <ProductTab />}
       {tab === "categories" && <CategoryTab />}
       {tab === "deptconfig" && <DeptConfigTab />}
@@ -471,550 +438,7 @@ function SupplierTab() {
   );
 }
 
-// --- Tab 2: User Management --------------------------------------------
-
-const emptyRoleForm = () => ({
-  email: "",
-  role: "EMPLOYEE" as Role,
-  bu_scope: "*",
-  dept_scope: "*",
-  cat_l1_scope: "*",
-  chapter: "",
-});
-
-// Multi-select combobox for a scope field: a "select all" checkbox that
-// stores "*" and disables the individual options, or a comma-joined string
-// of whichever specific options are checked. Shared by Segment Scope and
-// Cat L1 Scope below — same interaction pattern, different option lists.
-function ScopeMultiSelect({
-  label,
-  allLabel,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  allLabel: string;
-  options: string[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const isAll = value === "*";
-  const selected = isAll ? [] : value.split(",").map((s) => s.trim()).filter(Boolean);
-  const filteredOptions = options.filter((o) => o.toLowerCase().includes(search.toLowerCase()));
-  const summary = isAll ? allLabel : selected.length > 0 ? selected.join(", ") : "None selected";
-
-  const toggleValue = (opt: string) => {
-    const next = selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt];
-    onChange(next.join(","));
-  };
-
-  return (
-    <div ref={containerRef} className="relative">
-      <label className={labelClass}>{label}</label>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={`${inputClass} flex w-full items-center justify-between text-left`}
-      >
-        <span className="truncate">{summary}</span>
-        <span className="ml-2 text-brand-subtle">▾</span>
-      </button>
-      {open && (
-        <div className="absolute z-10 mt-1 w-full rounded-md border border-brand-border bg-white shadow-lg">
-          <div className="border-b border-brand-border p-2">
-            <input
-              className={`${inputClass} w-full`}
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="max-h-48 overflow-y-auto p-2">
-            <label className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-[#F9F8F6]">
-              <input
-                type="checkbox"
-                checked={isAll}
-                onChange={(e) => onChange(e.target.checked ? "*" : selected.join(","))}
-              />
-              <span className="font-medium">{allLabel}</span>
-            </label>
-            <div className="my-1 border-t border-brand-border" />
-            {filteredOptions.length === 0 ? (
-              <p className="px-1 py-1 text-xs text-brand-subtle">No options</p>
-            ) : (
-              filteredOptions.map((opt) => (
-                <label
-                  key={opt}
-                  className={`flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-[#F9F8F6] ${
-                    isAll ? "opacity-50" : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(opt)}
-                    disabled={isAll}
-                    onChange={() => toggleValue(opt)}
-                  />
-                  <span>{opt}</span>
-                </label>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Grouped-checkbox variant of the Cat L1 Scope picker: cat_l1 values grouped
-// by Segment (categories.department), each group collapsible with a "select
-// all in segment" checkbox and a selected-count badge, plus a top-level "*
-// All categories" that supersedes everything. Same "*"-or-comma-joined-list
-// value convention as ScopeMultiSelect, so the stored roles.cat_l1_scope
-// format doesn't change — only the picker UI does.
-function CatL1ScopeGrouped({
-  categories,
-  buScope,
-  deptScope,
-  value,
-  onChange,
-}: {
-  categories: CategoryRow[];
-  buScope: string;
-  deptScope: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const didInitExpand = useRef(false);
-
-  const isAll = value === "*";
-  const selected = useMemo(
-    () => (isAll ? [] : value.split(",").map((s) => s.trim()).filter(Boolean)),
-    [isAll, value],
-  );
-
-  // Narrow available cat_l1 values to the BU/Segment scope currently picked
-  // elsewhere in the same modal — same '*'-wildcard-or-list convention used
-  // throughout this schema. Recomputes (and the whole group list refreshes)
-  // whenever BU Scope or Segment Scope changes.
-  const scopedBus = buScope === "*" ? null : buScope.split(",").map((s) => s.trim()).filter(Boolean);
-  const scopedDepts = deptScope === "*" ? null : deptScope.split(",").map((s) => s.trim()).filter(Boolean);
-
-  const groups = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const c of categories) {
-      if (!c.cat_l1) continue;
-      if (scopedBus && c.bu !== "*" && !scopedBus.includes(c.bu)) continue;
-      if (scopedDepts && c.department !== "*" && !scopedDepts.includes(c.department)) continue;
-      const key = c.department || "(No Segment)";
-      if (!map.has(key)) map.set(key, new Set());
-      map.get(key)!.add(c.cat_l1);
-    }
-    return Array.from(map.entries())
-      .map(([segment, set]) => ({ segment, catL1s: Array.from(set).sort() }))
-      .sort((a, b) => a.segment.localeCompare(b.segment));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories, buScope, deptScope]);
-
-  // On edit (existing comma-separated value), auto-expand whichever segment
-  // groups contain a checked cat_l1 — runs once, as soon as categories have
-  // loaded, so it doesn't fight the user's own expand/collapse clicks
-  // afterward.
-  useEffect(() => {
-    if (didInitExpand.current || categories.length === 0) return;
-    didInitExpand.current = true;
-    if (!isAll) {
-      const toExpand = new Set(
-        groups.filter((g) => g.catL1s.some((c) => selected.includes(c))).map((g) => g.segment),
-      );
-      setExpanded(toExpand);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories.length]);
-
-  const toggleAll = (checked: boolean) => {
-    onChange(checked ? "*" : "");
-    if (checked) setExpanded(new Set());
-  };
-
-  const toggleSegmentAll = (catL1s: string[], checked: boolean) => {
-    const withoutSegment = selected.filter((c) => !catL1s.includes(c));
-    onChange((checked ? [...withoutSegment, ...catL1s] : withoutSegment).join(","));
-  };
-
-  const toggleOne = (cat: string, checked: boolean) => {
-    onChange((checked ? [...selected, cat] : selected.filter((c) => c !== cat)).join(","));
-  };
-
-  const toggleExpand = (segment: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(segment)) next.delete(segment);
-      else next.add(segment);
-      return next;
-    });
-  };
-
-  return (
-    <div>
-      <label className={labelClass}>Cat L1 Scope</label>
-      <div className="rounded-md border border-brand-border bg-white">
-        <label className="flex items-center gap-2 border-b border-brand-border px-2 py-1.5 text-sm hover:bg-[#F9F8F6]">
-          <input type="checkbox" checked={isAll} onChange={(e) => toggleAll(e.target.checked)} />
-          <span className="font-medium">* All categories</span>
-        </label>
-        <div className="max-h-64 overflow-y-auto">
-          {groups.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-brand-subtle">
-              No categories match the current BU/Segment scope.
-            </p>
-          ) : (
-            groups.map(({ segment, catL1s }) => {
-              const selectedCount = isAll ? catL1s.length : catL1s.filter((c) => selected.includes(c)).length;
-              const allSelected = selectedCount === catL1s.length;
-              const isExpanded = expanded.has(segment);
-              return (
-                <div key={segment} className="border-b border-brand-border last:border-b-0">
-                  <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(segment)}
-                      className="w-3 text-brand-subtle"
-                      aria-label={isExpanded ? "Collapse" : "Expand"}
-                    >
-                      {isExpanded ? "▼" : "▶"}
-                    </button>
-                    <input
-                      type="checkbox"
-                      checked={isAll || allSelected}
-                      disabled={isAll}
-                      onChange={(e) => toggleSegmentAll(catL1s, e.target.checked)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(segment)}
-                      className="flex-1 text-left font-medium text-brand-dark"
-                    >
-                      {segment}
-                    </button>
-                    <span className="text-xs text-brand-subtle">
-                      ({selectedCount}/{catL1s.length})
-                    </span>
-                  </div>
-                  {isExpanded && (
-                    <div className="space-y-0.5 pb-1 pl-8 pr-2">
-                      {catL1s.map((cat) => (
-                        <label
-                          key={cat}
-                          className={`flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-[#F9F8F6] ${
-                            isAll ? "opacity-50" : ""
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isAll || selected.includes(cat)}
-                            disabled={isAll}
-                            onChange={(e) => toggleOne(cat, e.target.checked)}
-                          />
-                          <span>{cat}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UserTab() {
-  const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<{ mode: "add" | "edit"; id?: string } | null>(null);
-  const [form, setForm] = useState(emptyRoleForm());
-  const [busy, setBusy] = useState(false);
-
-  // Reference data for the scope/chapter pickers in the Add/Edit User
-  // modal — same /api/departments and /api/categories endpoints /submit
-  // uses for its own pickers, plus /api/roles?distinct=chapter for the
-  // Chapter combobox's known values.
-  const [segmentOptions, setSegmentOptions] = useState<string[]>([...DEPARTMENTS]);
-  const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [chapterOptions, setChapterOptions] = useState<string[]>([]);
-
-  const load = () => {
-    setLoading(true);
-    fetch("/api/roles")
-      .then((res) => res.json())
-      .then((data) => setRoles(data.roles ?? []))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(load, []);
-
-  useEffect(() => {
-    fetch("/api/departments")
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => setSegmentOptions(data.departments?.length ? data.departments : [...DEPARTMENTS]))
-      .catch(() => setSegmentOptions([...DEPARTMENTS]));
-    fetch("/api/categories")
-      .then((res) => res.json())
-      .then((data) => setCategories(data.categories ?? []));
-    fetch("/api/roles?distinct=chapter")
-      .then((res) => res.json())
-      .then((data) => setChapterOptions(data.chapters ?? []));
-  }, []);
-
-  const openAdd = () => {
-    setForm(emptyRoleForm());
-    setModal({ mode: "add" });
-  };
-
-  const openEdit = (r: RoleRow) => {
-    setForm({
-      email: r.email,
-      role: r.role,
-      bu_scope: r.bu_scope,
-      dept_scope: r.dept_scope,
-      cat_l1_scope: r.cat_l1_scope,
-      chapter: r.chapter ?? "",
-    });
-    setModal({ mode: "edit", id: r.id });
-  };
-
-  const save = async () => {
-    if (!form.email.trim()) {
-      alert("Email is required");
-      return;
-    }
-    setBusy(true);
-    try {
-      const url = modal?.mode === "edit" ? `/api/roles/${modal.id}` : "/api/roles";
-      const method = modal?.mode === "edit" ? "PATCH" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error ?? "Failed to save user");
-      }
-      setModal(null);
-      load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to save user");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async (id: string) => {
-    if (!confirm("Remove this role row?")) return;
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/roles/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error ?? "Failed to remove role");
-      }
-      load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to remove role");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const pendingUsers = useMemo(() => getPendingUsers(roles), [roles]);
-
-  return (
-    <div>
-      {pendingUsers.length > 0 && (
-        <div className="mb-4 rounded-md border p-3" style={{ background: "#FEF3C7", borderColor: "#F59E0B" }}>
-          <h3 className="mb-2 text-sm font-semibold" style={{ color: "#92400E" }}>
-            Pending Users ({pendingUsers.length})
-          </h3>
-          <ul className="space-y-1.5">
-            {pendingUsers.map((r) => (
-              <li key={r.id} className="flex items-center justify-between text-sm">
-                <span className="text-brand-dark">{r.email}</span>
-                <button onClick={() => openEdit(r)} className="font-medium text-brand-brown hover:underline">
-                  Assign Role
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="mb-3 flex justify-end">
-        <button onClick={openAdd} className={buttonPrimary}>
-          + Add User
-        </button>
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
-      ) : roles.length === 0 ? (
-        <p className="text-sm text-brand-muted">No roles configured.</p>
-      ) : (
-        <div className="mm-table-wrap">
-          <table className="mm-table">
-            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
-              <tr>
-                <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Role</th>
-                <th className="px-3 py-2">Chapter</th>
-                <th className="px-3 py-2">BU Scope</th>
-                <th className="px-3 py-2">Seg Scope</th>
-                <th className="px-3 py-2">Cat L1 Scope</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {roles.map((r) => (
-                <tr key={r.id}>
-                  <td className="px-3 py-2">{r.email}</td>
-                  <td className="px-3 py-2">{r.role}</td>
-                  <td className="px-3 py-2">
-                    {r.chapter ? r.chapter : <span className="text-brand-subtle">—</span>}
-                  </td>
-                  <td className="px-3 py-2">{r.bu_scope}</td>
-                  <td className="px-3 py-2">{r.dept_scope}</td>
-                  <td className="px-3 py-2">{r.cat_l1_scope}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => openEdit(r)} className="mr-3 text-brand-brown hover:underline">
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => remove(r.id)}
-                      className="font-medium text-[#DC2626] hover:underline"
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {modal && (
-        <Modal title={modal.mode === "add" ? "Add User" : "Edit User"} onClose={() => setModal(null)} wide>
-          <div className="space-y-3">
-            <div>
-              <label className={labelClass}>Email<RequiredMark /></label>
-              <input
-                className={`${inputClass} w-full`}
-                placeholder="name@mimetta.co"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Role</label>
-              <select
-                className={`${inputClass} w-full`}
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Chapter</label>
-              <input
-                className={`${inputClass} w-full`}
-                list="chapter-options"
-                placeholder="Pick an existing chapter or type a new one"
-                value={form.chapter}
-                onChange={(e) => setForm({ ...form, chapter: e.target.value })}
-              />
-              <datalist id="chapter-options">
-                {chapterOptions.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className={labelClass}>BU Scope</label>
-              <div className="flex gap-2">
-                {["*", ...BUSINESS_UNITS].map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setForm({ ...form, bu_scope: opt })}
-                    className={`flex-1 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                      form.bu_scope === opt
-                        ? "border-brand-brown bg-brand-brown text-white"
-                        : "border-brand-border bg-white text-brand-dark hover:bg-[#F9F8F6]"
-                    }`}
-                  >
-                    {opt === "*" ? "All BUs" : opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <ScopeMultiSelect
-              label="Segment Scope"
-              allLabel="* All segments"
-              options={segmentOptions}
-              value={form.dept_scope}
-              onChange={(v) => setForm({ ...form, dept_scope: v })}
-            />
-            <CatL1ScopeGrouped
-              categories={categories}
-              buScope={form.bu_scope}
-              deptScope={form.dept_scope}
-              value={form.cat_l1_scope}
-              onChange={(v) => setForm({ ...form, cat_l1_scope: v })}
-            />
-            <p className="text-xs text-brand-muted">
-              Scopes only matter for the BO role. Multi-role users get one row per role (see CLAUDE.md).
-            </p>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setModal(null)} className={buttonSecondary}>
-                Cancel
-              </button>
-              <button onClick={save} disabled={busy} className={buttonPrimary}>
-                {busy ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-// --- Tab 3: Product/SKU Management --------------------------------------------
+// --- Tab 2: Product/SKU Management --------------------------------------------
 
 const emptyProductForm = () => ({
   sku_code: "",

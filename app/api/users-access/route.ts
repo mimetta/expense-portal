@@ -121,7 +121,11 @@ export async function POST(req: NextRequest) {
     });
     if (error) throw error;
     await admin.from("person_roles").insert({ email: clean, role: "EMPLOYEE" });
-    await logAudit(actor.email, null, "PERSON_CREATED", { email: clean, roles: ["EMPLOYEE"] });
+    await logAudit(actor.email, null, "PERSON_CREATED", {
+      email: clean,
+      from: { roles: [], bu: null, bu_defaulted: null, visible_departments: null, boScopes: [], overrides: [] },
+      to: { roles: ["EMPLOYEE"], bu: "ONEST", bu_defaulted: true, visible_departments: "", boScopes: [], overrides: [] },
+    });
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {
     return handleApiError(err);

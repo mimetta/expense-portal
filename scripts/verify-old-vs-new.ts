@@ -58,8 +58,11 @@ async function main() {
     };
     for (const p of PAGES) cmp(`page:${p}`, P.canAccessPage(oldU, p), P.canAccessPage(newU, p));
     for (const t of TABS) cmp(`tab:${t}`, P.canAccessSettingsTab(oldU, t as never, cfg), P.canAccessSettingsTab(newU, t as never));
+    // The legacy users/people/permissions tabs were all SUPERADMIN-only, and
+    // their config keys are gone now, so the old answer is compared as
+    // isSuperadmin rather than through a key that no longer exists.
     cmp("tab:usersaccess (was users/people/permissions)",
-        P.canAccessSettingsTab(oldU, "users" as never, cfg),
+        P.isSuperadmin(oldU),
         P.canAccessSettingsTab(newU, "usersaccess" as never));
     cmp("canManageProducts", P.canManageProducts(oldU, cfg), P.canManageProducts(newU));
     cmp("bo-reach", reqs.filter(r => P.canBoActOnRequest(oldU, r)).length, reqs.filter(r => P.canBoActOnRequest(newU, r)).length);
