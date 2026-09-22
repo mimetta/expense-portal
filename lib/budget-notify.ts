@@ -1,5 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyUsers } from "@/lib/notifications";
+import { activeEmailsWithRole } from "@/lib/person";
 import { ceoWebhookUrl, postToWebhook } from "@/lib/discord";
 import type { BudgetRevision } from "@/lib/budget-revisions";
 
@@ -23,16 +23,13 @@ const short = (email: string) => email.replace("@mimetta.co", "");
 
 /** Every CEO, plus every SUPERADMIN — the people who can act on a submission. */
 async function approverEmails(): Promise<string[]> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("person_roles")
-    .select("email, role")
-    .in("role", ["CEO", "SUPERADMIN"]);
-  if (error) {
-    console.error("[budget-notify] failed to load approvers:", error);
+  // Active only — notifying a deactivated approver is noise nobody reads.
+  try {
+    return await activeEmailsWithRole(["CEO", "SUPERADMIN"]);
+  } catch (err) {
+    console.error("[budget-notify] failed to load approvers:", err);
     return [];
   }
-  return Array.from(new Set((data ?? []).map((r) => r.email as string)));
 }
 
 async function toCeoChannel(message: string): Promise<void> {

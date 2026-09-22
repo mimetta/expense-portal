@@ -41,15 +41,25 @@ function build(
   return [{ ...base, bu_scope: "*", dept_scope: "*", cat_l1_scope: "*" } as RoleRow];
 }
 
-export async function synthRows(admin: Admin): Promise<RoleRow[]> {
-  const [{ data: people }, { data: roles }, { data: scopes }] = await Promise.all([
+/**
+ * ACTIVE people only. This is the directory every picker, notification
+ * recipient list and budget-owner lookup reads, so filtering here removes a
+ * deactivated person from all of them at once rather than at each call site,
+ * where one would eventually be missed. Pass includeInactive for the admin
+ * screen, which must still show them.
+ */
+export async function synthRows(admin: Admin, includeInactive = false): Promise<RoleRow[]> {
+  const [{ data: allPeople }, { data: roles }, { data: scopes }] = await Promise.all([
     admin.from("people").select("*"),
     admin.from("person_roles").select("email, role"),
     admin.from("bo_scopes").select("email, bu_scope, dept_scope, cat_l1_scope"),
   ]);
+  const people = includeInactive
+    ? (allPeople ?? [])
+    : (allPeople ?? []).filter((p) => p.active !== false);
   const out: RoleRow[] = [];
   for (const r of roles ?? []) {
-    const p = (people ?? []).find((x) => x.email === r.email);
+    const p = people.find((x) => x.email === r.email);
     if (!p) continue;
     out.push(...build(r.email as string, r.role as string, p,
       (scopes ?? []).filter((s) => s.email === r.email) as never));

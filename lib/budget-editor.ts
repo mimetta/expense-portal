@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { synthRows } from "@/lib/roles-compat";
+import { activeEmailsWithRole } from "@/lib/person";
 import { ForbiddenError } from "@/lib/auth";
 import { hasRole, isSuperadmin } from "@/lib/permissions";
 import {
@@ -279,10 +280,7 @@ export async function listBudgetOwnerOptions(): Promise<BudgetOwnerOption[]> {
  * one that names none.
  */
 export async function listAdminContacts(): Promise<string[]> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("person_roles").select("email").eq("role", "SUPERADMIN");
-  if (error) throw error;
-  return Array.from(new Set((data ?? []).map((r) => r.email as string))).sort();
+  return (await activeEmailsWithRole(["SUPERADMIN"])).sort();
 }
 
 /**

@@ -50,7 +50,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   // STAGE 2b: identity now comes from `people` / `person_roles` / `bo_scopes`
   // / `person_menu_overrides`. The legacy `roles` table is no longer read —
   // it is left intact purely as the rollback path.
-  const person = (await loadPerson(user.email)) ?? (await autoRegisterPerson(user.email));
+  const existing = await loadPerson(user.email);
+
+  // DEACTIVATION GATE — ORDER MATTERS. This runs BEFORE auto-registration.
+  // Reversed, a deactivated person signing in would fall through to
+  // autoRegisterPerson and be re-created as a fresh active EMPLOYEE, which
+  // is exactly the hole deactivation exists to close. Returning null is how
+  // every caller (middleware, page guards, the auth callback) already
+  // expresses "not signed in".
+  if (existing && !existing.active) return null;
+
+  const person = existing ?? (await autoRegisterPerson(user.email));
 
   return {
     email: user.email,

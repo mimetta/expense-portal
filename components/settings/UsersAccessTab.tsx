@@ -14,7 +14,16 @@ interface Person {
   visible_departments: string; chapter: string | null;
   roles: string[]; boScopes: Scope[];
   overrides: { menu: string; allowed: boolean }[];
+  active: boolean; deactivated_at: string | null; deactivated_by: string | null;
   fy_count: number; duplicateOf: string[];
+}
+interface Consequences {
+  unownedBudgetLines: { bu: string; department: string; cat_l1: string }[];
+  openRevisions: { fiscal_year: number; revision_no: number; status: string }[];
+  stalledRequests: { request_id: string; stage: string; total: number }[];
+  pettyCashFloats: { name: string; balance: number | null }[];
+  historyCount: { requests: number; approvals: number; revisions: number; audit: number };
+  canHardDelete: boolean;
 }
 interface Data {
   people: Person[]; departments: string[]; roles: string[];
@@ -34,7 +43,7 @@ const MENU_LABEL: Record<string, string> = {
   "settings.users": "Settings · Users & access", "settings.people": "Settings · Users & access (people)",
   "settings.permissions": "Settings · Users & access (permissions)",
 };
-const FILTERS = ["All", "Unassigned", "BU defaulted", "BO", "EMPLOYEE", "Overrides"];
+const FILTERS = ["All", "Unassigned", "BU defaulted", "BO", "EMPLOYEE", "Overrides", "Inactive"];
 const split = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
 
 function Flag({ tone, children }: { tone: "warn" | "bad"; children: React.ReactNode }) {
@@ -62,6 +71,7 @@ export default function UsersAccessTab() {
   const [notice, setNotice] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [lifecycle, setLifecycle] = useState<{ person: Person; c: Consequences } | null>(null);
   const [newEmail, setNewEmail] = useState("");
 
   const load = async () => {
@@ -134,6 +144,32 @@ export default function UsersAccessTab() {
     finally { setBusy(false); }
   };
 
+  const openLifecycle = async (p: Person) => {
+    setBusy(true); setError(null);
+    try {
+      const c = await fetch(`/api/users-access/lifecycle?email=${encodeURIComponent(p.email)}`).then((r) => r.json());
+      if (c.error) throw new Error(c.error);
+      setLifecycle({ person: p, c });
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+
+  const runLifecycle = async (email: string, action: "deactivate" | "reactivate" | "delete") => {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch("/api/users-access/lifecycle", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, action }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      setNotice(`${email} ${d.action}.`);
+      setLifecycle(null); setOpenEmail(null); setDraft(null);
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+
   const addPerson = async () => {
     setBusy(true); setError(null);
     try {
@@ -163,6 +199,10 @@ export default function UsersAccessTab() {
     if (!data) return [];
     return data.people.filter((p) => {
       if (q && !p.email.toLowerCase().includes(q.toLowerCase())) return false;
+      // Deactivated people are hidden everywhere except their own filter,
+      // so the list reads as "who works here" by default.
+      if (filter === "Inactive") return !p.active;
+      if (!p.active) return false;
       if (filter === "Unassigned") return split(p.visible_departments).length === 0;
       if (filter === "BU defaulted") return p.bu_defaulted;
       if (filter === "BO") return p.roles.includes("BO");
@@ -227,6 +267,7 @@ export default function UsersAccessTab() {
                     {d.length === 0 && <Flag tone="warn">no department</Flag>}
                     {p.bu_defaulted && <Flag tone="warn">BU defaulted</Flag>}
                     {p.duplicateOf.length > 0 && <Flag tone="bad">possible duplicate</Flag>}
+                    {!p.active && <Flag tone="bad">inactive</Flag>}
                   </div>
                 </button>
               );
@@ -242,6 +283,8 @@ export default function UsersAccessTab() {
               menuDraft={menuDraft} setMenuDraft={setMenuDraft} defaultFor={defaultFor}
               busy={busy} onSave={() => void save()}
               onCancel={() => { setOpenEmail(null); setDraft(null); }}
+              onDeactivate={() => void openLifecycle(draft)}
+              onReactivate={() => void runLifecycle(draft.email, "reactivate")}
             />
           ) : (
             <div className="mm-card">
@@ -253,6 +296,72 @@ export default function UsersAccessTab() {
           )}
         </div>
       </div>
+
+      {lifecycle && (
+        <div className="mm-modal-overlay" style={{ backdropFilter: "blur(2px)" }} onClick={() => setLifecycle(null)}>
+          <div className="mm-modal" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
+            <div className="mm-modal-header">
+              <h2 className="mm-modal-title">Deactivate {lifecycle.person.email}?</h2>
+            </div>
+            <div className="mm-modal-body space-y-3 text-[13px]">
+              <p className="text-brand-muted">
+                They will not be able to sign in, and will disappear from every picker and
+                notification. Their roles, scopes and history are kept, inert.
+              </p>
+
+              {lifecycle.c.unownedBudgetLines.length > 0 && (
+                <Consequence title={`${lifecycle.c.unownedBudgetLines.length} budget line(s) would have no owner`}>
+                  {lifecycle.c.unownedBudgetLines.slice(0, 6).map((l) => `${l.bu} / ${l.department} / ${l.cat_l1}`).join(" · ")}
+                  {lifecycle.c.unownedBudgetLines.length > 6 && ` …and ${lifecycle.c.unownedBudgetLines.length - 6} more`}
+                </Consequence>
+              )}
+              {lifecycle.c.openRevisions.length > 0 && (
+                <Consequence title={`${lifecycle.c.openRevisions.length} open budget revision(s)`}>
+                  {lifecycle.c.openRevisions.map((r) => `FY${r.fiscal_year} rev ${r.revision_no} (${r.status})`).join(", ")}
+                </Consequence>
+              )}
+              {lifecycle.c.stalledRequests.length > 0 && (
+                <Consequence title={`${lifecycle.c.stalledRequests.length} request(s) would stall — they are waiting on this person`}>
+                  {lifecycle.c.stalledRequests.slice(0, 6).map((r) => `${r.request_id} (${r.stage})`).join(" · ")}
+                  {lifecycle.c.stalledRequests.length > 6 && ` …and ${lifecycle.c.stalledRequests.length - 6} more`}
+                </Consequence>
+              )}
+              {lifecycle.c.pettyCashFloats.length > 0 && (
+                <Consequence title={`Holds ${lifecycle.c.pettyCashFloats.length} petty cash float(s)`}>
+                  {lifecycle.c.pettyCashFloats.map((f) => `${f.name}${f.balance != null ? ` — ฿${Math.round(f.balance).toLocaleString("en-US")}` : ""}`).join(", ")}
+                </Consequence>
+              )}
+              {lifecycle.c.unownedBudgetLines.length === 0 && lifecycle.c.openRevisions.length === 0 &&
+               lifecycle.c.stalledRequests.length === 0 && lifecycle.c.pettyCashFloats.length === 0 && (
+                <p style={{ color: "#2E7D52" }}>Nothing is currently waiting on them.</p>
+              )}
+
+              <p className="rounded-[8px] px-3 py-2" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                This blocks the expense portal only. To remove their access to email and
+                everything else, also disable their Google Workspace account.
+              </p>
+
+              {lifecycle.c.canHardDelete && (
+                <p className="text-[12px] text-brand-subtle">
+                  This person has no history, so they can also be deleted outright — use that
+                  only to undo a mistyped address.
+                </p>
+              )}
+            </div>
+            <div className="mm-modal-footer">
+              <button className="mm-btn-secondary" onClick={() => setLifecycle(null)} disabled={busy}>Cancel</button>
+              {lifecycle.c.canHardDelete && (
+                <button className="mm-btn-secondary" disabled={busy}
+                  onClick={() => void runLifecycle(lifecycle.person.email, "delete")}>Delete permanently</button>
+              )}
+              <button className="mm-btn-danger" disabled={busy}
+                onClick={() => void runLifecycle(lifecycle.person.email, "deactivate")}>
+                {busy ? "Working…" : "Deactivate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {adding && (
         <div className="mm-modal-overlay" style={{ backdropFilter: "blur(2px)" }} onClick={() => setAdding(false)}>
@@ -278,11 +387,13 @@ export default function UsersAccessTab() {
 
 function PersonCard({
   draft, setDraft, data, menuDraft, setMenuDraft, defaultFor, busy, onSave, onCancel,
+  onDeactivate, onReactivate,
 }: {
   draft: Person; setDraft: (p: Person) => void; data: Data;
   menuDraft: Record<string, boolean>; setMenuDraft: (m: Record<string, boolean>) => void;
   defaultFor: (p: Person, menu: string) => boolean;
   busy: boolean; onSave: () => void; onCancel: () => void;
+  onDeactivate: () => void; onReactivate: () => void;
 }) {
   const depts = split(draft.visible_departments);
   const setScope = (i: number, patch: Partial<Scope>) =>
@@ -293,10 +404,24 @@ function PersonCard({
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-[15px] font-semibold text-brand-dark">{draft.email}</h3>
         <div className="flex shrink-0 gap-2">
+          {draft.active ? (
+            <button className="mm-btn-secondary mm-btn-sm" onClick={onDeactivate} disabled={busy}
+              title="Block sign-in and remove from every picker. History is kept.">Deactivate…</button>
+          ) : (
+            <button className="mm-btn-secondary mm-btn-sm" onClick={onReactivate} disabled={busy}>Reactivate</button>
+          )}
           <button className="mm-btn-secondary mm-btn-sm" onClick={onCancel} disabled={busy}>Discard</button>
           <button className="mm-btn-primary mm-btn-sm" onClick={onSave} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </div>
+
+      {!draft.active && (
+        <div className="rounded-[10px] px-4 py-3 text-[13px]"
+          style={{ background: "#FBF0EE", border: "1px solid #F3C4BC", color: "#B23A2F" }}>
+          <strong>Deactivated.</strong> Cannot sign in and is hidden from every picker. Roles,
+          scopes and history below are kept exactly as they were — inert, not erased.
+        </div>
+      )}
 
       <Section title="Roles">
         <div className="flex flex-wrap gap-1.5">
@@ -406,6 +531,15 @@ function PersonCard({
           role default is an override, shown in terracotta; reset removes it.
         </p>
       </Section>
+    </div>
+  );
+}
+
+function Consequence({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-[8px] px-3 py-2" style={{ background: "#FBF0EE", border: "1px solid #F3C4BC" }}>
+      <div className="font-medium" style={{ color: "#B23A2F" }}>{title}</div>
+      <div className="mt-0.5 text-[12px] text-brand-muted">{children}</div>
     </div>
   );
 }
