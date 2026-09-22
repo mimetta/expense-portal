@@ -59,11 +59,9 @@ export const FREE_MENU_DEFAULTS: Record<string, RoleV2[]> = {
   "settings.deptconfig": ["CEO"],
   "settings.announcements": ["CEO", "ACCOUNTING"],
   "settings.pettycash": ["ACCOUNTING"],
-  // Merged in the mockup as one "Users & access" control; three keys here so
-  // each maps 1:1 to a baseline column. All SUPERADMIN-only, always together.
-  "settings.users": [],
-  "settings.people": [],
-  "settings.permissions": [],
+  // Stage 2c: the three keys (users / people / permissions) that always moved
+  // together are now one menu, matching the single page that replaced them.
+  "settings.usersaccess": [],
 };
 
 export const ALL_MENUS = [

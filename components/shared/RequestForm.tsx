@@ -1028,9 +1028,28 @@ export default function RequestForm({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>
-              Business unit<RequiredMark /> <span aria-hidden>🔒</span>
+              Business unit<RequiredMark />{currentUser?.bu === "BOTH" ? null : <span aria-hidden> 🔒</span>}
             </label>
-            <input className={`${inputClass} bg-[#F9F8F6]`} value={bu} disabled readOnly />
+            {/* STAGE 2c: a person whose people.bu is BOTH picks per request;
+                ONEST/SV stay locked exactly as before. Switching clears the
+                categories already chosen, since categories are per-BU. */}
+            {currentUser?.bu === "BOTH" ? (
+              <select
+                className={inputClass}
+                value={bu}
+                onChange={(e) => {
+                  setBu(e.target.value);
+                  setItems((prev) =>
+                    prev.map((it) => ({ ...it, cat_l1: "", cat_l2: "", product_code: it.product_code })),
+                  );
+                }}
+              >
+                <option value="ONEST">ONEST</option>
+                <option value="SV">SV</option>
+              </select>
+            ) : (
+              <input className={`${inputClass} bg-[#F9F8F6]`} value={bu} disabled readOnly />
+            )}
           </div>
           <div>
             <label className={labelClass}>Requester Name</label>
