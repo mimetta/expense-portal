@@ -85,11 +85,33 @@ async function main(): Promise<void> {
     return out;
   }
 
-  const roles = await all<RoleRow>("roles", "id, email, role, bu_scope, dept_scope, cat_l1_scope");
+  // people/person_roles/bo_scopes, NOT the frozen `roles` table — that has
+  // been read-only since the access rebuild and would give a stale answer.
+  // Inactive people are excluded: a deactivated person owns nothing.
+  const activeEmails = new Set(
+    (await all<{ email: string; active: boolean }>("people", "email, active"))
+      .filter((p) => p.active !== false).map((p) => p.email),
+  );
+  const boEmails = new Set(
+    (await all<{ email: string; role: string }>("person_roles", "email, role"))
+      .filter((r) => r.role === "BO" && activeEmails.has(r.email)).map((r) => r.email),
+  );
+  const roles = (await all<RoleRow & { company_scope?: string }>(
+    "bo_scopes", "email, bu_scope, company_scope, dept_scope, cat_l1_scope",
+  )).filter((r) => boEmails.has(r.email)).map((r) => ({
+    ...r, role: "BO" as const,
+    // Since migration 039 the first dimension is the COMPANY CHARGED.
+    bu_scope: r.company_scope ?? r.bu_scope,
+  }));
   const cats = await all<CategoryRow>("categories", "bu, department, cat_l1, cat_l2");
-  const spend = await all<SpendRow>("v_request_spend", "bu, department, cat_l1, amount, fiscal_year, status");
+  // use_for_company aliased to `bu`: the whole file keys on a field called
+  // `bu`, and since migration 039 the value that belongs there is the company
+  // the expense is CHARGED TO, not the BU it was filed under.
+  const spend = (await all<SpendRow & { use_for_company?: string }>(
+    "v_request_spend", "bu, use_for_company, department, cat_l1, amount, fiscal_year, status",
+  )).map((s) => ({ ...s, bu: s.use_for_company || s.bu }));
 
-  const bos = roles.filter((r) => r.role === "BO");
+  const bos = roles;
   const fiscalYear = new Date().getFullYear();
 
   // FY spend per (bu, department, cat_l1), approved basis.
@@ -153,7 +175,7 @@ async function main(): Promise<void> {
   }
   const total = unowned.reduce((s, u) => s + u.fy_spend, 0);
   console.log(`\n  ${unowned.length} combination(s), ${unowned.reduce((s, u) => s + u.category_lines, 0)} category line(s), ฿${Math.round(total).toLocaleString("en-US")} of FY${fiscalYear} spend with no budget owner.`);
-  console.log("\nFix by widening a BO's bu_scope/dept_scope/cat_l1_scope, or by granting a new BO row.");
+  console.log("\nFix in Settings > Users & access: widen a BO's company/department/category scope, or add a scope row.");
   process.exit(1);
 }
 

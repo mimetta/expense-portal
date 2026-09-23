@@ -235,7 +235,7 @@ const scopeTokens = (raw: unknown): string[] =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-function summariseScope(rows: { bu_scope: unknown; dept_scope: unknown; cat_l1_scope: unknown }[]): string {
+function summariseScope(rows: { bu_scope: unknown; company_scope?: unknown; dept_scope: unknown; cat_l1_scope: unknown }[]): string {
   const collect = (pick: (r: (typeof rows)[number]) => unknown, all: string) => {
     const vals = new Set<string>();
     for (const r of rows) {
@@ -249,7 +249,9 @@ function summariseScope(rows: { bu_scope: unknown; dept_scope: unknown; cat_l1_s
   return [
     collect((r) => r.dept_scope, "all segments"),
     collect((r) => r.cat_l1_scope, "all categories"),
-    collect((r) => r.bu_scope, "both BUs"),
+    // The scope's first dimension is the company charged, not the filing
+    // BU (migration 039); bu_scope is the frozen fallback.
+    collect((r) => r.company_scope ?? r.bu_scope, "both companies"),
   ].join(" · ");
 }
 
@@ -264,7 +266,7 @@ export async function listBudgetOwnerOptions(): Promise<BudgetOwnerOption[]> {
   const admin = createAdminClient();
   const data = (await synthRows(admin)).filter((r) => r.role === "BO");
 
-  const byEmail = new Map<string, { bu_scope: unknown; dept_scope: unknown; cat_l1_scope: unknown }[]>();
+  const byEmail = new Map<string, { bu_scope: unknown; company_scope?: unknown; dept_scope: unknown; cat_l1_scope: unknown }[]>();
   for (const r of data ?? []) {
     const e = r.email as string;
     byEmail.set(e, [...(byEmail.get(e) ?? []), r]);

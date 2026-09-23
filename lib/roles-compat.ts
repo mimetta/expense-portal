@@ -25,7 +25,7 @@ export function parseRowId(id: string): { email: string; role: string } | null {
 function build(
   email: string, role: string,
   person: { chapter?: unknown; visible_departments?: unknown; bu?: unknown; bu_defaulted?: unknown; is_auto_registered?: unknown; created_at?: unknown },
-  scopes: { bu_scope: string; dept_scope: string; cat_l1_scope: string }[],
+  scopes: { bu_scope: string; company_scope?: string; dept_scope: string; cat_l1_scope: string }[],
 ): RoleRow[] {
   const base = {
     id: rowId(email, role), email, role,
@@ -38,7 +38,7 @@ function build(
   if (role === "BO" && scopes.length > 0) {
     return scopes.map((s) => ({ ...base, ...s }) as RoleRow);
   }
-  return [{ ...base, bu_scope: "*", dept_scope: "*", cat_l1_scope: "*" } as RoleRow];
+  return [{ ...base, bu_scope: "*", company_scope: "*", dept_scope: "*", cat_l1_scope: "*" } as RoleRow];
 }
 
 /**
@@ -52,7 +52,7 @@ export async function synthRows(admin: Admin, includeInactive = false): Promise<
   const [{ data: allPeople }, { data: roles }, { data: scopes }] = await Promise.all([
     admin.from("people").select("*"),
     admin.from("person_roles").select("email, role"),
-    admin.from("bo_scopes").select("email, bu_scope, dept_scope, cat_l1_scope"),
+    admin.from("bo_scopes").select("email, bu_scope, company_scope, dept_scope, cat_l1_scope"),
   ]);
   const people = includeInactive
     ? (allPeople ?? [])

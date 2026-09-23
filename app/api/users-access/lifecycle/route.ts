@@ -41,8 +41,8 @@ async function consequencesFor(email: string): Promise<Consequences> {
   const admin = createAdminClient();
 
   const [{ data: myScopes }, { data: otherScopes }, { data: cats }] = await Promise.all([
-    admin.from("bo_scopes").select("bu_scope, dept_scope, cat_l1_scope").eq("email", email),
-    admin.from("bo_scopes").select("bu_scope, dept_scope, cat_l1_scope").neq("email", email),
+    admin.from("bo_scopes").select("bu_scope, company_scope, dept_scope, cat_l1_scope").eq("email", email),
+    admin.from("bo_scopes").select("bu_scope, company_scope, dept_scope, cat_l1_scope").neq("email", email),
     admin.from("categories").select("bu, department, cat_l1"),
   ]);
 
