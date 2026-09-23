@@ -33,7 +33,10 @@ export interface PersonV2 {
   chapter: string | null;
   active: boolean;
   roles: RoleV2[];
-  boScopes: { bu_scope: string; dept_scope: string; cat_l1_scope: string }[];
+  // company_scope is the authoritative first dimension (migration 039);
+  // bu_scope is the frozen pre-039 column and is optional here because a
+  // caller constructing a scope from the UI payload no longer supplies it.
+  boScopes: { bu_scope?: string; company_scope?: string; dept_scope: string; cat_l1_scope: string }[];
   overrides: Record<string, boolean>;
 }
 

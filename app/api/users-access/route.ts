@@ -101,7 +101,7 @@ interface SavePayload {
   roles: string[];
   bu: "ONEST" | "SV" | "BOTH";
   visible_departments: string[];
-  boScopes: { bu_scope: string; dept_scope: string; cat_l1_scope: string }[];
+  boScopes: { company_scope: string; dept_scope: string; cat_l1_scope: string }[];
   /** menu -> allowed. Only entries differing from the default are stored. */
   menus: Record<string, boolean>;
   /** Set once the warning about open budget revisions has been shown. */
@@ -152,7 +152,7 @@ export async function PUT(req: NextRequest) {
     const [{ data: before }, { data: beforeRoles }, { data: beforeScopes }, { data: beforeOvr }] = await Promise.all([
       admin.from("people").select("*").eq("email", email).maybeSingle(),
       admin.from("person_roles").select("role").eq("email", email),
-      admin.from("bo_scopes").select("bu_scope, dept_scope, cat_l1_scope").eq("email", email),
+      admin.from("bo_scopes").select("bu_scope, company_scope, dept_scope, cat_l1_scope").eq("email", email),
       admin.from("person_menu_overrides").select("menu, allowed").eq("email", email),
     ]);
     if (!before) return NextResponse.json({ error: `${email} does not exist` }, { status: 404 });
@@ -177,7 +177,7 @@ export async function PUT(req: NextRequest) {
     // ---- SAFETY 2: BO ownership must not overlap another owner -------------
     const wantScopes = nextRoles.includes("BO") ? (body.boScopes ?? []) : [];
     if (wantScopes.length > 0) {
-      const { data: others } = await admin.from("bo_scopes").select("email, bu_scope, dept_scope, cat_l1_scope").neq("email", email);
+      const { data: others } = await admin.from("bo_scopes").select("email, bu_scope, company_scope, dept_scope, cat_l1_scope").neq("email", email);
       const { data: cats } = await admin.from("categories").select("bu, department, cat_l1");
       const clashes: string[] = [];
       for (const c of cats ?? []) {
@@ -238,7 +238,10 @@ export async function PUT(req: NextRequest) {
       const { error } = await admin.from("bo_scopes").insert(
         wantScopes.map((s) => ({
           email,
-          bu_scope: s.bu_scope || "*", dept_scope: s.dept_scope || "*", cat_l1_scope: s.cat_l1_scope || "*",
+          // bu_scope is written with the same value purely to keep the frozen
+          // rollback column consistent for rows created after migration 039.
+          company_scope: s.company_scope || "*", bu_scope: s.company_scope || "*",
+          dept_scope: s.dept_scope || "*", cat_l1_scope: s.cat_l1_scope || "*",
         })),
       );
       if (error) throw error;

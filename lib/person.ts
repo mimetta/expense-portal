@@ -23,7 +23,7 @@ export function projectAllRoles(p: PersonV2): RoleRow[] {
       for (const s of p.boScopes) {
         rows.push({
           id: `${p.email}|BO`, email: p.email, role,
-          bu_scope: s.bu_scope, dept_scope: s.dept_scope, cat_l1_scope: s.cat_l1_scope,
+          bu_scope: s.bu_scope, company_scope: s.company_scope, dept_scope: s.dept_scope, cat_l1_scope: s.cat_l1_scope,
           created_at: "", is_auto_registered: false, chapter: null,
           department: p.visible_departments,
         } as RoleRow);
@@ -34,7 +34,7 @@ export function projectAllRoles(p: PersonV2): RoleRow[] {
       id: `${p.email}|${role}`, email: p.email, role,
       // Scope on a non-BO row is meaningless in v2 and is not carried: the
       // only consumer was resolvedBu, now people.bu.
-      bu_scope: "*", dept_scope: "*", cat_l1_scope: "*",
+      bu_scope: "*", company_scope: "*", dept_scope: "*", cat_l1_scope: "*",
       created_at: "", is_auto_registered: false, chapter: null,
       department: p.visible_departments,
     } as RoleRow);
@@ -48,7 +48,7 @@ export async function loadPerson(email: string): Promise<PersonV2 | null> {
   const [{ data: person }, { data: roles }, { data: scopes }, { data: overrides }] = await Promise.all([
     admin.from("people").select("*").eq("email", email).maybeSingle(),
     admin.from("person_roles").select("role").eq("email", email),
-    admin.from("bo_scopes").select("bu_scope, dept_scope, cat_l1_scope").eq("email", email),
+    admin.from("bo_scopes").select("bu_scope, company_scope, dept_scope, cat_l1_scope").eq("email", email),
     admin.from("person_menu_overrides").select("menu, allowed").eq("email", email),
   ]);
   if (!person) return null;

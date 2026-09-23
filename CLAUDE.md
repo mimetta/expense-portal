@@ -2147,3 +2147,64 @@ is what found the two remaining "plantae" strings to be attachment filenames
 naming the *supplier* บริษัท แพลนเต้ ไลฟ์ จำกัด, and `payment_presets.name =
 'Plantae'` likewise — none of them this person. Do the same before any future
 address reassignment.
+
+---
+
+## BO scope keys on the COMPANY CHARGED, not the filing BU (migration 039)
+
+Two different facts had been sharing one field:
+
+- **`people.bu`** — the company that EMPLOYS the person. Drives petty cash holder
+  rights and tax filing. **Unchanged by 039.**
+- **`requests.use_for_company`** — the company the EXPENSE is CHARGED TO. This is
+  what decides who approves it: it is that company's budget being spent.
+
+**291 of 1,202 requests (24%) charge to a different company than they were filed
+under** (SV→ONEST 240, ONEST→SV 51), so this was never theoretical. An SV employee
+charging to ONEST needs the ONEST budget owner.
+
+`bo_scopes.company_scope` is the authoritative first dimension. **`bu_scope` is
+FROZEN and kept as the rollback path** — nothing reads it; reverting the code
+restores the old behaviour with no data migration. Same pattern as the frozen
+`roles` table.
+
+**The backfill is an identity map.** `requests.use_for_company` holds a BU CODE —
+the only two values across all 1,202 rows are `ONEST` and `SV`, and migration 012
+defines the column as holding `companies.bu`. The UI's "ONEST — Mimetta Co., Ltd."
+is a display join on `companies.bu`. So `company_scope := bu_scope`, verbatim.
+
+### The silent-failure trap, and why v_request_spend carries use_for_company
+
+`lib/spend.ts#scopeFilter` feeds **aggregate rows** through the same
+`boScopeMatchesRequest` the approval path uses. Once that matcher reads
+`use_for_company`, a row that does not carry the column arrives as `undefined`,
+`scopeMatches` returns false for every non-`*` scope, and **every BO's spend report
+returns zero rows — no error, no empty state, nothing in the logs.**
+
+So migration 039 adds `use_for_company` to `v_request_spend` and both aggregates,
+and `lib/spend.ts` selects and passes it. The column is **appended last** in all
+three views on purpose: `create or replace view` may only add columns at the end
+while dependent views exist.
+
+Both sides fall back to the pre-039 field (`scope.company_scope ?? scope.bu_scope`,
+`request.use_for_company || request.bu` — `||` not `??`, because `'' ?? x` is `''`,
+which matches nothing). **Zero rows rely on either fallback today**; they exist so
+an un-updated caller degrades to the old behaviour instead of matching nothing.
+
+### How this was verified, and the trap in verifying it
+
+The pass condition is **old rule vs new rule measured SIMULTANEOUSLY**, not
+new-rule-vs-a-table-taken-earlier. The first attempt failed on siriwan.b (309 vs an
+expected 310) purely because a request had been rejected between the two
+measurements — her delta was zero under both rules. Live request data moves; only a
+same-instant comparison isolates the change. All ten BOs' deltas then matched
+exactly, and `getSpendReport()` was additionally asserted non-zero for every BO.
+
+Spend-report effect: wacharanan.j **+฿265,342**, kojchaphorn.s +฿4,677,
+chawanphat.b +฿2,388, panchita.t +฿154, akanit.t −฿2,388, wannisa.p −฿4,677; four
+BOs unchanged. These shifts are the change working correctly.
+
+`scripts/check-bo-coverage.ts` was rewired at the same time: it was still reading
+the **frozen `roles` table** and would have given a stale answer. It now reads
+`people`/`person_roles`/`bo_scopes`, excludes inactive people, and keys on
+`use_for_company`.

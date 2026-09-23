@@ -8,7 +8,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 const FOREST = "#1F3A2B";
 const TERRACOTTA = "#BD5A2E";
 
-interface Scope { bu_scope: string; dept_scope: string; cat_l1_scope: string }
+// company_scope, not bu_scope: this is the company the EXPENSE is charged to
+// (requests.use_for_company), which is what decides who approves it. The
+// person-level Business unit field above is a different fact — who employs
+// them — and keeps its name. See migration 039.
+interface Scope { company_scope: string; dept_scope: string; cat_l1_scope: string }
 interface Person {
   email: string; bu: "ONEST" | "SV" | "BOTH"; bu_defaulted: boolean;
   visible_departments: string; chapter: string | null;
@@ -474,17 +478,23 @@ function PersonCard({
 
       {draft.roles.includes("BO") && (
         <Section title="Budget ownership">
+          <p className="mb-2 text-[12px] text-brand-muted">
+            Scoped by the <strong>company the expense is charged to</strong>, not the company the person works for.
+            An SV employee charging to ONEST is approved by the ONEST owner.
+          </p>
           <div className="space-y-2">
             {draft.boScopes.map((s, i) => {
-              const deptOptions = Object.keys(data.catTree[s.bu_scope] ?? {}).sort();
-              const catOptions = data.catTree[s.bu_scope]?.[s.dept_scope] ?? [];
+              // catTree is keyed by companies.bu, and use_for_company holds
+              // exactly that value, so it indexes directly.
+              const deptOptions = Object.keys(data.catTree[s.company_scope] ?? {}).sort();
+              const catOptions = data.catTree[s.company_scope]?.[s.dept_scope] ?? [];
               const chosen = s.cat_l1_scope === "*" ? [] : split(s.cat_l1_scope);
               return (
                 <div key={i} className="rounded-[8px] border border-brand-border p-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <select className="mm-input w-[110px]" value={s.bu_scope}
-                      onChange={(e) => setScope(i, { bu_scope: e.target.value, dept_scope: "*", cat_l1_scope: "*" })}>
-                      <option value="*">Both BUs</option><option value="ONEST">ONEST</option><option value="SV">SV</option>
+                    <select className="mm-input w-[150px]" value={s.company_scope}
+                      onChange={(e) => setScope(i, { company_scope: e.target.value, dept_scope: "*", cat_l1_scope: "*" })}>
+                      <option value="*">Both companies</option><option value="ONEST">ONEST</option><option value="SV">SV</option>
                     </select>
                     <select className="mm-input w-[220px]" value={s.dept_scope}
                       onChange={(e) => setScope(i, { dept_scope: e.target.value, cat_l1_scope: "*" })}>
@@ -510,7 +520,7 @@ function PersonCard({
               );
             })}
             <button className="rounded-[5px] border border-dashed border-brand-border px-2 py-1 text-[11px] text-brand-muted hover:border-brand-accent hover:text-brand-accent"
-              onClick={() => setDraft({ ...draft, boScopes: [...draft.boScopes, { bu_scope: "*", dept_scope: "*", cat_l1_scope: "*" }] })}>+ Add scope row</button>
+              onClick={() => setDraft({ ...draft, boScopes: [...draft.boScopes, { company_scope: "*", dept_scope: "*", cat_l1_scope: "*" }] })}>+ Add scope row</button>
           </div>
         </Section>
       )}

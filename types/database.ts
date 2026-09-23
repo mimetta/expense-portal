@@ -162,7 +162,18 @@ export interface RoleRow {
   id: string;
   email: string;
   role: Role;
+  /**
+   * FROZEN as of migration 039 — superseded by company_scope. Kept so the
+   * change is revertible without a data migration.
+   */
   bu_scope: string;
+  /**
+   * The company an expense is CHARGED TO (`requests.use_for_company`), which
+   * is what decides who approves it. Optional so a RoleRow synthesised by
+   * older code still type-checks; boScopeMatchesRequest falls back to
+   * bu_scope when it is absent.
+   */
+  company_scope?: string;
   dept_scope: string;
   cat_l1_scope: string;
   created_at: string;

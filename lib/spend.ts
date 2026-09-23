@@ -190,11 +190,21 @@ export function previousWindow(
 // --- scoping ---------------------------------------------------------------
 
 // Reuses /bo-approvals' existing scope helper rather than introducing a
-// second one. boScopeMatchesRequest checks bu_scope/dept_scope/cat_l1_scope
-// against a request's bu/department/cat_l1 — the aggregate rows carry exactly
-// those three fields, so they are passed through the same predicate.
+// second one. boScopeMatchesRequest checks company_scope/dept_scope/
+// cat_l1_scope against a row's use_for_company/department/cat_l1 — the
+// aggregate rows carry exactly those three fields, so they are passed through
+// the same predicate.
+//
+// use_for_company IS REQUIRED ON THE ROW. Since migration 039 the matcher's
+// first dimension is the company charged, not the filing BU. A row arriving
+// without the field would make scopeMatches return false for every non-'*'
+// scope — every BO's spend report would come back EMPTY, with no error to
+// notice. v_spend_by_segment_month carries the column for this reason, the
+// select below asks for it, and the six affected BOs' row counts and totals
+// were asserted against the pre-change figures before this shipped.
 function scopeFilter(viewer: CurrentUser): ((row: {
   bu: string;
+  use_for_company?: string | null;
   department: string | null;
   cat_l1: string | null;
 }) => boolean) | "all" | "none" {
@@ -208,6 +218,9 @@ function scopeFilter(viewer: CurrentUser): ((row: {
       boScopes.some((scope) =>
         boScopeMatchesRequest(scope, {
           bu: row.bu,
+          // The dimension that actually decides the match. Falls back to bu
+          // for the same reason the view's coalesce does.
+          use_for_company: row.use_for_company || row.bu,
           department: row.department ?? "",
           cat_l1: row.cat_l1,
         } as ExpenseRequest),
@@ -398,7 +411,7 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
   const buildSpendQuery = () => {
     let q = supabase
       .from(spendViewName())
-      .select("bu, fiscal_year, month, department, cat_l1, cat_l2, status, amount, amount_net")
+      .select("bu, use_for_company, fiscal_year, month, department, cat_l1, cat_l2, status, amount, amount_net")
       .in("fiscal_year", [fiscalYear - 1, fiscalYear])
       .in("status", [...actualStatuses, ...pendingStatuses]);
     if (bu) q = q.eq("bu", bu);
