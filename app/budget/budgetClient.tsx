@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import BudgetGrid from "@/components/budget/BudgetGrid";
 import { thb, EM_DASH } from "@/components/spend/format";
 import type { BudgetOwnerOption, EditorData, EditorRow } from "@/lib/budget-editor";
 import type { RevenueNode } from "@/lib/revenue-goals";
 
 interface Props {
-  fiscalYear: number;
+  /** Today's year — the DEFAULT for the selector, not the only choice. */
+  currentYear: number;
   viewerEmail: string;
   isOwner: boolean;
   hasScope: boolean;
@@ -77,11 +79,42 @@ const STATUS_PILL: Record<string, { bg: string; fg: string; label: string }> = {
   SUPERSEDED: { bg: "#F4F1EC", fg: "#6B6B60", label: "Superseded" },
 };
 
+// Current year +1 back to -2, matching /reports/spend's selector exactly.
+// +1 is the one that matters: FY2027 has to be reachable during planning
+// season, before the calendar rolls over. -1 matters equally from the other
+// side — on 1 Jan 2027, FY2026 must not become unreachable.
+const yearOptions = (currentYear: number) => [currentYear + 1, currentYear, currentYear - 1, currentYear - 2];
+
+function parseYear(raw: string | null, currentYear: number): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 2000 && n <= 2100 ? n : currentYear;
+}
+
+function YearSelect({
+  value, options, onChange, busy,
+}: { value: number; options: number[]; onChange: (y: number) => void; busy?: boolean }) {
+  return (
+    <label className="block">
+      <span className="mm-label mb-1 block">Fiscal year</span>
+      <select
+        className="mm-input w-[130px]"
+        value={value}
+        disabled={busy}
+        onChange={(e) => onChange(Number(e.target.value))}
+      >
+        {options.map((y) => (
+          <option key={y} value={y}>FY{y}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
 const shortName = (email: string) => email.replace("@mimetta.co", "");
 
 export default function BudgetEditorClient({
-  fiscalYear,
+  currentYear,
   viewerEmail,
   isOwner,
   hasScope,
@@ -91,6 +124,16 @@ export default function BudgetEditorClient({
   canReview,
   pendingApprovals,
 }: Props) {
+  // The fiscal year lives in the query string so a view is shareable and
+  // survives a refresh — same mechanism /reports/spend uses for its filters.
+  // It was previously new Date().getFullYear() in page.tsx with no selector,
+  // which made FY2027 planning impossible before January and would have made
+  // FY2026 unreachable on 1 Jan 2027.
+  const searchParams = useSearchParams();
+  const [fiscalYear, setFiscalYear] = useState(() =>
+    parseYear(searchParams.get("year"), currentYear),
+  );
+
   const [data, setData] = useState<EditorData | null>(null);
   const [rows, setRows] = useState<EditorRow[]>([]);
   // Only "loading" if something is actually going to load — an admin who has
@@ -202,6 +245,16 @@ export default function BudgetEditorClient({
     [loadRevenue],
   );
 
+  // Mirror the year into the address bar. history.replaceState, not a router
+  // navigation: all that is needed is a shareable/refreshable URL, and a
+  // router push would re-run page.tsx's server guard on every switch.
+  // Other params are preserved rather than overwritten.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    q.set("year", String(fiscalYear));
+    window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
+  }, [fiscalYear]);
+
   // --- autosave -------------------------------------------------------------
   // Debounced, and the state never claims "saved" until the write returns —
   // showing success optimistically would be a lie the BO acts on.
@@ -244,6 +297,21 @@ export default function BudgetEditorClient({
       timerRef.current = setTimeout(() => void flush(), 1200);
     },
     [flush],
+  );
+
+  // Switching year reloads the grid, and load() resets the dirty map — so
+  // anything typed inside the 1.2s debounce window would be silently dropped.
+  // Flush it FIRST, against the revision it was typed into: flush() closes
+  // over the current data.revision, so those cells land on the old year's
+  // draft, which is where they belong.
+  const onYearChange = useCallback(
+    async (next: number) => {
+      if (next === fiscalYear) return;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (dirtyRef.current.size > 0) await flush();
+      setFiscalYear(next);
+    },
+    [fiscalYear, flush],
   );
 
   const mutate = useCallback(
@@ -409,15 +477,18 @@ export default function BudgetEditorClient({
       <PendingApprovalBanner count={pendingApprovals} />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="mm-page-title">{title}</h1>
-          <p className="mm-page-subtitle">
-            {ownerEmail || "no owner selected"}
-            {data?.revision ? ` · revision ${data.revision.revision_no}` : ""}
-            {data ? ` · ${data.scope.lineCount} lines across ${data.scope.departments.length} segment${data.scope.departments.length === 1 ? "" : "s"}` : ""}
-          </p>
-          <div className="mt-1">
-            <BudgetNavLinks canReview={canReview} />
+        <div className="flex flex-wrap items-start gap-5">
+          <YearSelect value={fiscalYear} options={yearOptions(currentYear)} onChange={onYearChange} busy={busy} />
+          <div>
+            <h1 className="mm-page-title">{title}</h1>
+            <p className="mm-page-subtitle">
+              {ownerEmail || "no owner selected"}
+              {data?.revision ? ` · revision ${data.revision.revision_no}` : ""}
+              {data ? ` · ${data.scope.lineCount} lines across ${data.scope.departments.length} segment${data.scope.departments.length === 1 ? "" : "s"}` : ""}
+            </p>
+            <div className="mt-1">
+              <BudgetNavLinks canReview={canReview} />
+            </div>
           </div>
         </div>
         {/* No owner chosen yet means nothing to save or submit — an admin

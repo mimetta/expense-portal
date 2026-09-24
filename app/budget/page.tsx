@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessPage, hasRole, isSuperadmin } from "@/lib/permissions";
@@ -34,9 +35,12 @@ export default async function BudgetPage() {
     pendingBudgetApprovals(user),
   ]);
 
+  // BudgetEditorClient reads ?year= via useSearchParams, which needs a
+  // Suspense boundary in the App Router — same wrapper /reports/spend uses.
   return (
+    <Suspense fallback={null}>
     <BudgetEditorClient
-      fiscalYear={new Date().getFullYear()}
+      currentYear={new Date().getFullYear()}
       viewerEmail={user.email}
       isOwner={isOwner}
       hasScope={hasScope}
@@ -46,5 +50,6 @@ export default async function BudgetPage() {
       canReview={canReview}
       pendingApprovals={pendingApprovals}
     />
+    </Suspense>
   );
 }
