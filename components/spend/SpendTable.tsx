@@ -8,7 +8,6 @@ import {
   HEAT_OVER,
   HEAT_UNDER,
   MONTH_NAMES,
-  compact,
   heatFor,
   isCurrentMonth,
   isFutureMonth,
@@ -17,6 +16,7 @@ import {
   utilisationColor,
   varianceLabel,
 } from "./format";
+import { FullSpendCell, SimpleSpendCell, GoalActualCell } from "@/components/spend/cells";
 import type { SpendCell, SpendGranularity, SpendNode, SpendReport } from "@/lib/spend";
 
 interface Props {
@@ -44,12 +44,18 @@ function MonthCell({
   month,
   fiscalYear,
   emphasis = false,
+  depth = 0,
+  revenueActual = null,
 }: {
   node: SpendNode;
   month: number;
   fiscalYear: number;
   /** Set for the sticky footer total row. */
   emphasis?: boolean;
+  /** 0 = segment (full labelled cell), 1+ = cat_l1/cat_l2 (simple cell). */
+  depth?: number;
+  /** That month's ACTUAL revenue. null = unknown; "of rev" shows an em dash. */
+  revenueActual?: number | null;
 }) {
   const cell = node.byMonth[month];
   const current = isCurrentMonth(fiscalYear, month);
@@ -93,10 +99,85 @@ function MonthCell({
         : "")
     : `${MONTH_NAMES[month - 1]}: ${thb(cell.actual)} — no budget set`;
 
+  // Budget is ALWAYS the pro-rated figure here, so the current month is
+  // judged against what should have been spent by today — the existing rule,
+  // unchanged, now shown rather than only implied by the tint.
+  //
+  // Segment rows carry the full labelled cell; cat_l1 and cat_l2 carry the
+  // simple one. That is the mockup's "Simpler deeper down" style: the labels
+  // are worth their space once per segment, not repeated at every depth.
   return (
-    <td className="px-2 py-2 text-right tabular-nums" style={style} title={title}>
-      {compact(cell.actual)}
+    <td
+      className="px-2 py-1.5 align-top"
+      style={{ ...style, textAlign: "right" }}
+      title={title}
+    >
+      {depth === 0 || emphasis ? (
+        <FullSpendCell budget={prorated} actual={cell.actual} revenueActual={revenueActual} />
+      ) : (
+        <SimpleSpendCell budget={prorated} actual={cell.actual} />
+      )}
     </td>
+  );
+}
+
+/**
+ * The "Revenue actual" row, above the segment rows. Goal over actual, the
+ * same cell the budget page uses, so one scanning habit works on both.
+ */
+function RevenueRow({
+  revenue,
+  months,
+  showMonths,
+  fiscalYear,
+  metricCount,
+}: {
+  revenue: SpendReport["revenue"];
+  months: number[];
+  showMonths: boolean;
+  fiscalYear: number;
+  metricCount: number;
+}) {
+  return (
+    <tr style={{ background: "#F1F7F2" }}>
+      <th
+        scope="row"
+        className="sticky left-0 z-10 border-r border-brand-border px-3 py-2 text-left font-medium"
+        style={{ width: STICKY_W, minWidth: STICKY_W, background: "#F1F7F2" }}
+      >
+        Revenue actual
+      </th>
+      {showMonths &&
+        months.map((m) => (
+          <td
+            key={m}
+            className="px-2 py-1.5 align-top"
+            style={{
+              textAlign: "right",
+              background: isCurrentMonth(fiscalYear, m) ? "#E7F0E9" : undefined,
+            }}
+            title={revenue.actual[m] === null ? "No actual revenue known for this month" : undefined}
+          >
+            <GoalActualCell
+              goal={revenue.goal[m] ?? null}
+              actual={revenue.actual[m] ?? null}
+              partial={isCurrentMonth(fiscalYear, m)}
+            />
+          </td>
+        ))}
+      {/* Budget has no meaning for revenue; actual is the period total; and
+          revenue as a share of itself would be 100% — all three are em
+          dashes rather than invented figures. */}
+      <td className="px-3 py-2 text-right align-top text-brand-subtle tabular-nums">{EM_DASH}</td>
+      <td className="px-3 py-2 text-right align-top tabular-nums font-semibold">
+        {revenue.actualTotal === null ? EM_DASH : thb(revenue.actualTotal)}
+      </td>
+      {Array.from({ length: Math.max(0, metricCount - 2) }).map((_, i) => (
+        <td key={i} className="px-3 py-2 text-right align-top text-brand-subtle tabular-nums">
+          {EM_DASH}
+        </td>
+      ))}
+    </tr>
   );
 }
 
@@ -119,7 +200,12 @@ interface MetricColumn {
    * slice of the current one) — used for the Used %, never displayed as the
    * Budget figure.
    */
-  cell: (total: SpendCell, emphasis: boolean, budgetToDateTotal: number) => React.ReactNode;
+  cell: (
+    total: SpendCell,
+    emphasis: boolean,
+    budgetToDateTotal: number,
+    revenueActualTotal: number | null,
+  ) => React.ReactNode;
 }
 
 /**
@@ -246,7 +332,28 @@ const METRIC_COLUMNS: MetricColumn[] = [
     label: "Pending",
     cell: (t, emphasis) => <Money value={t.pending} emphasis={emphasis} tone="accent" />,
   },
-  // Next column (% of revenue) slots in here — no other change required.
+  {
+    key: "ofRevenue",
+    label: "% of revenue",
+    // ACTUAL revenue only. Where no actual is known for the period this is an
+    // em dash — never the goal, because presenting a plan as a result is the
+    // one thing this column must not do.
+    cell: (t, emphasis, _b, revenueActualTotal) => (
+      <span
+        className="tabular-nums"
+        style={{ fontSize: 12.5, fontWeight: emphasis ? 600 : 400 }}
+        title={
+          revenueActualTotal === null
+            ? "No actual revenue known for this period — the goal is deliberately not substituted"
+            : `${thb(t.actual)} of ${thb(revenueActualTotal)} actual revenue`
+        }
+      >
+        {revenueActualTotal === null || revenueActualTotal === 0
+          ? EM_DASH
+          : `${((t.actual / revenueActualTotal) * 100).toFixed(2)}%`}
+      </span>
+    ),
+  },
 ];
 
 // --- row -------------------------------------------------------------------
@@ -259,6 +366,7 @@ function Row({
   fiscalYear,
   expanded,
   toggle,
+  revenue,
 }: {
   node: SpendNode;
   depth: number;
@@ -267,6 +375,7 @@ function Row({
   fiscalYear: number;
   expanded: Set<string>;
   toggle: (key: string) => void;
+  revenue: SpendReport["revenue"];
 }) {
   const hasChildren = (node.children?.length ?? 0) > 0;
   const isOpen = expanded.has(node.key);
@@ -316,12 +425,19 @@ function Row({
 
         {showMonths &&
           months.map((m) => (
-            <MonthCell key={m} node={node} month={m} fiscalYear={fiscalYear} />
+            <MonthCell
+              key={m}
+              node={node}
+              month={m}
+              fiscalYear={fiscalYear}
+              depth={depth}
+              revenueActual={revenue.actual[m] ?? null}
+            />
           ))}
 
         {METRIC_COLUMNS.map((col) => (
           <td key={col.key} className="px-3 py-2 text-right align-top">
-            {col.cell(node.total, false, proRatedBudget(node, months, fiscalYear))}
+            {col.cell(node.total, false, proRatedBudget(node, months, fiscalYear), revenue.actualTotal)}
           </td>
         ))}
       </tr>
@@ -337,6 +453,7 @@ function Row({
             fiscalYear={fiscalYear}
             expanded={expanded}
             toggle={toggle}
+            revenue={revenue}
           />
         ))}
     </>
@@ -521,6 +638,16 @@ export default function SpendTable({
             </tr>
           </thead>
           <tbody>
+            {/* Above the segment rows: every spend figure below is read as a
+                share of this, so it has to be visible without scrolling to
+                a legend. */}
+            <RevenueRow
+              revenue={report.revenue}
+              months={months}
+              showMonths={showMonths}
+              fiscalYear={fiscalYear}
+              metricCount={METRIC_COLUMNS.length}
+            />
             {report.rows.map((row) => (
               <Row
                 key={row.key}
@@ -531,6 +658,7 @@ export default function SpendTable({
                 fiscalYear={fiscalYear}
                 expanded={expanded}
                 toggle={toggle}
+                revenue={report.revenue}
               />
             ))}
           </tbody>
@@ -556,11 +684,12 @@ export default function SpendTable({
                     month={m}
                     fiscalYear={fiscalYear}
                     emphasis
+                    revenueActual={report.revenue.actual[m] ?? null}
                   />
                 ))}
               {METRIC_COLUMNS.map((col) => (
                 <td key={col.key} className="px-3 py-2 text-right align-top">
-                  {col.cell(footerNode.total, true, proRatedBudget(footerNode, months, fiscalYear))}
+                  {col.cell(footerNode.total, true, proRatedBudget(footerNode, months, fiscalYear), report.revenue.actualTotal)}
                 </td>
               ))}
             </tr>

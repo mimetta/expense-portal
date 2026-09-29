@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { boScopeMatchesRequest, hasAnyRole, isSuperadmin, rolesOf } from "@/lib/permissions";
+import { getRevenueTree } from "@/lib/revenue-goals";
 import type { CurrentUser, ExpenseRequest } from "@/types/database";
 
 // ---------------------------------------------------------------------------
@@ -44,7 +45,10 @@ export const PENDING_STATUS = ["SUBMITTED", "PO_UPLOADED", "BO_APPROVED", "EDIT_
 export type SpendBasis = "approved" | "paid";
 export type SpendGranularity = "month" | "quarter" | "year";
 
-export const ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+// Defined in the client-safe format module; re-exported so existing server
+// callers (app/api/spend-report) keep importing it from here.
+export { ALL_MONTHS } from "@/components/spend/format";
+import { ALL_MONTHS } from "@/components/spend/format";
 
 export interface SpendCell {
   budget: number;
@@ -81,6 +85,24 @@ export interface SpendReport {
   trend: { month: number; actual: number; pending: number; budget: number }[];
   rows: SpendNode[];
   pending_requests: SpendPendingRequest[];
+  /**
+   * Revenue goal and ACTUAL per month, for the "Revenue actual" row and the
+   * "% of revenue" column.
+   *
+   * Both arrays are indexed by calendar month 1-12 and hold null where the
+   * figure is not known. `% of revenue` divides by ACTUAL only — never by the
+   * goal. Where an actual is null the percentage is not shown at all, because
+   * silently substituting the goal would present a plan as a result. See
+   * migration 040.
+   */
+  revenue: {
+    goal: Record<number, number | null>;
+    actual: Record<number, number | null>;
+    /** Sum of actual over the selected months; null if none are known. */
+    actualTotal: number | null;
+    goalTotal: number | null;
+    syncedAt: string | null;
+  };
 }
 
 export interface SpendReportParams {
@@ -395,6 +417,7 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
       trend: ALL_MONTHS.map((month) => ({ month, actual: 0, pending: 0, budget: 0 })),
       rows: [],
       pending_requests: [],
+      revenue: { goal: {}, actual: {}, actualTotal: null, goalTotal: null, syncedAt: null },
     };
   }
 
@@ -554,5 +577,33 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 20);
 
-  return { months, totals, trend, rows, pending_requests };
+  // --- revenue -------------------------------------------------------------
+  // Read through getRevenueTree so the roll-up rule ("a parent month is null
+  // only when every child is null") is the single implementation, rather than
+  // a second copy of it here.
+  const revenue = await (async () => {
+    const empty = { goal: {}, actual: {}, actualTotal: null, goalTotal: null, syncedAt: null };
+    try {
+      const { tree, syncedAt } = await getRevenueTree(fiscalYear, bu ?? undefined);
+      const goal: Record<number, number | null> = {};
+      const actual: Record<number, number | null> = {};
+      for (let m = 1; m <= 12; m++) {
+        goal[m] = tree.months[m - 1] ?? null;
+        actual[m] = tree.actuals[m - 1] ?? null;
+      }
+      const sumOver = (src: Record<number, number | null>) => {
+        let t: number | null = null;
+        for (const m of months) { const v = src[m]; if (v !== null && v !== undefined) t = (t ?? 0) + v; }
+        return t;
+      };
+      return { goal, actual, actualTotal: sumOver(actual), goalTotal: sumOver(goal), syncedAt };
+    } catch {
+      // The spend report must still render if revenue is unavailable —
+      // percentages simply show an em dash, which is the same thing a missing
+      // actual already means.
+      return empty;
+    }
+  })();
+
+  return { months, totals, trend, rows, pending_requests, revenue };
 }

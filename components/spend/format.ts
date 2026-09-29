@@ -17,6 +17,15 @@ export const QUARTERS: { label: string; months: number[] }[] = [
 
 export const EM_DASH = "—";
 
+/**
+ * 1-12. Lives HERE, not in lib/spend, because it is the one value the spend
+ * page needed from that module — and lib/spend is server-only: it reaches
+ * lib/auth (via lib/revenue-goals) and therefore next/headers, which a client
+ * component may not import. lib/spend re-exports this so its own callers are
+ * unaffected.
+ */
+export const ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
 // U+2212 MINUS SIGN, not an ASCII hyphen. In a tabular-nums font the hyphen
 // is a narrow glyph that does not occupy a digit slot, so a column of mixed
 // positive and negative figures fails to align on the decimal; the true

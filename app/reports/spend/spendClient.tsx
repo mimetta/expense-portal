@@ -7,8 +7,8 @@ import SpendKpis from "@/components/spend/SpendKpis";
 import SpendTable from "@/components/spend/SpendTable";
 import SpendTrend from "@/components/spend/SpendTrend";
 import PendingPanel from "@/components/spend/PendingPanel";
-import { MONTH_NAMES, QUARTERS, defaultPeriodFor } from "@/components/spend/format";
-import { ALL_MONTHS, type SpendGranularity, type SpendNode, type SpendReport } from "@/lib/spend";
+import { MONTH_NAMES, QUARTERS, defaultPeriodFor , ALL_MONTHS } from "@/components/spend/format";
+import type { SpendGranularity, SpendNode, SpendReport } from "@/lib/spend";
 import { BUSINESS_UNITS } from "@/lib/constants";
 
 // Sentinel written to the query string for "no BU filter". Needed because

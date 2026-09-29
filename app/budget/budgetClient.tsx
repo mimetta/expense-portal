@@ -152,7 +152,7 @@ export default function BudgetEditorClient({
 
   // Revenue goals — the denominator the budget is planned against. Re-fetched
   // when the BU filter changes, because "Both" means both BUs combined.
-  const [revenue, setRevenue] = useState<{ tree: RevenueNode; canEdit: boolean } | null>(null);
+  const [revenue, setRevenue] = useState<{ tree: RevenueNode; canEdit: boolean; syncedAt: string | null } | null>(null);
   const [addingChannel, setAddingChannel] = useState(false);
 
   const dirtyRef = useRef<Map<string, EditorRow>>(new Map());
@@ -208,7 +208,7 @@ export default function BudgetEditorClient({
       if (buFilter) qs.set("bu", buFilter);
       const res = await fetch(`/api/revenue/goals?${qs}`);
       const d = await res.json();
-      if (res.ok) setRevenue({ tree: d.tree, canEdit: !!d.canEdit });
+      if (res.ok) setRevenue({ tree: d.tree, canEdit: !!d.canEdit, syncedAt: d.syncedAt ?? null });
     } catch {
       // The budget page must still work if goals are unavailable.
     }
@@ -225,6 +225,26 @@ export default function BudgetEditorClient({
           body: JSON.stringify({ fiscalYear, entries: [{ channelId, month, amount: value }] }),
         });
         if (!res.ok) throw new Error((await res.json()).error || "Could not save the goal");
+        await loadRevenue();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [fiscalYear, loadRevenue],
+  );
+
+  // Actuals are a separate key on the same endpoint: a null goal deletes the
+  // row, a null actual only clears the actual columns, so they must not share
+  // one array. See lib/revenue-goals.ts#saveRevenueActuals.
+  const onRevenueActualChange = useCallback(
+    async (channelId: string, month: number, value: number | null) => {
+      try {
+        const res = await fetch("/api/revenue/goals", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fiscalYear, actuals: [{ channelId, month, actual: value }] }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Could not save the actual");
         await loadRevenue();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -476,6 +496,14 @@ export default function BudgetEditorClient({
     <div className="space-y-3">
       <PendingApprovalBanner count={pendingApprovals} />
 
+      {revenue?.syncedAt && (
+        <p className="flex items-center gap-2 text-[12.5px] text-brand-muted">
+          <span style={{ width: 7, height: 7, borderRadius: 99, background: "#2E7D52", flex: "none" }} />
+          Revenue actuals last updated {new Date(revenue.syncedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+          {revenue.canEdit ? " · entered manually until the sheet sync exists" : ""}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-start gap-5">
           <YearSelect value={fiscalYear} options={yearOptions(currentYear)} onChange={onYearChange} busy={busy} />
@@ -694,11 +722,13 @@ export default function BudgetEditorClient({
             onCopyPriorYear={onCopyPriorYear}
             onClearRow={onClearRow}
             priorFiscalYear={data.priorFiscalYear}
+            fiscalYear={fiscalYear}
             revenue={
               revenue
                 ? {
                     tree: revenue.tree,
                     editable: revenue.canEdit,
+                    onActualChange: onRevenueActualChange,
                     onChange: onRevenueChange,
                     onAddChannel: () => setAddingChannel(true),
                     onToggleChannel,

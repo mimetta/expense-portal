@@ -178,7 +178,7 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
         context.
       </p>
 
-      <BudgetGrid rows={data.rows} onChange={null} showDelta priorFiscalYear={data.priorFiscalYear} />
+      <BudgetGrid rows={data.rows} onChange={null} showDelta priorFiscalYear={data.priorFiscalYear} fiscalYear={rev.fiscal_year} />
 
       <p className="text-[12px]">
         <Link href="/budget/history" className="text-brand-brown underline">
