@@ -855,7 +855,9 @@ function CategoryTab() {
 
   const load = () => {
     setLoading(true);
-    fetch("/api/categories")
+    // includeInactive: Settings manages retired categories, so it must see
+    // them. Every other consumer gets active-only by default.
+    fetch("/api/categories?includeInactive=1")
       .then((res) => res.json())
       .then((data) => setCategories(data.categories ?? []))
       .finally(() => setLoading(false));
@@ -879,19 +881,43 @@ function CategoryTab() {
     setModal({ mode: "edit", id: c.id });
   };
 
+  const describe = (d: { budget_lines: number; request_headers: number; request_items: number }) =>
+    `${d.budget_lines} budget line(s), ${d.request_headers} request(s) and ${d.request_items} request item(s)`;
+
   const save = async () => {
     setBusy(true);
     try {
       const url = modal?.mode === "edit" ? `/api/categories/${modal.id}` : "/api/categories";
       const method = modal?.mode === "edit" ? "PATCH" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const send = (extra: Record<string, unknown> = {}) =>
+        fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, ...extra }),
+        });
+
+      let res = await send();
+      // 409 confirmation_required: the server counted the dependants and is
+      // refusing until they have been shown. It is the server that decides
+      // this, so a client that skipped the dialog still cannot rename blind.
+      if (res.status === 409) {
+        const body = await res.json();
+        if (body.error === "confirmation_required") {
+          const d = body.dependencies;
+          const total = d.budget_lines + d.request_headers + d.request_items;
+          const cascade = confirm(
+            `${body.message}\n\n` +
+            `${describe(d)} reference it by name.\n\n` +
+            `OK — rename those ${total} row(s) too, in the same transaction.\n` +
+            `Cancel — rename the category only, leaving ${total} row(s) pointing at the old name ` +
+            `(this is recorded in the audit log).`,
+          );
+          res = await send({ confirmed: true, cascade });
+        }
+      }
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error ?? "Failed to save category");
+        throw new Error(body.message ?? body.error ?? "Failed to save category");
       }
       setModal(null);
       load();
@@ -902,14 +928,49 @@ function CategoryTab() {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this category row?")) return;
+  const setActive = async (id: string, active: boolean) => {
     setBusy(true);
     try {
+      const res = await fetch(`/api/categories/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: string) => {
+    setBusy(true);
+    try {
+      // Ask the server what depends on it BEFORE offering the confirmation,
+      // so the number in the dialog is the real one rather than a guess.
+      const info = await (await fetch(`/api/categories/${id}`)).json();
+      const d = info?.dependencies?.catL2;
+      const total = d ? d.budget_lines + d.request_headers + d.request_items : 0;
+      if (total > 0) {
+        alert(
+          `Cannot delete this category — ${describe(d)} reference it by name, ` +
+          `and there is no key to reattach them by once the name is gone.\n\n` +
+          `Deactivate it instead: it disappears from the submit form and from new ` +
+          `budgets, and its history stays intact and still shows in the spend report.`,
+        );
+        setBusy(false);
+        return;
+      }
+      if (!confirm("Delete this category row? Nothing references it, so nothing is orphaned.")) {
+        setBusy(false);
+        return;
+      }
       const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const body = await res.json();
-        throw new Error(body.error ?? "Failed to delete category");
+        throw new Error(body.message ?? body.error ?? "Failed to delete category");
       }
       load();
     } catch (err) {
@@ -948,11 +1009,23 @@ function CategoryTab() {
               </tr>
             </thead>
             <tbody>
-              {categories.map((c) => (
-                <tr key={c.id}>
+              {categories.map((c) => {
+                const retired = (c as { active?: boolean }).active === false;
+                return (
+                <tr key={c.id} style={retired ? { opacity: 0.55 } : undefined}>
                   <td className="px-3 py-2">{c.bu}</td>
                   <td className="px-3 py-2">{c.department}</td>
-                  <td className="px-3 py-2">{c.cat_l1 ?? "-"}</td>
+                  <td className="px-3 py-2">
+                    {c.cat_l1 ?? "-"}
+                    {retired && (
+                      <span
+                        className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                        style={{ background: "#F3F4F6", color: "#6B7280", border: "1px solid #D8CBB0" }}
+                      >
+                        retired
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{c.cat_l2 ?? "-"}</td>
                   <td className="px-3 py-2">{c.product ?? "-"}</td>
                   <td className="px-3 py-2 text-right">
@@ -960,14 +1033,27 @@ function CategoryTab() {
                       Edit
                     </button>
                     <button
+                      onClick={() => void setActive(c.id, retired)}
+                      disabled={busy}
+                      className="mr-3 text-brand-muted hover:underline"
+                      title={retired
+                        ? "Offer this category again on the submit form and in new budgets"
+                        : "Stop offering it on the submit form, in the BO scope picker and in new budget drafts. History is untouched and still shows in the spend report."}
+                    >
+                      {retired ? "Reactivate" : "Deactivate"}
+                    </button>
+                    <button
                       onClick={() => remove(c.id)}
+                      disabled={busy}
                       className="font-medium text-[#DC2626] hover:underline"
+                      title="Only possible when nothing references this category"
                     >
                       Delete
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

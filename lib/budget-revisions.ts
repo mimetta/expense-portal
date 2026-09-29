@@ -160,6 +160,9 @@ async function getRevisionRow(revisionId: string): Promise<BudgetRevision> {
 async function assertLinesAreRealCategories(lines: LineKey[]): Promise<void> {
   if (lines.length === 0) return;
   const admin = createAdminClient();
+  // NOT filtered to active. A category retired after a draft was created
+  // still has lines in that draft, and saving it must keep working — the
+  // retirement stops NEW lines being seeded, it does not invalidate old ones.
   const { data, error } = await admin.from("categories").select("bu, department, cat_l1, cat_l2");
   if (error) throw error;
   const known = new Set((data ?? []).map((c) => dimKey(c as never)));
@@ -250,9 +253,13 @@ export async function createDraft(
     throw new ForbiddenError(`${ownerEmail} holds no BO scope, so there is nothing to budget.`);
   }
 
+  // active only: a retired category must not seed NEW budget lines. Lines
+  // already materialised in an existing revision are untouched — see
+  // migration 042.
   const { data: cats, error: catErr } = await admin
     .from("categories")
-    .select("bu, department, cat_l1, cat_l2");
+    .select("bu, department, cat_l1, cat_l2")
+    .eq("active", true);
   if (catErr) throw catErr;
 
   const dims = (cats ?? [])
@@ -342,6 +349,113 @@ export async function createDraft(
  * save fails and names the offender — rather than being silently dropped,
  * which would look to the BO like their figure had saved.
  */
+/**
+ * ADDITIVE REFRESH of an open draft's lines.
+ *
+ * A draft's lines are materialised once, at createDraft, and never re-read
+ * `categories`. A category added in Settings afterwards was therefore
+ * unreachable without discarding the draft and losing every figure already
+ * entered. This closes that, and does the minimum that closes it:
+ *
+ *   ADDS a line for every (bu, department, cat_l1, cat_l2) now in the owner's
+ *   scope that has no line in this revision, at 0.
+ *
+ *   NEVER removes a line, and NEVER touches a figure. A line whose category
+ *   was renamed or retired since is left exactly as it is — including its
+ *   entered amount. Removing it would silently delete budget someone typed,
+ *   and this function is not the place to decide that.
+ *
+ * DRAFT ONLY. A submitted revision is awaiting a CEO who has seen a specific
+ * set of lines, and an approved one is a financial record; neither may grow a
+ * row underneath the person reading it.
+ */
+export async function refreshDraftLines(
+  revisionId: string,
+  viewer: CurrentUser,
+): Promise<{ added: number; existing: number; stale: number }> {
+  const admin = createAdminClient();
+  const { data: revRow, error: revErr } = await admin
+    .from("budget_revisions").select("*").eq("id", revisionId).single();
+  if (revErr) throw revErr;
+  const revision = revRow as BudgetRevision;
+
+  assertCanActForOwner(viewer, revision.owner_email);
+  if (revision.status !== "DRAFT") {
+    throw new ConflictError(
+      `Only a draft can have its lines refreshed — this revision is ${revision.status}.`,
+    );
+  }
+
+  const scopes = await scopeRowsFor(revision.owner_email);
+  if (scopes.length === 0) {
+    throw new ForbiddenError(`${revision.owner_email} holds no BO scope.`);
+  }
+
+  const { data: cats, error: catErr } = await admin
+    .from("categories")
+    .select("bu, department, cat_l1, cat_l2")
+    .eq("active", true);
+  if (catErr) throw catErr;
+
+  const wanted = (cats ?? [])
+    .filter((c) => c.cat_l1 && inScope(scopes, c as never))
+    .map((c) => ({
+      bu: c.bu as string,
+      department: c.department as string,
+      cat_l1: c.cat_l1 as string,
+      cat_l2: (c.cat_l2 as string | null) ?? "",
+    }));
+
+  const have = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    admin.from("budget_lines")
+      .select("bu, department, cat_l1, cat_l2")
+      .eq("revision_id", revisionId)
+      .range(from, to),
+  );
+  const haveKeys = new Set(have.map((l) => dimKey(l as never)));
+  const wantedKeys = new Set(wanted.map((d) => dimKey(d)));
+
+  const missing: typeof wanted = [];
+  const seen = new Set<string>();
+  for (const d of wanted) {
+    const k = dimKey(d);
+    if (haveKeys.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    missing.push(d);
+  }
+
+  // Lines in the draft that no active category matches any more — renamed or
+  // retired since creation. Counted and reported, never deleted.
+  const stale = new Set(
+    have.map((l) => dimKey(l as never)).filter((k) => !wantedKeys.has(k)),
+  ).size;
+
+  if (missing.length > 0) {
+    const rows = missing.flatMap((d) =>
+      MONTHS.map((m) => ({
+        revision_id: revisionId,
+        bu: d.bu, department: d.department, cat_l1: d.cat_l1, cat_l2: d.cat_l2,
+        month: m, amount: 0,
+      })),
+    );
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await admin.from("budget_lines").insert(rows.slice(i, i + 500));
+      if (error) throw error;
+    }
+  }
+
+  await logAudit(viewer.email, null, "BUDGET_DRAFT_LINES_REFRESHED", {
+    revision_id: revisionId,
+    owner_email: revision.owner_email,
+    fiscal_year: revision.fiscal_year,
+    lines_added: missing.length,
+    lines_existing: haveKeys.size,
+    lines_stale_left_alone: stale,
+  });
+
+  return { added: missing.length, existing: haveKeys.size, stale };
+}
+
 export async function saveDraft(
   revisionId: string,
   lines: BudgetLine[],
