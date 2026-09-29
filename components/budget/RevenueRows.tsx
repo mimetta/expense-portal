@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MONTH_NAMES, thb, EM_DASH } from "@/components/spend/format";
+import { MONTH_NAMES, thb, EM_DASH, isCurrentMonth } from "@/components/spend/format";
+import { GoalActualCell } from "@/components/spend/cells";
 import type { RevenueNode } from "@/lib/revenue-goals";
 
 // The revenue goal rows, rendered as a <tbody> INSIDE the budget grid's own
@@ -27,6 +28,9 @@ const INDENT: Record<RevenueNode["level"], number> = {
 interface Props {
   tree: RevenueNode;
   editable: boolean;
+  fiscalYear: number;
+  /** CEO/SUPERADMIN only — same gate as goals. See migration 040. */
+  onActualChange?: (channelId: string, month: number, value: number | null) => void;
   monthWidthCols: number;
   showDelta: boolean;
   onChange?: (channelId: string, month: number, value: number | null) => void;
@@ -50,6 +54,8 @@ function flatten(node: RevenueNode, open: Set<string>, out: RevenueNode[] = []):
 export default function RevenueRows({
   tree,
   editable,
+  fiscalYear,
+  onActualChange,
   monthWidthCols,
   showDelta,
   onChange,
@@ -138,44 +144,77 @@ export default function RevenueRows({
 
             {MONTH_NAMES.map((_, m) => {
               const v = n.months[m];
+              const a = n.actuals[m];
+              const partial = isCurrentMonth(fiscalYear, m + 1);
+
+              // Channel rows, for a CEO/admin: both figures are typed. Goal on
+              // top, actual beneath, matching the read-only cell above so the
+              // eye does not have to re-learn the layout in edit mode.
               if (isChannel && editable) {
                 return (
-                  <td key={m} className="py-0.5" style={{ paddingLeft: 2, paddingRight: 16 }}>
-                    <input
-                      data-goal={n.channelId}
-                      data-m={m}
-                      className="mm-input w-full text-right tabular-nums"
-                      style={{ height: 26, padding: "0 8px", fontSize: 12.5, background: "#FFFFFF" }}
-                      defaultValue={v === null ? "" : Math.round(v).toLocaleString("en-US")}
-                      key={`${n.key}-${m}-${v ?? "x"}`}
-                      placeholder={EM_DASH}
-                      title="Blank means not yet open — not a target of zero"
-                      onFocus={(e) => e.currentTarget.select()}
-                      onBlur={(e) => {
-                        const next = parseNum(e.currentTarget.value);
-                        const before = v === null ? null : Math.round(v);
-                        if ((next === null ? null : Math.round(next)) !== before) {
-                          onChange?.(n.channelId!, m + 1, next);
-                        }
-                      }}
-                    />
+                  <td key={m} className="py-1" style={{ paddingLeft: 2, paddingRight: 10 }}>
+                    <div className="flex items-center gap-1">
+                      <span className="flex-none uppercase" style={{ fontSize: 8, letterSpacing: "0.06em", color: "#A9A497" }}>G</span>
+                      <input
+                        data-goal={n.channelId}
+                        data-m={m}
+                        className="mm-input w-full text-right tabular-nums"
+                        style={{ height: 22, padding: "0 6px", fontSize: 11, background: "#FFFFFF" }}
+                        defaultValue={v === null ? "" : Math.round(v).toLocaleString("en-US")}
+                        key={`${n.key}-g-${m}-${v ?? "x"}`}
+                        placeholder={EM_DASH}
+                        title="Goal. Blank means not yet open — not a target of zero"
+                        onFocus={(e) => e.currentTarget.select()}
+                        onBlur={(e) => {
+                          const next = parseNum(e.currentTarget.value);
+                          const before = v === null ? null : Math.round(v);
+                          if ((next === null ? null : Math.round(next)) !== before) {
+                            onChange?.(n.channelId!, m + 1, next);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1">
+                      <span className="flex-none uppercase" style={{ fontSize: 8, letterSpacing: "0.06em", color: "#A9A497" }}>A</span>
+                      <input
+                        data-actual={n.channelId}
+                        data-m={m}
+                        className="mm-input w-full text-right font-bold tabular-nums"
+                        style={{ height: 22, padding: "0 6px", fontSize: 11.5, background: "#FFFFFF" }}
+                        defaultValue={a === null ? "" : Math.round(a).toLocaleString("en-US")}
+                        key={`${n.key}-a-${m}-${a ?? "x"}`}
+                        placeholder={EM_DASH}
+                        title="Actual. Blank means not yet known — never a zero. Normally synced from the revenue sheet; typed here until that sync exists."
+                        onFocus={(e) => e.currentTarget.select()}
+                        onBlur={(e) => {
+                          const next = parseNum(e.currentTarget.value);
+                          const before = a === null ? null : Math.round(a);
+                          if ((next === null ? null : Math.round(next)) !== before) {
+                            onActualChange?.(n.channelId!, m + 1, next);
+                          }
+                        }}
+                      />
+                    </div>
                   </td>
                 );
               }
+
               return (
                 <td
                   key={m}
-                  className="py-1.5 text-right tabular-nums"
-                  style={{ paddingLeft: 2, paddingRight: 16 }}
+                  className="py-1 text-right"
+                  style={{ paddingLeft: 2, paddingRight: 10 }}
+                  // An em dash is not a zero. Say which it is on hover, so
+                  // nobody reads a blank month as a missed target.
+                  title={
+                    v === null && a === null
+                      ? "Not yet open — no goal set, and no actual known"
+                      : a === null
+                        ? "No actual known yet for this month"
+                        : undefined
+                  }
                 >
-                  <span
-                    className={`text-[12.5px] ${isTotal ? "font-semibold text-brand-dark" : "text-brand-muted"}`}
-                    // An em dash is not a zero. Say which it is on hover, so
-                    // nobody reads a blank month as a missed target.
-                    title={v === null ? "Not yet open — no goal set for this month" : undefined}
-                  >
-                    {v === null ? EM_DASH : thb(v)}
-                  </span>
+                  <GoalActualCell goal={v} actual={a} partial={partial} />
                 </td>
               );
             })}

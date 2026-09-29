@@ -60,11 +60,15 @@ export interface GridProps {
   /** CEO review adds a per-row Change column and the delta beneath each cell. */
   showDelta?: boolean;
   priorFiscalYear?: number;
+  /** The year these rows belong to — used to mark the current month partial. */
+  fiscalYear: number;
   /** The revenue goal block, rendered above the budget rows. */
   revenue?: {
     tree: RevenueNode;
     editable: boolean;
     onChange?: (channelId: string, month: number, value: number | null) => void;
+    /** CEO/SUPERADMIN only — same gate as goals. See migration 040. */
+    onActualChange?: (channelId: string, month: number, value: number | null) => void;
     onAddChannel?: () => void;
     onToggleChannel?: (channelId: string, active: boolean) => void;
   } | null;
@@ -139,6 +143,7 @@ export default function BudgetGrid({
   onClearRow,
   showDelta = false,
   priorFiscalYear,
+  fiscalYear,
   revenue = null,
 }: GridProps) {
   const gridRef = useRef<HTMLTableElement>(null);
@@ -259,6 +264,8 @@ export default function BudgetGrid({
           <RevenueRows
             tree={revenue.tree}
             editable={revenue.editable}
+            fiscalYear={fiscalYear}
+            onActualChange={revenue.onActualChange}
             monthWidthCols={12}
             showDelta={showDelta}
             onChange={revenue.onChange}

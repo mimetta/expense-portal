@@ -31,7 +31,14 @@ export interface RevenueNode {
   key: string;
   level: "total" | "bu" | "category" | "sub_category" | "channel";
   label: string;
+  /** The GOAL per month. null = not yet open. */
   months: (number | null)[];
+  /**
+   * The ACTUAL per month. null = not yet known, and it must stay null all the
+   * way up: a parent month is null only when every descendant is null, the
+   * same rule `months` already follows. Never coerce to 0 — see migration 040.
+   */
+  actuals: (number | null)[];
   /** Channel rows only — the id goals are written against. */
   channelId?: string;
   active?: boolean;
@@ -76,11 +83,11 @@ export async function listChannels(includeInactive = false): Promise<RevenueChan
  * single store opens in September reads as an em dash through August, rather
  * than as a target of zero that was missed.
  */
-function rollUp(children: RevenueNode[]): (number | null)[] {
+function rollUp(children: RevenueNode[], pick: "months" | "actuals" = "months"): (number | null)[] {
   return Array.from({ length: MONTH_COUNT }, (_, m) => {
     let sum: number | null = null;
     for (const c of children) {
-      const v = c.months[m];
+      const v = c[pick][m];
       if (v === null || v === undefined) continue;
       sum = (sum ?? 0) + v;
     }
@@ -100,24 +107,35 @@ function rollUp(children: RevenueNode[]): (number | null)[] {
 export async function getRevenueTree(
   fiscalYear: number,
   bu?: string,
-): Promise<{ tree: RevenueNode; channels: RevenueChannel[] }> {
+): Promise<{ tree: RevenueNode; channels: RevenueChannel[]; syncedAt: string | null }> {
   const admin = createAdminClient();
   const all = await listChannels();
   const channels = bu ? all.filter((c) => c.bu === bu) : all;
 
   const goals = new Map<string, (number | null)[]>();
+  const actuals = new Map<string, (number | null)[]>();
+  let syncedAt: string | null = null;
   if (channels.length > 0) {
     const { data, error } = await admin
       .from("revenue_goals")
-      .select("channel_id, month, amount")
+      .select("channel_id, month, amount, actual_amount, actual_synced_at")
       .eq("fiscal_year", fiscalYear);
     if (error) throw error;
     for (const g of data ?? []) {
       const id = g.channel_id as string;
       let arr = goals.get(id);
       if (!arr) { arr = nulls(); goals.set(id, arr); }
+      let act = actuals.get(id);
+      if (!act) { act = nulls(); actuals.set(id, act); }
       const m = Number(g.month);
-      if (m >= 1 && m <= MONTH_COUNT) arr[m - 1] = Number(g.amount);
+      if (m >= 1 && m <= MONTH_COUNT) {
+        arr[m - 1] = Number(g.amount);
+        // == null, not a truthiness test: 0 is a real actual of zero revenue
+        // and must survive, while null stays null.
+        act[m - 1] = g.actual_amount == null ? null : Number(g.actual_amount);
+      }
+      const ts = g.actual_synced_at as string | null;
+      if (ts && (!syncedAt || ts > syncedAt)) syncedAt = ts;
     }
   }
 
@@ -145,6 +163,7 @@ export async function getRevenueTree(
           level: "channel" as const,
           label: c.channel,
           months: goals.get(c.id) ?? nulls(),
+          actuals: actuals.get(c.id) ?? nulls(),
           channelId: c.id,
           active: c.active,
           children: [],
@@ -154,6 +173,7 @@ export async function getRevenueTree(
           level: "sub_category",
           label: subName,
           months: rollUp(chanNodes),
+          actuals: rollUp(chanNodes, "actuals"),
           children: chanNodes,
         });
       }
@@ -162,6 +182,7 @@ export async function getRevenueTree(
         level: "category",
         label: catName,
         months: rollUp(subNodes),
+        actuals: rollUp(subNodes, "actuals"),
         children: subNodes,
       });
     }
@@ -170,17 +191,20 @@ export async function getRevenueTree(
       level: "bu",
       label: buName,
       months: rollUp(catNodes),
+      actuals: rollUp(catNodes, "actuals"),
       children: catNodes,
     });
   }
   buNodes.sort((a, b) => a.label.localeCompare(b.label));
 
   return {
+    syncedAt,
     tree: {
       key: "__total__",
       level: "total",
       label: "Revenue goal",
       months: rollUp(buNodes),
+      actuals: rollUp(buNodes, "actuals"),
       children: buNodes,
     },
     channels,
@@ -192,6 +216,13 @@ export interface GoalEntry {
   month: number;
   /** null deletes the row — restoring "not yet open" rather than storing 0. */
   amount: number | null;
+}
+
+export interface ActualEntry {
+  channelId: string;
+  month: number;
+  /** null CLEARS the actual back to "not yet known" — it does not store 0. */
+  actual: number | null;
 }
 
 /**
@@ -245,6 +276,76 @@ export async function saveRevenueGoals(
     fiscal_year: fiscalYear,
     written: toWrite.length,
     cleared: toClear.length,
+  });
+  return { written: toWrite.length, cleared: toClear.length };
+}
+
+/**
+ * Writes ACTUALS at channel level. CEO/SUPERADMIN only — the same gate as
+ * goals, per migration 040.
+ *
+ * Unlike saveRevenueGoals, a null here does NOT delete the row: the goal on
+ * that row must survive. It nulls the three actual columns instead, putting
+ * the month back to "not yet known".
+ *
+ * A row is created if the month has no goal yet, so an actual can be recorded
+ * for a month nobody planned. `amount` then takes its column default of 0,
+ * which is the goal's own "deliberate target" meaning — not a claim about the
+ * actual, which is stored separately.
+ *
+ * `source` defaults to 'manual' because that is the only caller today. The
+ * Google Sheets sync will pass 'sheet', and the column exists so that sync can
+ * never silently overwrite a hand-entered figure without it being visible.
+ */
+export async function saveRevenueActuals(
+  fiscalYear: number,
+  entries: ActualEntry[],
+  viewer: CurrentUser,
+  source: "sheet" | "manual" = "manual",
+): Promise<{ written: number; cleared: number }> {
+  assertCanEditRevenueGoals(viewer);
+  if (entries.length === 0) return { written: 0, cleared: 0 };
+
+  const admin = createAdminClient();
+  const valid = await listChannels(true);
+  const known = new Set(valid.map((c) => c.id));
+  const bad = entries.filter((e) => !known.has(e.channelId));
+  if (bad.length > 0) throw new ForbiddenError(`${bad.length} actual(s) name an unknown channel.`);
+
+  const now = new Date().toISOString();
+  const toWrite = entries.filter((e) => e.actual !== null);
+  const toClear = entries.filter((e) => e.actual === null);
+
+  for (let i = 0; i < toWrite.length; i += 500) {
+    const { error } = await admin.from("revenue_goals").upsert(
+      toWrite.slice(i, i + 500).map((e) => ({
+        channel_id: e.channelId,
+        fiscal_year: fiscalYear,
+        month: e.month,
+        actual_amount: e.actual,
+        actual_source: source,
+        actual_synced_at: now,
+        updated_by: viewer.email,
+        updated_at: now,
+      })),
+      // Same arbiter as goals. On conflict this updates only the columns
+      // named above, so an existing GOAL on the row is preserved.
+      { onConflict: "channel_id,fiscal_year,month" },
+    );
+    if (error) throw error;
+  }
+  for (const e of toClear) {
+    const { error } = await admin
+      .from("revenue_goals")
+      .update({ actual_amount: null, actual_source: null, actual_synced_at: null, updated_by: viewer.email, updated_at: now })
+      .eq("channel_id", e.channelId)
+      .eq("fiscal_year", fiscalYear)
+      .eq("month", e.month);
+    if (error) throw error;
+  }
+
+  await logAudit(viewer.email, null, "REVENUE_ACTUALS_SAVED", {
+    fiscal_year: fiscalYear, written: toWrite.length, cleared: toClear.length, source,
   });
   return { written: toWrite.length, cleared: toClear.length };
 }

@@ -4,8 +4,10 @@ import { handleApiError } from "@/lib/api-helpers";
 import {
   getRevenueTree,
   saveRevenueGoals,
+  saveRevenueActuals,
   canEditRevenueGoals,
   type GoalEntry,
+  type ActualEntry,
 } from "@/lib/revenue-goals";
 
 // GET /api/revenue/goals?year=2026&bu=ONEST
@@ -17,11 +19,12 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const year = Number(url.searchParams.get("year")) || new Date().getFullYear();
     const bu = url.searchParams.get("bu") || undefined;
-    const { tree, channels } = await getRevenueTree(year, bu);
+    const { tree, channels, syncedAt } = await getRevenueTree(year, bu);
     return NextResponse.json({
       tree,
       channels,
       fiscalYear: year,
+      syncedAt,
       canEdit: canEditRevenueGoals(user),
     });
   } catch (err) {
@@ -29,15 +32,30 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PUT /api/revenue/goals  { fiscalYear, entries: [{channelId, month, amount}] }
+// PUT /api/revenue/goals
+//   { fiscalYear, entries:  [{channelId, month, amount}] }  -> goals
+//   { fiscalYear, actuals:  [{channelId, month, actual}] }  -> actuals
+//
+// Two separate keys rather than one list with a mode flag: a goal and an
+// actual are different facts on the same row, and mixing them in one array
+// would make "which did this null clear?" ambiguous — a null goal DELETES the
+// row, a null actual only clears the actual columns.
 export async function PUT(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as { fiscalYear: number; entries: GoalEntry[] };
-    if (!Number.isInteger(Number(body.fiscalYear)) || !Array.isArray(body.entries)) {
-      return NextResponse.json({ error: "fiscalYear and entries are required" }, { status: 400 });
+    const body = (await req.json()) as {
+      fiscalYear: number; entries?: GoalEntry[]; actuals?: ActualEntry[];
+    };
+    if (!Number.isInteger(Number(body.fiscalYear))) {
+      return NextResponse.json({ error: "fiscalYear is required" }, { status: 400 });
     }
-    const result = await saveRevenueGoals(Number(body.fiscalYear), body.entries, user);
+    if (!Array.isArray(body.entries) && !Array.isArray(body.actuals)) {
+      return NextResponse.json({ error: "entries or actuals is required" }, { status: 400 });
+    }
+    const year = Number(body.fiscalYear);
+    const result = Array.isArray(body.actuals)
+      ? await saveRevenueActuals(year, body.actuals, user)
+      : await saveRevenueGoals(year, body.entries ?? [], user);
     return NextResponse.json({ ...result, savedAt: new Date().toISOString() });
   } catch (err) {
     return handleApiError(err);
