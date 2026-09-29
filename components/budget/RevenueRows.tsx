@@ -29,6 +29,13 @@ interface Props {
   tree: RevenueNode;
   editable: boolean;
   fiscalYear: number;
+  /**
+   * May this VIEWER add/rename/deactivate a channel? A separate per-person
+   * toggle from `editable` (which governs goal and actual figures): someone
+   * may well be trusted to type a goal without being trusted to invent a
+   * revenue stream. Hiding the control is a courtesy — the API enforces it.
+   */
+  canAddChannel?: boolean;
   /** CEO/SUPERADMIN only — same gate as goals. See migration 040. */
   onActualChange?: (channelId: string, month: number, value: number | null) => void;
   monthWidthCols: number;
@@ -55,6 +62,7 @@ export default function RevenueRows({
   tree,
   editable,
   fiscalYear,
+  canAddChannel = false,
   onActualChange,
   monthWidthCols,
   showDelta,
@@ -125,7 +133,7 @@ export default function RevenueRows({
                 {isChannel && n.active === false && (
                   <span className="shrink-0 text-[10px] text-brand-subtle">(closed)</span>
                 )}
-                {isChannel && editable && onToggleChannel && (
+                {isChannel && canAddChannel && onToggleChannel && (
                   <button
                     type="button"
                     onClick={() => onToggleChannel(n.channelId!, !(n.active ?? true))}
@@ -229,7 +237,7 @@ export default function RevenueRows({
         );
       })}
 
-      {editable && onAddChannel && (
+      {canAddChannel && onAddChannel && (
         <tr style={{ background: GOAL_BG }}>
           <th
             scope="row"

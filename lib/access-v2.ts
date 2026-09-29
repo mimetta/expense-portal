@@ -76,6 +76,17 @@ export const FREE_MENU_DEFAULTS: Record<string, RoleV2[]> = {
   // Stage 2c: the three keys (users / people / permissions) that always moved
   // together are now one menu, matching the single page that replaced them.
   "settings.usersaccess": [],
+  // Who may ADD, RENAME or DEACTIVATE a revenue channel on /budget.
+  //
+  // OFF FOR EVERYONE BY DEFAULT — an empty list, so it is only ever held by
+  // an explicit per-person override (plus SUPERADMIN, via the unconditional
+  // grant in menuDefault). Intended for the CEO and the Retail and Marketing
+  // owners, ticked by hand in Users & access.
+  //
+  // NOT prefixed "settings." on purpose: that prefix is what canAccessPageV2
+  // scans to decide whether someone can open the Settings page at all, and
+  // this grants a control on /budget, not a Settings tab.
+  "revenue.channels": [],
 };
 
 export const ALL_MENUS = [

@@ -7,6 +7,7 @@ import BudgetGrid from "@/components/budget/BudgetGrid";
 import { thb, EM_DASH } from "@/components/spend/format";
 import type { BudgetOwnerOption, EditorData, EditorRow } from "@/lib/budget-editor";
 import type { RevenueNode } from "@/lib/revenue-goals";
+import type { CategoryOrderRow } from "@/lib/budget-order-shared";
 
 interface Props {
   /** Today's year — the DEFAULT for the selector, not the only choice. */
@@ -162,6 +163,16 @@ export default function BudgetEditorClient({
   const [revenue, setRevenue] = useState<{ tree: RevenueNode; canEdit: boolean; syncedAt: string | null } | null>(null);
   const [addingChannel, setAddingChannel] = useState(false);
 
+  // The owner's saved category order, and the Collapse all / Expand all
+  // signal handed to the grid. The nonce lets the same button fire twice.
+  const [categoryOrder, setCategoryOrder] = useState<CategoryOrderRow[]>([]);
+  const [collapseSignal, setCollapseSignal] = useState<{ collapsed: boolean; nonce: number } | null>(null);
+  const [allCollapsed, setAllCollapsed] = useState(false);
+  // Whether THIS viewer may add/rename/deactivate a revenue channel. Comes
+  // from the server on every load; the button is hidden without it and the
+  // API refuses it regardless — see app/api/revenue/channels/route.ts.
+  const [canAddChannel, setCanAddChannel] = useState(false);
+
   const dirtyRef = useRef<Map<string, EditorRow>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -233,6 +244,50 @@ export default function BudgetEditorClient({
   }, [data?.scope.bus, data?.scope.ownerBu, buFilter]);
 
   useEffect(() => { void loadRevenue(); }, [loadRevenue]);
+
+  useEffect(() => {
+    fetch("/api/roles/me")
+      .then((r) => r.json())
+      .then((d) => setCanAddChannel(!!d.menus?.["revenue.channels"]))
+      .catch(() => setCanAddChannel(false));
+  }, []);
+
+  // The order belongs to the OWNER, so it is re-fetched whenever the owner
+  // changes — an admin acting on someone's behalf sees that person's
+  // arrangement, not their own.
+  const loadOrder = useCallback(async () => {
+    if (!ownerEmail) { setCategoryOrder([]); return; }
+    try {
+      const res = await fetch(`/api/budget/category-order?ownerEmail=${encodeURIComponent(ownerEmail)}`);
+      const d = await res.json();
+      if (res.ok) setCategoryOrder(d.order ?? []);
+    } catch { /* default alphabetical order is a fine fallback */ }
+  }, [ownerEmail]);
+
+  useEffect(() => { void loadOrder(); }, [loadOrder]);
+
+  // Optimistic: the grid re-sorts immediately, then the write confirms it.
+  // No revision, no figure, no audit row against one — see migration 041.
+  const onReorderCategories = useCallback(
+    async (department: string, catL1s: string[]) => {
+      setCategoryOrder((prev) => [
+        ...prev.filter((o) => o.department !== department),
+        ...catL1s.map((cat_l1, i) => ({ department, cat_l1, sort_order: i })),
+      ]);
+      try {
+        const res = await fetch("/api/budget/category-order", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ownerEmail, department, catL1s }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || "Could not save the order");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        void loadOrder();   // put the displayed order back to what is stored
+      }
+    },
+    [ownerEmail, loadOrder],
+  );
 
   const onRevenueChange = useCallback(
     async (channelId: string, month: number, value: number | null) => {
@@ -639,36 +694,10 @@ export default function BudgetEditorClient({
 
       {data && (
         <>
-          {/* Scope strip — the mockup's point: a BO must see at a glance that
-              they hold ONE cat_l1 across several segments, not several whole
-              segments. */}
-          <div className="mm-card">
-            <div className="mm-section-label">
-              {onBehalf ? `${shortName(ownerEmail)}'s scope` : "Your scope"}
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {data.scope.catL1s.map((c) => (
-                <span
-                  key={c}
-                  className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                  style={{ background: "#FDF2EE", color: "#BD5A2E", border: "1px solid #F5C4A3" }}
-                >
-                  {c}
-                </span>
-              ))}
-              <span className="mx-1 text-[12px] text-brand-subtle">across</span>
-              {data.scope.departments.map((d) => (
-                <span
-                  key={d}
-                  className="rounded-full px-2 py-0.5 text-[11px]"
-                  style={{ background: "#F0F4EF", color: "#1F3A2B", border: "1px solid #9CAE8C" }}
-                >
-                  {d}
-                </span>
-              ))}
-            </div>
-          </div>
-
+          {/* The scope strip that stood here was removed: the table below
+              already lists exactly the lines this owner holds, so it restated
+              the grid's own content above it. The owner selector, the
+              acting-on-behalf banner and the status pill all remain. */}
           <div className="mm-card">
             <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
               <label className="block">
@@ -699,6 +728,17 @@ export default function BudgetEditorClient({
               <p className="text-[12px] text-brand-muted">
                 {visible.length} of {rows.length} lines
               </p>
+              <button
+                type="button"
+                className="mm-btn-secondary mm-btn-sm ml-auto"
+                onClick={() => {
+                  const next = !allCollapsed;
+                  setAllCollapsed(next);
+                  setCollapseSignal({ collapsed: next, nonce: Date.now() });
+                }}
+              >
+                {allCollapsed ? "Expand all" : "Collapse all"}
+              </button>
             </div>
           </div>
 
@@ -746,11 +786,20 @@ export default function BudgetEditorClient({
             onClearRow={onClearRow}
             priorFiscalYear={data.priorFiscalYear}
             fiscalYear={fiscalYear}
+            categoryOrder={categoryOrder}
+            onReorderCategories={onReorderCategories}
+            // Per READER and per owner/year: which rows this person wants out
+            // of the way is not a fact about the owner, so it stays in the
+            // browser rather than the database. The order, which IS the
+            // owner's, is on the server — see migration 041.
+            collapseStorageKey={`mm:budget:collapse:${viewerEmail}:${ownerEmail}:${fiscalYear}`}
+            collapseSignal={collapseSignal}
             revenue={
               revenue
                 ? {
                     tree: revenue.tree,
                     editable: revenue.canEdit,
+                    canAddChannel,
                     onActualChange: onRevenueActualChange,
                     onChange: onRevenueChange,
                     onAddChannel: () => setAddingChannel(true),
