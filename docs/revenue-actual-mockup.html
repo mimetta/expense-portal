@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revenue goal &amp; actual — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--forest:#1F3A2B;--terracotta:#BD5A2E;--cream:#FAF8F4;--sand:#D8CBB0;--ink:#1B1B18;--muted:#6B6B60;
+        --ok:#2E7D52;--warn:#C99A2E;--over:#B23A2F;--ok-t:#1E5537;--warn-t:#7A5A0F;--over-t:#8E2A21;--radius:8px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums}
+  .wrap{max-width:1400px;margin:0 auto;padding:22px 20px 64px}
+  h1{font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .screens{display:flex;margin-bottom:20px;border:1px dashed var(--sand);border-radius:var(--radius);overflow:hidden;background:#FFFDF7}
+  .screens button{flex:1;border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:11px 14px;cursor:pointer;border-left:1px dashed var(--sand)}
+  .screens button:first-child{border-left:0}
+  .screens button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .screens-hint{font-size:11px;color:var(--muted);padding:6px 12px 0;letter-spacing:.04em;text-transform:uppercase}
+  .synced{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin-bottom:12px}
+  .synced .dot{width:7px;height:7px;border-radius:99px;background:var(--ok)}
+  .btn{border:1px solid var(--sand);background:#fff;color:var(--ink);padding:6px 12px;border-radius:var(--radius);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
+  .tbl-scroll{overflow-x:auto;background:#fff;border:1px solid var(--sand);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:right;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 10px;border-bottom:1px solid var(--sand);background:#FDFCFA;white-space:nowrap}
+  th.l{text-align:left}
+  td{padding:0;border-bottom:1px solid #EFEAE0;white-space:nowrap;text-align:right}
+  .namecol{position:sticky;left:0;z-index:3;background:#fff;min-width:270px;max-width:270px;text-align:left;overflow:hidden;text-overflow:ellipsis;padding:8px 12px}
+  thead .namecol{background:#FDFCFA}
+  th.mo,td.mo{width:138px}
+  .totcol{border-left:1px solid var(--sand);padding:8px 12px;font-weight:500;width:140px}
+  .twist{border:0;background:transparent;cursor:pointer;color:inherit;font:inherit;padding:0 6px 0 0;opacity:.7}
+  .twist:hover{opacity:1}
+  .hide{display:none}
+  tr.rev td{background:#F1F7F2;border-bottom:1px solid #C6D8CB;padding:7px 10px;font-weight:500}
+  tr.rev .namecol{background:#F1F7F2}
+  tr.revch td{background:#F7FAF7;font-size:12.5px;padding:6px 10px;border-bottom:1px solid #E8F0E9}
+  tr.revch .namecol{background:#F7FAF7;padding-left:34px;color:var(--muted)}
+  .gval{display:block;font-size:13.5px}
+  .aval{display:block;font-size:11px;margin-top:1px}
+  .aval.up{color:var(--ok-t)} .aval.down{color:var(--over-t)} .aval.none{color:#C0BBAE}
+  tr.deptgrp td{background:var(--forest);color:#fff;font-weight:500;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding:6px 12px}
+  tr.deptgrp .namecol{background:var(--forest);color:#fff}
+  tr.l1grp td{background:#F6F3EC;font-weight:500;font-size:12.5px;padding:6px 12px}
+  tr.l1grp .namecol{background:#F6F3EC}
+  .l2name{padding-left:14px}
+  .cellwrap{position:relative;padding:6px 10px 5px}
+  input.cell{width:100%;border:0;background:transparent;font-variant-numeric:tabular-nums;font-size:13.5px;text-align:right;padding:2px 0;color:var(--ink);font-family:inherit}
+  input.cell:hover{background:#FBF9F5}
+  input.cell:focus{outline:2px solid var(--forest);outline-offset:2px;background:#fff;border-radius:3px}
+  .kv{display:flex;align-items:baseline;justify-content:space-between;gap:7px;line-height:1.3}
+  .kv .k{font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#A9A497;font-weight:400;flex:none}
+  .kv .v{font-size:10.5px;font-variant-numeric:tabular-nums;font-weight:400;color:var(--muted)}
+  .kv .v.strong{font-weight:700;font-size:13px;color:var(--ink)}
+  .pcrow{display:flex;justify-content:space-between;gap:7px;font-size:9.5px;color:var(--muted);margin-top:2px;padding-top:2px;border-top:1px solid rgba(0,0,0,.06)}
+  .pcrow span:first-child{font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#A9A497}
+  .pcrow span:last-child{font-variant-numeric:tabular-nums;font-weight:400;font-size:10.5px}
+  .keycard{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid var(--sand);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px;font-size:12.5px;color:var(--muted)}
+  .keycell{width:138px;border:1px solid var(--sand);border-radius:6px;padding:7px 10px;flex:none;background:#FDFCFA}
+  .keynote b{color:var(--ink);font-weight:500}
+  tr.lv1 td{background:#FCFBF9;font-size:12.5px}
+  tr.lv1 .namecol{background:#FCFBF9;padding-left:34px}
+  tr.lv2 td{background:#FCFBF9}
+  tr.lv2 .namecol{background:#FCFBF9;padding-left:56px;color:var(--muted)}
+  tr.kid{display:none} tr.kid.show{display:table-row}
+  .simple{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .simplesub{display:block;font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:1px}
+  .styletog{display:inline-flex;border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden;background:#fff;margin-left:auto}
+  .styletog button{border:0;background:transparent;font:inherit;font-size:12.5px;font-weight:500;color:var(--muted);padding:6px 13px;cursor:pointer}
+  .styletog button+button{border-left:1px solid var(--sand)}
+  .styletog button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .togbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;font-size:12.5px;color:var(--muted)}
+  .pctline{display:block;font-size:10.5px;color:var(--muted);text-align:right;margin-top:1px}
+  .cell-ok{background:rgba(46,125,82,.10);color:var(--ok-t)}
+  .cell-warn{background:rgba(201,154,46,.14);color:var(--warn-t)}
+  .cell-over{background:rgba(178,58,47,.12);color:var(--over-t);font-weight:500}
+  .cell-none{color:#C0BBAE}
+  .mocell{padding:6px 9px}
+  tfoot td{background:#FDFCFA;font-weight:700;border-top:1px solid var(--sand);padding:8px 10px}
+  tfoot .namecol{background:#FDFCFA}
+  .partial{font-size:10px;color:var(--terracotta);font-weight:500}
+  .note{margin-top:28px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)} .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+  .new{color:var(--terracotta);font-weight:500}
+  .screen{display:none} .screen.on{display:block}
+  .legend{font-size:12px;color:var(--muted);margin:9px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="screens-hint">Mockup only</div>
+    <div class="screens" role="group">
+      <button data-s="budget" aria-pressed="true">Budget page · plan against goal</button>
+      <button data-s="spend" aria-pressed="false">Spend report · actual vs actual</button>
+    </div>
+  </div>
+
+  <div class="screen on" id="s-budget">
+    <h1>Editing wacharanan.j's budget · FY2026</h1>
+    <p class="sub">revision 3 · 9 lines across 6 segments</p>
+    <div class="synced"><span class="dot"></span>Revenue actuals synced from Google Sheets — 23 Sept 2026, 06:00
+      <button class="btn" style="margin-left:6px">Sync now</button></div>
+    <div class="keycard">
+      <div class="keycell">
+        <div class="kv"><span class="k">Goal</span><span class="v num">5,595,000</span></div>
+        <div class="kv"><span class="k">Actual</span><span class="v num strong up">5,712,000</span></div>
+        <div class="pcrow"><span>of goal</span><span>102%</span></div>
+      </div>
+      <div class="keynote">Revenue cells — <b>Goal</b> is set by the CEO, <b>Actual</b> is synced from the revenue sheet.
+        Green means above goal, red below. Budget cells beneath show their share of the goal, because a budget is planned against the plan.</div>
+    </div>
+    <div class="tbl-scroll"><table id="bTable"></table></div>
+    <p class="legend">Actuals are synced, never typed. Months with no actual yet show an em dash rather than zero.</p>
+  </div>
+
+  <div class="screen" id="s-spend">
+    <h1>Spend report · FY2026</h1>
+    <p class="sub">ONEST · approved + paid · Year view — Month view shows one month with the same figures as full-width columns</p>
+    <div class="synced"><span class="dot"></span>Revenue actuals synced 23 Sept 2026, 06:00</div>
+    <div class="togbar">Drilled-down rows
+      <span class="styletog" role="group">
+        <button data-style="full" aria-pressed="true">Same cell everywhere</button>
+        <button data-style="simple" aria-pressed="false">Simpler deeper down</button>
+      </span>
+    </div>
+    <div class="keycard">
+      <div class="keycell">
+        <div class="kv"><span class="k">Budget</span><span class="v num">260,000</span></div>
+        <div class="kv"><span class="k">Actual</span><span class="v num strong">223,000</span></div>
+        <div class="pcrow"><span>used</span><span>86%</span></div>
+        <div class="pcrow" style="border-top:0;padding-top:0"><span>of rev</span><span>4.2%</span></div>
+      </div>
+      <div class="keynote">How to read a cell — <b>Budget</b> is the approved plan for that month, <b>Actual</b> is what was spent.
+        <b>Used</b> is the share of budget spent — the cell tint follows it.
+        <b>Of rev</b> is that spend as a share of the month's actual revenue.</div>
+    </div>
+    <div class="tbl-scroll"><table id="sTable"></table></div>
+    <p class="legend">Click a segment to drill to category, then again for sub-category. Tint follows budget use — green under 80%, amber to 100%, red over. September's budget is pro-rated to 23 days, so a part month is judged fairly.</p>
+  </div>
+
+  <div class="note">
+    <b>What this adds:</b>
+    <ol>
+      <li class="new"><b>Goal and actual sit in one cell.</b> The goal is the primary figure; the actual is beneath it, green when above goal and red when below. One row per channel, not two trees to compare by eye.</li>
+      <li class="new"><b>Two different percentages, deliberately.</b> On the budget page a budget line shows its share of the revenue <i>goal</i> — that is planning. On the spend report, actual spend shows its share of <i>actual</i> revenue — that is what happened.</li>
+      <li class="new"><b>Every month cell shows both figures, not a percentage alone.</b> Budget on top in grey, actual spend beneath in bold, percentages last. The revenue row reads identically — goal then actual — so one scanning habit works for the whole table.</li>
+      <li class="new"><b>Month view is the other way to read it.</b> Switching the report to Month already gives a single month with Budget, Actual, Pending and variance as full-width columns — that exists today. Year view is for spotting which month went wrong; Month view is for reading one month closely.</li>
+      <li class="new"><b>The current month is marked partial on both sides.</b> Comparing a full month's goal against a part-month actual would read as a miss when it is just an incomplete month.</li>
+      <li class="new"><b>Actuals are synced, never typed.</b> Goals stay hand-entered by CEO or admin; actuals come from the revenue sheet on a schedule, with a "Sync now" button and a visible last-synced time.</li>
+      <li>Months with no actual yet show an em dash, never zero.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Needed before the sync can be built:</b>
+    <ol>
+      <li>A <b>REVENUE_SYNC tab</b> in the sheet with plain columns — bu, category, sub_category, channel, year, month, actual — filled by formulas pointing at the existing blocks. Reading the presentation layout directly would break the first time someone inserts a column.</li>
+      <li>The <b>channel names in the sheet</b>, so they can be matched to the 21 channels in the portal. Song Wat, Talat Noi, Siam Discovery and the rest must line up exactly, or actuals land against nothing.</li>
+      <li><b>Where SV's revenue lives</b> — the file we looked at was ONEST only.</li>
+      <li>A decision on what happens when the sheet holds a channel the portal does not: reject the sync, or import it and flag it for review.</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const NOW=8, DAY=23, DIM=[31,28,31,30,31,30,31,31,30,31,30,31];
+const K=1000;
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+const fmtK=n=>!n?'—':(Math.abs(n)>=1000000?(n/1000000).toFixed(2)+'M':Math.round(n/1000)+'k');
+
+const CH=[
+  ['Physical store · Owned store',   [1300,1290,1380,1340,1420,1400,1470,1490,1520,1550,1580,1610],1.04],
+  ['Physical store · Modern Trade',  [1795,1760,1900,1840,1960,1930,2020,2050,2270,2310,2350,2390],0.94],
+  ['Physical store · Pop-up',        [  95,  94, 100,  97, 103, 101, 106, 107, 109, 111, 113, 115],1.12],
+  ['Online · E-commerce',            [2030,1990,2140,2080,2200,2170,2270,2300,2340,2380,2420,2460],1.08],
+  ['Online · DTC-Thailand',          [ 375, 368, 395, 384, 408, 402, 420, 426, 433, 440, 447, 454],0.88]
+];
+const partial=m=> m===NOW ? DAY/DIM[m] : 1;
+const goal=m=>CH.reduce((s,c)=>s+c[1][m],0);
+const chActual=(c,m)=> m>NOW?null:Math.round(c[1][m]*c[2]*partial(m));
+const actual=m=> m>NOW?null:CH.reduce((s,c)=>s+chActual(c,m),0);
+
+const ROWS=[
+  {dept:'COG',l1:'HR Salary',l2:'Factory Management',v:[62,62,62,62,62,62,68,68,68,68,68,68]},
+  {dept:'COG',l1:'HR Salary',l2:'Factory เบี้ยขยัน',v:[14,14,14,14,14,14,14,14,14,14,14,14]},
+  {dept:'Marketing',l1:'HR Salary',l2:'Marketing team',v:[38,38,38,38,38,38,38,38,38,38,38,38]},
+  {dept:'Retail',l1:'HR Salary',l2:'Store staff',v:[36,36,36,36,36,36,36,42,42,42,42,42]}
+];
+let open=false;
+
+function revCell(g,a,m){
+  const cls = a===null?'none':(a>=g?'up':'down');
+  const txt = a===null?'—':fmtK(a*K);
+  return '<td class="mo mocell">'
+       +'<div class="kv"><span class="k">Goal</span><span class="v num">'+fmt(g*K)+'</span></div>'
+       +'<div class="kv"><span class="k">Actual</span><span class="v num strong '+cls+'">'+(a===null?'—':fmt(a*K))+'</span></div>'
+       +(a===null?'':'<div class="pcrow"><span>'+(m===NOW?'partial month':'of goal')+'</span><span>'+(m===NOW?'—':Math.round(a/g*100)+'%')+'</span></div>')
+       +'</td>';
+}
+
+function renderBudget(){
+  let h='<thead><tr><th class="namecol l">Line</th>';
+  MONTHS.forEach(m=>h+='<th class="mo">'+m+'</th>');
+  h+='<th class="totcol">FY total</th></tr></thead><tbody>';
+
+  h+='<tr class="rev"><td class="namecol"><button class="twist" id="tw">'+(open?'▾':'▸')+'</button>Revenue <span style="color:var(--muted);font-weight:400">goal / actual</span></td>';
+  MONTHS.forEach((_,m)=>h+=revCell(goal(m),actual(m),m));
+  h+='<td class="totcol num">'+fmtK(MONTHS.reduce((s,_,m)=>s+goal(m),0)*K)+'</td></tr>';
+  CH.forEach(c=>{
+    h+='<tr class="revch'+(open?'':' hide')+'"><td class="namecol">'+c[0]+'</td>';
+    c[1].forEach((g,m)=>h+=revCell(g,chActual(c,m),m));
+    h+='<td class="totcol num">'+fmtK(c[1].reduce((s,v)=>s+v,0)*K)+'</td></tr>';
+  });
+
+  let d=null,l1=null;
+  ROWS.forEach((r,i)=>{
+    if(r.dept!==d){h+='<tr class="deptgrp"><td class="namecol" colspan="14">'+r.dept+'</td></tr>';d=r.dept;l1=null;}
+    if(r.dept+r.l1!==l1){h+='<tr class="l1grp"><td class="namecol" colspan="14">'+r.l1+'</td></tr>';l1=r.dept+r.l1;}
+    h+='<tr><td class="namecol"><span class="l2name">'+r.l2+'</span></td>';
+    r.v.forEach((v,m)=>{
+      h+='<td class="mo"><div class="cellwrap">'
+       +'<div class="kv" style="margin-bottom:-2px"><span class="k">Budget</span></div>'
+       +'<input class="cell num" data-i="'+i+'" data-m="'+m+'" value="'+fmt(v*K)+'">'
+       +'<div class="pcrow"><span>of goal</span><span>'+(v/goal(m)*100).toFixed(2)+'%</span></div></div></td>';
+    });
+    h+='<td class="totcol num">'+fmt(r.v.reduce((s,v)=>s+v,0)*K)+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr><td class="namecol">Total — my lines</td>';
+  MONTHS.forEach((_,m)=>{
+    const t=ROWS.reduce((s,r)=>s+r.v[m],0);
+    h+='<td class="mo mocell"><span class="gval num">'+fmt(t*K)+'</span><span class="pctline">'+(t/goal(m)*100).toFixed(2)+'%</span></td>';
+  });
+  h+='<td class="totcol num">'+fmt(ROWS.reduce((s,r)=>s+r.v.reduce((a,v)=>a+v,0),0)*K)+'</td></tr></tfoot>';
+  document.getElementById('bTable').innerHTML=h;
+  document.getElementById('tw').addEventListener('click',()=>{open=!open;renderBudget();});
+  document.querySelectorAll('#bTable input.cell').forEach(inp=>{
+    inp.addEventListener('focus',()=>inp.select());
+    inp.addEventListener('change',()=>{
+      ROWS[+inp.dataset.i].v[+inp.dataset.m]=Math.round((parseFloat(inp.value.replace(/[^0-9.]/g,''))||0)/K);
+      renderBudget();
+    });
+  });
+}
+
+const SEG=[
+  ['COG',       [260,260,260,260,260,260,260,260,260],[223,240,198,262,211,249,236,258,171],[
+      ['Direct Material - COG',[150,150,150,150,150,150,150,150,150],[128,142,109,158,120,147,136,152, 98],[
+        ['Packaging',[60,60,60,60,60,60,60,60,60],[52,58,44,63,49,59,55,61,40]],
+        ['Raw Materials',[90,90,90,90,90,90,90,90,90],[76,84,65,95,71,88,81,91,58]]]],
+      ['Factory Operation (OH)',[70,70,70,70,70,70,70,70,70],[ 62, 66, 58, 71, 60, 68, 66, 72, 46],[
+        ['Utilities',[40,40,40,40,40,40,40,40,40],[35,38,33,41,34,39,38,41,26]],
+        ['Maintenance',[30,30,30,30,30,30,30,30,30],[27,28,25,30,26,29,28,31,20]]]],
+      ['HR Salary',[40,40,40,40,40,40,40,40,40],[ 33, 32, 31, 33, 31, 34, 34, 34, 27],[
+        ['Factory Management',[40,40,40,40,40,40,40,40,40],[33,32,31,33,31,34,34,34,27]]]]]],
+  ['Marketing', [140,140,140,140,140,140,140,140,140],[131,118,142,127,151,138,144,149, 96],[
+      ['Brand Building',[80,80,80,80,80,80,80,80,80],[ 74, 66, 82, 71, 88, 79, 83, 86, 55],[
+        ['Campaign',[50,50,50,50,50,50,50,50,50],[46,41,51,44,55,49,52,54,34]],
+        ['Creative',[30,30,30,30,30,30,30,30,30],[28,25,31,27,33,30,31,32,21]]]],
+      ['Influencer/KOLs',[60,60,60,60,60,60,60,60,60],[ 57, 52, 60, 56, 63, 59, 61, 63, 41],[
+        ['Influencer fee',[60,60,60,60,60,60,60,60,60],[57,52,60,56,63,59,61,63,41]]]]]],
+  ['Retail',    [100,100,100,100,100,100,100,100,100],[ 97,104, 92,111, 88,103, 99,108, 71],[
+      ['Store Fixed cost',[70,70,70,70,70,70,70,70,70],[ 68, 73, 64, 78, 62, 72, 69, 76, 50],[
+        ['Rent',[50,50,50,50,50,50,50,50,50],[49,52,46,56,44,51,49,54,36]],
+        ['Utilities',[20,20,20,20,20,20,20,20,20],[19,21,18,22,18,21,20,22,14]]]],
+      ['Retail ค่าเดินทาง',[30,30,30,30,30,30,30,30,30],[ 29, 31, 28, 33, 26, 31, 30, 32, 21],[
+        ['Travel',[30,30,30,30,30,30,30,30,30],[29,31,28,33,26,31,30,32,21]]]]]],
+  ['R&D',       [ 60, 60, 60, 60, 60, 60, 60, 60, 60],[ 54, 61, 48, 66, 52, 58, 55, 62, 39],[
+      ['Product Dev',[60,60,60,60,60,60,60,60,60],[ 54, 61, 48, 66, 52, 58, 55, 62, 39],[
+        ['Formulation',[35,35,35,35,35,35,35,35,35],[32,36,28,39,30,34,32,36,23]],
+        ['Pilot batch',[25,25,25,25,25,25,25,25,25],[22,25,20,27,22,24,23,26,16]]]]]]
+];
+let drillStyle='full';
+let openRows={};
+// budget for the current month is pro-rated, so a part month is judged fairly
+const budFor=(b,m)=> Math.round(b*partial(m));
+const band=p=> p>100?'cell-over':p>=80?'cell-warn':'cell-ok';
+
+function renderSpend(){
+  const MS=MONTHS.slice(0,NOW+1);
+  let h='<thead><tr><th class="namecol l">Segment</th>';
+  MS.forEach(m=>h+='<th class="mo">'+m+'</th>');
+  h+='<th class="totcol">Budget</th><th class="totcol">Actual</th><th class="totcol">% of revenue</th></tr></thead><tbody>';
+
+  h+='<tr class="rev"><td class="namecol">Revenue actual</td>';
+  MS.forEach((_,m)=>{
+    h+='<td class="mo mocell">'
+     +'<div class="kv"><span class="k">Goal</span><span class="v num">'+fmt(goal(m)*K)+'</span></div>'
+     +'<div class="kv"><span class="k">Actual</span><span class="v num strong">'+fmt(actual(m)*K)+'</span></div>'
+     +'<div class="pcrow"><span>'+(m===NOW?'partial month':'of goal')+'</span><span>'+(m===NOW?'—':Math.round(actual(m)/goal(m)*100)+'%')+'</span></div></td>';
+  });
+  const revYTD=MS.reduce((s2,_,m)=>s2+actual(m),0);
+  h+='<td class="totcol num cell-none">—</td><td class="totcol num">'+fmtK(revYTD*K)+'</td><td class="totcol num cell-none">—</td></tr>';
+
+  const fullCell=(b,a,m)=>{
+    const used=b? a/b*100:null, rev=a/actual(m)*100;
+    return '<td class="mo mocell '+(used===null?'cell-none':band(used))+'">'
+     +'<div class="kv"><span class="k">Budget</span><span class="v num">'+fmt(b*K)+'</span></div>'
+     +'<div class="kv"><span class="k">Actual</span><span class="v num strong">'+fmt(a*K)+'</span></div>'
+     +'<div class="pcrow"><span>used</span><span>'+Math.round(used)+'%</span></div>'
+     +'<div class="pcrow" style="border-top:0;padding-top:0"><span>of rev</span><span>'+rev.toFixed(1)+'%</span></div></td>';
+  };
+  const simpleCell=(b,a,m)=>{
+    const used=b? a/b*100:null;
+    return '<td class="mo mocell '+(used===null?'cell-none':band(used))+'">'
+     +'<span class="simple">'+fmt(a*K)+'</span>'
+     +'<span class="simplesub">'+Math.round(used)+'% of '+fmt(b*K)+'</span></td>';
+  };
+  const totCells=(bud,act)=>{
+    const B=MS.reduce((s2,_,m)=>s2+budFor(bud[m],m),0);
+    const A=act.reduce((s2,v)=>s2+v,0);
+    const V=B-A, U=A/B*100;
+    return '<td class="totcol num">'+fmt(B*K)+'</td>'
+     +'<td class="totcol num"><span class="gval">'+fmt(A*K)+'</span>'
+     +'<span class="pctline" style="color:'+(V<0?'var(--over)':'var(--ok)')+'">'+(V<0?'\u2212':'+')+fmt(Math.abs(V)*K)+' \u00b7 '+Math.round(U)+'%</span></td>'
+     +'<td class="totcol num">'+(A/revYTD*100).toFixed(2)+'%</td>';
+  };
+
+  SEG.forEach((sg,si)=>{
+    const sk='s'+si, sOpen=!!openRows[sk];
+    h+='<tr><td class="namecol"><button class="twist" data-k="'+sk+'">'+(sOpen?'\u25be':'\u25b8')+'</button>'+sg[0]+'</td>';
+    MS.forEach((_,m)=> h+=fullCell(budFor(sg[1][m],m),sg[2][m],m));
+    h+=totCells(sg[1],sg[2])+'</tr>';
+
+    (sg[3]||[]).forEach((c1,ci)=>{
+      const ck=sk+'c'+ci, cOpen=!!openRows[ck];
+      h+='<tr class="kid lv1'+(sOpen?' show':'')+'"><td class="namecol"><button class="twist" data-k="'+ck+'">'+(cOpen?'\u25be':'\u25b8')+'</button>'+c1[0]+'</td>';
+      MS.forEach((_,m)=> h+= drillStyle==='full'? fullCell(budFor(c1[1][m],m),c1[2][m],m) : simpleCell(budFor(c1[1][m],m),c1[2][m],m));
+      h+=totCells(c1[1],c1[2])+'</tr>';
+
+      (c1[3]||[]).forEach(c2=>{
+        h+='<tr class="kid lv2'+(sOpen&&cOpen?' show':'')+'"><td class="namecol">'+c2[0]+'</td>';
+        MS.forEach((_,m)=> h+= drillStyle==='full'? fullCell(budFor(c2[1][m],m),c2[2][m],m) : simpleCell(budFor(c2[1][m],m),c2[2][m],m));
+        h+=totCells(c2[1],c2[2])+'</tr>';
+      });
+    });
+  });
+
+  h+='</tbody><tfoot><tr><td class="namecol">Total</td>';
+  MS.forEach((_,m)=>{
+    const b=SEG.reduce((a2,sg)=>a2+budFor(sg[1][m],m),0);
+    const a=SEG.reduce((a2,sg)=>a2+sg[2][m],0);
+    h+='<td class="mo mocell '+band(a/b*100)+'">'
+     +'<div class="kv"><span class="k">Budget</span><span class="v num">'+fmt(b*K)+'</span></div>'
+     +'<div class="kv"><span class="k">Actual</span><span class="v num strong">'+fmt(a*K)+'</span></div>'
+     +'<div class="pcrow"><span>used</span><span>'+Math.round(a/b*100)+'%</span></div>'
+     +'<div class="pcrow" style="border-top:0;padding-top:0"><span>of rev</span><span>'+(a/actual(m)*100).toFixed(1)+'%</span></div></td>';
+  });
+  const TB=MS.reduce((s2,_,m)=>s2+SEG.reduce((a2,sg)=>a2+budFor(sg[1][m],m),0),0);
+  const TA=SEG.reduce((a2,sg)=>a2+sg[2].reduce((b2,v)=>b2+v,0),0);
+  h+='<td class="totcol num">'+fmt(TB*K)+'</td><td class="totcol num">'+fmt(TA*K)+'</td>'
+   +'<td class="totcol num">'+(TA/revYTD*100).toFixed(2)+'%</td></tr></tfoot>';
+  document.getElementById('sTable').innerHTML=h;
+  document.querySelectorAll('#sTable .twist').forEach(b=>b.addEventListener('click',()=>{
+    openRows[b.dataset.k]=!openRows[b.dataset.k]; renderSpend();
+  }));
+}
+
+document.querySelectorAll('.styletog button').forEach(b=>b.addEventListener('click',()=>{
+  drillStyle=b.dataset.style;
+  document.querySelectorAll('.styletog button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  renderSpend();
+}));
+document.querySelectorAll('.screens button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.screens button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-'+b.dataset.s).classList.add('on');
+}));
+renderBudget(); renderSpend();
+</script>
+</body>
+</html>
