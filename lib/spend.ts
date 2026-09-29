@@ -138,7 +138,23 @@ interface BudgetRow {
   amount: number | string;
 }
 
+// A blank cat_l2 means one of two DIFFERENT things, and the report now says
+// which:
+//
+//   * the cat_l1 has no sub-categories at all in `categories` — the same
+//     table /submit's Category L2 dropdown reads, so the submitter was never
+//     offered one. A third level here is pure duplication: the only child
+//     repeats its parent exactly (฿7,060 under ฿7,060). Those rows are
+//     dropped entirely by pruneSoleBlankChild, and no expand control shows.
+//
+//   * the cat_l1 DOES have sub-categories but this request was filed without
+//     one. That is a real, distinguishable fact — somebody skipped a field —
+//     so the row stays, labelled NO_SUB rather than UNCATEGORIZED.
+//
+// UNCATEGORIZED remains the internal sentinel used while grouping; NO_SUB is
+// what survives to the screen and the CSV.
 const UNCATEGORIZED = "(uncategorized)";
+const NO_SUB = "No sub-category";
 
 function num(value: number | string | null | undefined): number {
   const n = typeof value === "string" ? Number(value) : (value ?? 0);
@@ -362,7 +378,7 @@ function isEmptyCell(cell: SpendCell): boolean {
   );
 }
 
-function finalizeNode(node: MutableNode, months: number[]): SpendNode {
+function finalizeNode(node: MutableNode, months: number[], depth = 0): SpendNode {
   const byMonth: Record<number, SpendCell> = {};
   const total = emptyCell();
   let anyBudget = false;
@@ -379,10 +395,16 @@ function finalizeNode(node: MutableNode, months: number[]): SpendNode {
     if (Math.abs(cell.budget) >= EPSILON) anyBudget = true;
   }
 
-  const children = Array.from(node.children.values())
-    .map((child) => finalizeNode(child, months))
+  const built = Array.from(node.children.values())
+    .map((child) => finalizeNode(child, months, depth + 1))
     // Drop branches that are entirely outside the selected window.
     .filter((child) => Object.keys(child.byMonth).length > 0);
+
+  // ONLY at depth 1 — a cat_l1 node, whose children are sub-categories.
+  // label() blanks department and cat_l1 to the same sentinel, so an unscoped
+  // prune would delete a whole cat_l1's spend from its segment, or a whole
+  // segment, the moment one arrived with a blank name.
+  const children = depth === 1 ? pruneSoleBlankChild(built) : built;
 
   return {
     key: node.key,
@@ -392,6 +414,25 @@ function finalizeNode(node: MutableNode, months: number[]): SpendNode {
     unbudgeted: !anyBudget,
     children: children.length > 0 ? sortNodes(children) : undefined,
   };
+}
+
+/**
+ * Applies the blank-sub-category rule to one node's children.
+ *
+ * Sole blank child  -> [] , so the parent renders with no expand control at
+ *                      all. The child was an exact copy of its parent.
+ * Blank among real  -> kept, renamed to "No sub-category".
+ * No blank          -> untouched.
+ *
+ * Done HERE, in the data layer, rather than in the table component — the CSV
+ * export walks this same tree, and putting the rule in the renderer is how
+ * the file and the screen would come to disagree.
+ */
+function pruneSoleBlankChild(children: SpendNode[]): SpendNode[] {
+  const blanks = children.filter((c) => c.name === UNCATEGORIZED);
+  if (blanks.length === 0) return children;
+  if (blanks.length === children.length) return [];
+  return children.map((c) => (c.name === UNCATEGORIZED ? { ...c, name: NO_SUB } : c));
 }
 
 // Budgeted segments by total actual desc; unbudgeted segments last.

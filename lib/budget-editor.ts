@@ -34,7 +34,20 @@ export interface EditorRow {
 export interface EditorScope {
   departments: string[];
   catL1s: string[];
+  /**
+   * The COMPANIES present in this owner's lines — `categories.bu`, matched
+   * against their bo_scopes.company_scope. NOT the owner's own people.bu:
+   * since migration 039 budget ownership is keyed to the company an expense
+   * is charged to, and 5 of 10 owners hold lines in a company they are not
+   * employed by.
+   */
   bus: string[];
+  /**
+   * The owner's own employer (people.bu), used ONLY to pick a sensible
+   * default for the company filter. Null when they are employed by neither
+   * of the companies in `bus`.
+   */
+  ownerBu: string | null;
   /** Total category lines the owner holds, before any filter. */
   lineCount: number;
 }
@@ -145,10 +158,14 @@ export async function getEditorData(
       a.bu.localeCompare(b.bu),
   );
 
+  const { data: ownerRow } = await admin
+    .from("people").select("bu").eq("email", revision.owner_email).maybeSingle();
+
   const scope: EditorScope = {
     departments: Array.from(new Set(rows.map((r) => r.department))).sort(),
     catL1s: Array.from(new Set(rows.map((r) => r.cat_l1))).sort(),
     bus: Array.from(new Set(rows.map((r) => r.bu))).sort(),
+    ownerBu: (ownerRow?.bu as string | undefined) ?? null,
     lineCount: rows.length,
   };
 

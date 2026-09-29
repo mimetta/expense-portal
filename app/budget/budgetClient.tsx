@@ -142,6 +142,10 @@ export default function BudgetEditorClient({
   const [error, setError] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const [deptFilter, setDeptFilter] = useState<string>("");
+  // The COMPANY filter. Never "" any more — "Both" was removed, so exactly
+  // one company is shown at a time and the revenue goal denominator beneath
+  // is always that one company's. Empty only in the instant before the first
+  // load resolves, since the available companies come from the data.
   const [buFilter, setBuFilter] = useState<string>("");
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -151,7 +155,10 @@ export default function BudgetEditorClient({
   const [selectedOwner, setSelectedOwner] = useState(() => (isAdmin && hasScope ? viewerEmail : ""));
 
   // Revenue goals — the denominator the budget is planned against. Re-fetched
-  // when the BU filter changes, because "Both" means both BUs combined.
+  // when the company filter changes: the goal shown must be that company's
+  // alone. Since "Both" was removed, the denominator is never a combined
+  // figure, so every "of goal" percentage divides a single company's budget
+  // line by that same company's goal.
   const [revenue, setRevenue] = useState<{ tree: RevenueNode; canEdit: boolean; syncedAt: string | null } | null>(null);
   const [addingChannel, setAddingChannel] = useState(false);
 
@@ -213,6 +220,17 @@ export default function BudgetEditorClient({
       // The budget page must still work if goals are unavailable.
     }
   }, [fiscalYear, buFilter]);
+
+  // Default to the owner's own company where they hold lines in it, else the
+  // first they do hold. Re-runs when the owner or year changes, but leaves an
+  // explicit choice alone as long as it is still available.
+  useEffect(() => {
+    const options = data?.scope.bus ?? [];
+    if (options.length === 0) return;
+    if (buFilter && options.includes(buFilter)) return;
+    const own = data?.scope.ownerBu;
+    setBuFilter(own && options.includes(own) ? own : options[0]);
+  }, [data?.scope.bus, data?.scope.ownerBu, buFilter]);
 
   useEffect(() => { void loadRevenue(); }, [loadRevenue]);
 
@@ -665,9 +683,14 @@ export default function BudgetEditorClient({
                 </select>
               </label>
               <label className="block">
-                <span className="mm-label mb-1 block">BU (filter)</span>
+                {/* "Company", not "BU": this filters categories.bu, which is
+                    matched against the owner's bo_scopes.company_scope — the
+                    company an expense is CHARGED TO. It is not the person's
+                    own people.bu, and for 5 of 10 owners the two differ. The
+                    person-level Business unit field in Settings keeps its
+                    name. See migration 039. */}
+                <span className="mm-label mb-1 block">Company</span>
                 <select className="mm-input w-[140px]" value={buFilter} onChange={(e) => setBuFilter(e.target.value)}>
-                  <option value="">Both BUs</option>
                   {data.scope.bus.map((b) => (
                     <option key={b} value={b}>{b}</option>
                   ))}
@@ -697,7 +720,7 @@ export default function BudgetEditorClient({
               }
               foot={
                 goalFyTotal && goalFyTotal > 0
-                  ? `${thb(stats.proposedTotal)} of ${thb(goalFyTotal)}${buFilter ? ` · ${buFilter}` : " · both BUs"}`
+                  ? `${thb(stats.proposedTotal)} of ${thb(goalFyTotal)}${buFilter ? ` · ${buFilter}` : ""}`
                   : "no revenue goal set for this year"
               }
               accent="#9CAE8C"

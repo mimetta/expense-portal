@@ -151,8 +151,11 @@ export default function BudgetGrid({
   const grouped = useMemo(() => group(rows), [rows]);
   const totalWidth = STICKY_W + 12 * MONTH_W + TOTAL_W + (showDelta ? TOTAL_W : 0);
   // The denominator for the share-of-goal line under every budget cell: the
-  // root of the revenue tree, which already respects the BU filter (with
-  // "Both" selected it is the two BUs combined).
+  // root of the revenue tree, fetched with the selected company. Since
+  // "Both" was removed that root is ALWAYS a single company's goal, so a
+  // budget line for company X is divided by X's goal and never by a combined
+  // ONEST+SV figure — which is what made the old percentage misleading for
+  // an owner holding lines in both.
   const goalMonths = revenue?.tree.months ?? null;
 
   const focusCell = useCallback((rowIdx: number, month: number) => {
