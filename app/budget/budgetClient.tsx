@@ -168,10 +168,23 @@ export default function BudgetEditorClient({
   // signal handed to the grid. The nonce lets the same button fire twice.
   const [categoryOrder, setCategoryOrder] = useState<CategoryOrderRow[]>([]);
   const [collapseSignal, setCollapseSignal] = useState<{ collapsed: boolean; nonce: number } | null>(null);
-  const [allCollapsed, setAllCollapsed] = useState(false);
-  // Whether THIS viewer may add/rename/deactivate a revenue channel. Comes
-  // from the server on every load; the button is hidden without it and the
-  // API refuses it regardless — see app/api/revenue/channels/route.ts.
+  // Starts true because groups now load collapsed, so the button offers the
+  // action that is actually available. It can read "Expand all" over an
+  // already-expanded grid if someone's remembered state is fully open; the
+  // button still toggles correctly, and guessing at the stored set here would
+  // duplicate the grid's own hydration logic.
+  const [allCollapsed, setAllCollapsed] = useState(true);
+  // Whether THIS VIEWER may add/rename/deactivate a revenue channel.
+  //
+  // THE VIEWER, DELIBERATELY — not the budget owner on screen. A revenue
+  // channel is company-wide reference data, not part of anyone's budget, so
+  // the permission to create one belongs to the person doing it. Consequences,
+  // both intended:
+  //   * an owner without the toggle, on their own page, sees no button;
+  //   * an admin acting on that owner's behalf DOES see it, because the
+  //     permission is the admin's and the channel is not the owner's.
+  // The second was reported as a bug; it is the rule. The API enforces the
+  // same viewer check regardless — see app/api/revenue/channels/route.ts.
   const [canAddChannel, setCanAddChannel] = useState(false);
 
   const dirtyRef = useRef<Map<string, EditorRow>>(new Map());
