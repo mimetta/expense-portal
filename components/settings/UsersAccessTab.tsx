@@ -44,6 +44,7 @@ const MENU_LABEL: Record<string, string> = {
   "settings.categories": "Settings · Categories", "settings.companies": "Settings · Companies",
   "settings.deptconfig": "Settings · Signature rules", "settings.announcements": "Settings · Announcements",
   "settings.pettycash": "Settings · Petty cash custodians",
+  "revenue.channels": "Revenue channels · add / rename / deactivate",
   "settings.users": "Settings · Users & access", "settings.people": "Settings · Users & access (people)",
   "settings.permissions": "Settings · Users & access (permissions)",
 };

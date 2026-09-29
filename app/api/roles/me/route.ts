@@ -4,7 +4,7 @@ import { handleApiError } from "@/lib/api-helpers";
 // PAGES is exported from lib/permissions.ts and derived from an exhaustive
 // Record<Page, true>, so it can never again drift out of sync with the Page
 // union — a page missing here is invisible in the nav with no error at all.
-import { canAccessPage, PAGES } from "@/lib/permissions";
+import { canAccessPage, PAGES, canManageRevenueChannels } from "@/lib/permissions";
 import { pendingBudgetApprovals } from "@/lib/budget-editor";
 
 export async function GET() {
@@ -30,6 +30,9 @@ export async function GET() {
       },
       access,
       badges,
+      // Non-page permissions the UI needs to hide a control. The server still
+      // enforces each one on write — see app/api/revenue/channels/route.ts.
+      menus: { "revenue.channels": canManageRevenueChannels(user) },
     });
   } catch (err) {
     return handleApiError(err);

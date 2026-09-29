@@ -1,6 +1,6 @@
 import type { CurrentUser, DeptConfigRow, ExpenseRequest, RejectionHistoryEntry, RoleRow } from "@/types/database";
 import type { Role } from "@/lib/constants";
-import { canAccessPageV2, canAccessSettingsTabV2, canManageProductsV2 } from "@/lib/access-v2";
+import { canAccessPageV2, canAccessSettingsTabV2, canManageProductsV2, canOpenMenu } from "@/lib/access-v2";
 // A re-export alone does not bring these into local scope, and this file
 // uses both internally.
 import { scopeMatches, boScopeMatchesRequest } from "@/lib/scope-match";
@@ -229,6 +229,19 @@ export function canAccessSettingsTab(
 // broadly via the Permissions tab would widen this to every DEPT_HEAD
 // regardless of dept_scope, a different, coarser grant than this specific
 // R&D carve-out.
+/**
+ * May add, rename or deactivate a REVENUE CHANNEL.
+ *
+ * A per-person toggle ("revenue.channels" in FREE_MENU_DEFAULTS), off for
+ * everyone by default. SUPERADMIN passes via the unconditional grant inside
+ * canOpenMenu. Falls closed for a CurrentUser built without a `person` —
+ * unreachable through getCurrentUser, and the safe direction regardless.
+ */
+export function canManageRevenueChannels(user: CurrentUser): boolean {
+  if (isSuperadmin(user)) return true;
+  return user.person ? canOpenMenu(user.person, "revenue.channels") : false;
+}
+
 export function canManageProducts(
   user: CurrentUser,
   config: Record<ManagedSettingsTab, Role[]> = DEFAULT_SETTINGS_TAB_ROLES,
