@@ -141,6 +141,7 @@ export default function BudgetEditorClient({
   // not chosen an owner yet is idle, not waiting.
   const [loading, setLoading] = useState(() => (isAdmin ? hasScope : isOwner && hasScope));
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const [deptFilter, setDeptFilter] = useState<string>("");
   // The COMPANY filter. Never "" any more — "Both" was removed, so exactly
@@ -325,6 +326,34 @@ export default function BudgetEditorClient({
     },
     [fiscalYear, loadRevenue],
   );
+
+  // Additive refresh: pulls in categories added since this draft was created.
+  // Never removes a line, never touches a figure — see refreshDraftLines.
+  const onRefreshLines = useCallback(async () => {
+    if (!data?.revision) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/budget/draft/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revisionId: data.revision.id }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Could not refresh the lines");
+      setNotice(
+        d.added === 0
+          ? `No new categories — all ${d.existing} lines are already here.` +
+            (d.stale ? ` ${d.stale} line(s) no longer match an active category; they were left untouched.` : "")
+          : `${d.added} line(s) added.` +
+            (d.stale ? ` ${d.stale} line(s) no longer match an active category; they were left untouched.` : ""),
+      );
+      if (ownerEmail) await load(ownerEmail);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [data?.revision, ownerEmail, load]);
 
   const onToggleChannel = useCallback(
     async (channelId: string, active: boolean) => {
@@ -569,6 +598,15 @@ export default function BudgetEditorClient({
     <div className="space-y-3">
       <PendingApprovalBanner count={pendingApprovals} />
 
+      {notice && (
+        <div
+          className="rounded-[10px] px-4 py-2 text-[13px]"
+          style={{ background: "#F0F4EF", border: "1px solid #9CAE8C", color: "#1F3A2B" }}
+        >
+          {notice}
+        </div>
+      )}
+
       {revenue?.syncedAt && (
         <p className="flex items-center gap-2 text-[12.5px] text-brand-muted">
           <span style={{ width: 7, height: 7, borderRadius: 99, background: "#2E7D52", flex: "none" }} />
@@ -607,6 +645,14 @@ export default function BudgetEditorClient({
             {pill.label}
           </span>
           <SaveIndicator state={save} />
+          <button
+            className="mm-btn-secondary"
+            onClick={() => void onRefreshLines()}
+            disabled={!editable || busy}
+            title="Pull in categories added in Settings since this draft was created. Adds lines only — never removes one and never changes a figure you have entered."
+          >
+            Refresh lines
+          </button>
           <button className="mm-btn-secondary" onClick={() => void flush()} disabled={!editable || busy}>
             Save draft
           </button>

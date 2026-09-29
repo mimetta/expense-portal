@@ -34,7 +34,8 @@ export async function GET() {
         admin.from("person_roles").select("email, role"),
         admin.from("bo_scopes").select("*"),
         admin.from("person_menu_overrides").select("*"),
-        admin.from("categories").select("bu, department, cat_l1"),
+        // active only: a retired category should not be offered as new BO scope.
+        admin.from("categories").select("bu, department, cat_l1").eq("active", true),
       ]);
 
     const reqs: { requester_email: string; timestamp: string; budget_period: string }[] = [];

@@ -18,6 +18,12 @@ export async function GET(request: Request) {
 
     const admin = createAdminClient();
     let query = admin.from("categories").select("*");
+    // Retired categories are hidden by default: this feeds /submit's Segment
+    // and Category pickers, and a deactivated category must stop being
+    // offered. Settings passes includeInactive=1 so it can still manage them.
+    // History is unaffected either way — the spend report never reads this
+    // table. See migration 042.
+    if (searchParams.get("includeInactive") !== "1") query = query.eq("active", true);
     if (bu) query = query.eq("bu", bu);
     if (dept) query = query.eq("department", dept);
 
