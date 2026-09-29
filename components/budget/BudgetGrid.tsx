@@ -106,8 +106,20 @@ function shareOfGoal(amount: number, goal: number | null | undefined): string | 
   return `${pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)}% of goal`;
 }
 
-interface CatGroup { l1: string; lines: { row: EditorRow; index: number }[] }
-interface DeptGroup { dept: string; cats: CatGroup[] }
+interface CatGroup {
+  l1: string;
+  lines: { row: EditorRow; index: number }[];
+  /** Sum of this category's lines per month, and across the year. */
+  months: number[];
+  total: number;
+}
+interface DeptGroup { dept: string; cats: CatGroup[]; months: number[]; total: number }
+
+/** Element-wise sum of equal-length month arrays. */
+function addMonths(target: number[], src: number[]): number[] {
+  for (let m = 0; m < target.length; m++) target[m] += src[m] ?? 0;
+  return target;
+}
 
 /**
  * dept → cat_l1 → cat_l2, nested rather than flat.
@@ -131,11 +143,25 @@ function group(rows: EditorRow[], order: CategoryOrderRow[]): DeptGroup[] {
   });
   return Array.from(byDept.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([dept, cats]) => ({
-      dept,
-      cats: applyCategoryOrder(Array.from(cats.keys()), order, dept)
-        .map((l1) => ({ l1, lines: cats.get(l1)! })),
-    }));
+    .map(([dept, cats]) => {
+      // Group totals are computed HERE, not at render, and are shown whether
+      // the group is open or shut. A row that gains numbers on collapse would
+      // mean something different depending on its state; expanding should add
+      // detail, not change what the row says.
+      const built = applyCategoryOrder(Array.from(cats.keys()), order, dept).map((l1) => {
+        const lines = cats.get(l1)!;
+        const months = lines.reduce(
+          (acc, { row }) => addMonths(acc, row.proposed),
+          new Array(MONTH_NAMES.length).fill(0) as number[],
+        );
+        return { l1, lines, months, total: sum(months) };
+      });
+      const months = built.reduce(
+        (acc, c) => addMonths(acc, c.months),
+        new Array(MONTH_NAMES.length).fill(0) as number[],
+      );
+      return { dept, cats: built, months, total: sum(months) };
+    });
 }
 
 const deptKey = (d: string) => `d:${d}`;
@@ -158,6 +184,27 @@ const lineTitle = (r: EditorRow) =>
   [r.department, r.cat_l1, r.cat_l2?.trim() || null].filter(Boolean).join(" › ") + ` · ${r.bu}`;
 
 const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
+
+/**
+ * A group's month or year figure.
+ *
+ * DELIBERATELY QUIET: 11px, muted, normal weight — the same register as the
+ * "of goal" plan text, NOT the bold of an actual. A group total is context
+ * for the editable cells below it, and must not out-shout them. Zero renders
+ * as an em dash for the same reason it does everywhere else in this app.
+ */
+function GroupTotal({ value, bg }: { value: number; bg: string }) {
+  return (
+    <td
+      className="py-1 text-right tabular-nums"
+      style={{ paddingLeft: 2, paddingRight: GUTTER_W, background: bg }}
+    >
+      <span className="text-[11px] font-normal text-brand-muted">
+        {value ? thb(value) : EM_DASH}
+      </span>
+    </td>
+  );
+}
 const parseNum = (s: string) => {
   const n = parseFloat(String(s).replace(/[^0-9.\-]/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -187,16 +234,39 @@ export default function BudgetGrid({
   // and a newly appearing department or category is open rather than hidden.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const hydrated = useRef(false);
+  // Null until the key has been read. "No stored state" and "stored state that
+  // happens to be empty" are different: the first means collapse everything by
+  // default, the second means someone deliberately expanded it all and that
+  // choice must survive. An empty array cannot tell them apart, so presence of
+  // the key is what is tested.
+  const needsDefault = useRef(false);
 
   useEffect(() => {
-    if (!collapseStorageKey) return;
     hydrated.current = false;
+    needsDefault.current = false;
+    if (!collapseStorageKey) { needsDefault.current = true; hydrated.current = true; return; }
     try {
       const raw = window.localStorage.getItem(collapseStorageKey);
-      setCollapsed(new Set(raw ? (JSON.parse(raw) as string[]) : []));
-    } catch { setCollapsed(new Set()); }
+      if (raw === null) { needsDefault.current = true; setCollapsed(new Set()); }
+      else setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { needsDefault.current = true; setCollapsed(new Set()); }
     hydrated.current = true;
   }, [collapseStorageKey]);
+
+  // DEFAULT: everything shut. Applied once, only when nothing was stored, and
+  // only once rows exist — the groups are not known before then. A remembered
+  // state always wins, because needsDefault is false whenever the key was
+  // present.
+  useEffect(() => {
+    if (!needsDefault.current || grouped.length === 0) return;
+    needsDefault.current = false;
+    const all = new Set<string>();
+    for (const d of grouped) {
+      all.add(deptKey(d.dept));
+      for (const c of d.cats) all.add(catKey(d.dept, c.l1));
+    }
+    setCollapsed(all);
+  }, [grouped]);
 
   useEffect(() => {
     // Only write AFTER the key's own state has been read back, or the first
@@ -414,10 +484,10 @@ export default function BudgetGrid({
             const lineCount = gd.cats.reduce((n, c) => n + c.lines.length, 0);
             const out: React.ReactNode[] = [
               <tr key={`d:${gd.dept}`} style={{ background: "#F5F2EC" }}>
-                <td
-                  colSpan={showDelta ? 15 : 14}
-                  className="sticky left-0 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-brand-dark"
-                  style={{ background: "#F5F2EC" }}
+                <th
+                  scope="row"
+                  className="sticky left-0 z-10 border-r border-brand-border px-3 py-1.5 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-brand-dark"
+                  style={{ width: STICKY_W, minWidth: STICKY_W, background: "#F5F2EC" }}
                 >
                   <button
                     type="button"
@@ -432,7 +502,16 @@ export default function BudgetGrid({
                   <span className="ml-2 text-[10.5px] font-normal normal-case tracking-normal text-brand-muted">
                     {gd.cats.length} categor{gd.cats.length === 1 ? "y" : "ies"} · {lineCount} line{lineCount === 1 ? "" : "s"}
                   </span>
+                </th>
+                {gd.months.map((v, m) => (
+                  <GroupTotal key={m} value={v} bg="#F5F2EC" />
+                ))}
+                <td className="px-3 py-1.5 text-right tabular-nums" style={{ background: "#F5F2EC" }}>
+                  <span className="text-[11px] font-normal text-brand-muted">
+                    {gd.total ? thb(gd.total) : EM_DASH}
+                  </span>
                 </td>
+                {showDelta && <td style={{ background: "#F5F2EC" }} />}
               </tr>,
             ];
             if (!dOpen) return out;
@@ -465,10 +544,10 @@ export default function BudgetGrid({
                     boxShadow: isOver ? "inset 0 2px 0 #BD5A2E" : undefined,
                   }}
                 >
-                  <td
-                    colSpan={showDelta ? 15 : 14}
-                    className="sticky left-0 px-3 py-1 pl-6 text-[12px] font-medium text-brand-muted"
-                    style={{ background: "#FCFBF9" }}
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 border-r border-brand-border px-3 py-1 pl-6 text-left text-[12px] font-medium text-brand-muted"
+                    style={{ width: STICKY_W, minWidth: STICKY_W, background: "#FCFBF9" }}
                   >
                     {!readOnly && onReorderCategories && (
                       <span
@@ -491,7 +570,16 @@ export default function BudgetGrid({
                     <span className="ml-2 text-[10.5px] font-normal text-brand-subtle">
                       {gc.lines.length}
                     </span>
+                  </th>
+                  {gc.months.map((v, m) => (
+                    <GroupTotal key={m} value={v} bg="#FCFBF9" />
+                  ))}
+                  <td className="px-3 py-1 text-right tabular-nums" style={{ background: "#FCFBF9" }}>
+                    <span className="text-[11px] font-normal text-brand-muted">
+                      {gc.total ? thb(gc.total) : EM_DASH}
+                    </span>
                   </td>
+                  {showDelta && <td style={{ background: "#FCFBF9" }} />}
                 </tr>,
               );
               if (!cOpen) continue;

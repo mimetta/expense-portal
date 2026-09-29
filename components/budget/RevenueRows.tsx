@@ -247,6 +247,13 @@ export default function RevenueRows({
             <button
               type="button"
               onClick={onAddChannel}
+              // Whose permission this is, spelled out. A revenue channel is
+              // company-wide — it is not part of the budget owner's data — so
+              // this follows the SIGNED-IN VIEWER, not the owner whose budget
+              // is on screen. An admin acting on someone's behalf therefore
+              // sees it and that person does not, which is correct and has
+              // been mistaken for a bug.
+              title="Add a revenue channel. Channels are company-wide, not this owner's — you see this because YOU hold the Revenue channels permission."
               className="rounded-[5px] border border-dashed border-brand-border px-2 py-0.5 text-[11px] text-brand-muted hover:border-brand-accent hover:text-brand-accent"
             >
               + Add channel
