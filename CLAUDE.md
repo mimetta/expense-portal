@@ -2208,3 +2208,39 @@ BOs unchanged. These shifts are the change working correctly.
 the **frozen `roles` table** and would have given a stale answer. It now reads
 `people`/`person_roles`/`bo_scopes`, excludes inactive people, and keys on
 `use_for_company`.
+
+---
+
+## Outbound API for KC-Dashboard — REVENUE ONLY, and that is a decision
+
+`/api/external/v1/revenue` is the entire surface. Read-only, static key in
+`x-api-key` checked against `KC_DASHBOARD_API_KEY`, 60 req/min, every call logged to
+`external_api_calls` (migration 050, which serves both the log and the rate limit —
+an in-process counter would cap each Vercel lambda separately, i.e. not at all).
+
+**`/budget` and `/spend` were built, then DELETED before first use. Do not add a cost
+endpoint back without re-making the decision.** Three facts force it:
+
+1. KC-Dashboard is open to everyone in the company.
+2. **The key carries no scoping.** There is no per-key or per-department key, and no
+   mechanism to issue one. A holder sees everything any endpoint returns.
+3. The portal restricts cost per person — `lib/spend.ts#scopeFilter` limits a BO to
+   their `bo_scopes` segments, and someone with no budget role never reaches the
+   figures.
+
+So a cost endpoint would publish the full breakdown at `cat_l2` grain, **salary lines
+included**, to every reader of that dashboard — routing around a restriction the portal
+makes deliberately. Revenue differs in kind, not degree: the portal does not restrict it
+per person either, so exposing it withholds nothing.
+
+**What keeps cost data out of KC-Dashboard is that no endpoint returns it — NOT that the
+key is limited.** Deleted rather than disabled, so there is no dormant handler to switch
+back on. The same reasoning is stated in `app/api/external/v1/revenue/route.ts`,
+`lib/external-api.ts` and `docs/external-api.md` — deliberately in all three, because
+someone widening this will likely read only one.
+
+Also here: every revenue goal/actual edit writes `REVENUE_GOAL_UPDATED` /
+`REVENUE_ACTUAL_UPDATED` to `audit_log` with who, channel, year, month and per-cell
+before/after, and `source` distinguishing `manual` from `sheet`. **Only cells that
+actually changed are recorded**, so re-running an import is silent rather than logging
+156 non-events.
