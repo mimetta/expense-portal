@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireSettingsTabRole } from "@/lib/settings-permissions";
+import { DUPLICATE_CATEGORY_MESSAGE, isDuplicateCategory } from "@/lib/category-guard";
 
 // Reference data for the /submit form's cascading BU -> department ->
 // product -> cat_l1 -> cat_l2 pickers. Any signed-in @mimetta.co user can
@@ -26,6 +27,12 @@ export async function GET(request: Request) {
     if (searchParams.get("includeInactive") !== "1") query = query.eq("active", true);
     if (bu) query = query.eq("bu", bu);
     if (dept) query = query.eq("department", dept);
+    // DETERMINISTIC ORDER. Without this, rows arrive in whatever order storage
+    // returns them — which interleaved the same cat_l1 across scattered
+    // positions in Settings and read as duplication. Ordering here rather than
+    // only in the client means every consumer gets the same sequence.
+    query = query
+      .order("bu").order("department").order("cat_l1").order("cat_l2", { nullsFirst: true });
 
     const { data, error } = await query;
     if (error) throw error;
@@ -119,6 +126,14 @@ export async function POST(request: Request) {
       }
 
       const { data, error } = await admin.from("categories").insert(newRows).select();
+      // Bulk import already dedupes against existing rows in application code,
+      // so this only fires if two rows INSIDE one upload collide.
+      if (error && isDuplicateCategory(error)) {
+        return NextResponse.json(
+          { error: `${DUPLICATE_CATEGORY_MESSAGE} Two rows in this file share the same four fields.` },
+          { status: 409 },
+        );
+      }
       if (error) throw error;
       return NextResponse.json(
         { categories: data ?? [], inserted: data?.length ?? 0, skipped: duplicates, invalid },
@@ -130,6 +145,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "bu and department are required" }, { status: 400 });
     }
     const { data, error } = await admin.from("categories").insert(toRow(body)).select().single();
+    // A readable 409 rather than Postgrest's raw 23505 and index name.
+    if (error && isDuplicateCategory(error)) {
+      return NextResponse.json({ error: DUPLICATE_CATEGORY_MESSAGE }, { status: 409 });
+    }
     if (error) throw error;
     return NextResponse.json({ category: data }, { status: 201 });
   } catch (err) {

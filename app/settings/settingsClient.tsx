@@ -852,6 +852,19 @@ function CategoryTab() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [form, setForm] = useState(emptyCategoryForm());
   const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+  // Collapsed keys, so the default is OPEN for anything newly appearing and a
+  // fresh group is never hidden. Same shape the budget grid uses.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const CAT_COLLAPSE_KEY = "mm:settings:categories:collapsed";
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(CAT_COLLAPSE_KEY);
+      // No stored state = collapsed by default; the tree is 344 rows.
+      if (raw !== null) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { /* private mode */ }
+  }, []);
 
   const load = () => {
     setLoading(true);
@@ -879,6 +892,52 @@ function CategoryTab() {
       product: c.product ?? "",
     });
     setModal({ mode: "edit", id: c.id });
+  };
+
+  // company -> department -> cat_l1 -> rows. Built from the API's already
+  // deterministic order, so the tree is stable between loads.
+  const tree = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const match = (c: CategoryRow) =>
+      !needle ||
+      [c.bu, c.department, c.cat_l1, c.cat_l2, c.product]
+        .some((v) => String(v ?? "").toLowerCase().includes(needle));
+    const out: { bu: string; depts: { dept: string; l1s: { l1: string; rows: CategoryRow[] }[] }[] }[] = [];
+    for (const c of categories.filter(match)) {
+      const bu = String(c.bu), dept = String(c.department), l1 = String(c.cat_l1 ?? "—");
+      let b = out.find((x) => x.bu === bu);
+      if (!b) { b = { bu, depts: [] }; out.push(b); }
+      let d = b.depts.find((x) => x.dept === dept);
+      if (!d) { d = { dept, l1s: [] }; b.depts.push(d); }
+      let g = d.l1s.find((x) => x.l1 === l1);
+      if (!g) { g = { l1, rows: [] }; d.l1s.push(g); }
+      g.rows.push(c);
+    }
+    return out;
+  }, [categories, q]);
+
+  const matchCount = useMemo(
+    () => tree.reduce((n, b) => n + b.depts.reduce((m, d) => m + d.l1s.reduce((k, g) => k + g.rows.length, 0), 0), 0),
+    [tree],
+  );
+
+  const toggle = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { window.localStorage.setItem(CAT_COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* private mode */ }
+      return next;
+    });
+
+  const setAll = (collapse: boolean) => {
+    const next = new Set<string>();
+    if (collapse) for (const b of tree) {
+      next.add(`b:${b.bu}`);
+      for (const d of b.depts) { next.add(`d:${b.bu}|${d.dept}`);
+        for (const g of d.l1s) next.add(`l:${b.bu}|${d.dept}|${g.l1}`); }
+    }
+    setCollapsed(next);
+    try { window.localStorage.setItem(CAT_COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* private mode */ }
   };
 
   const describe = (d: { budget_lines: number; request_headers: number; request_items: number }) =>
@@ -982,80 +1041,144 @@ function CategoryTab() {
 
   return (
     <div>
-      <div className="mb-3 flex justify-between">
-        <button onClick={() => setBulkOpen(true)} className={buttonSecondary}>
-          Bulk Import
-        </button>
-        <button onClick={openAdd} className={buttonPrimary}>
-          + Add New Category
-        </button>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          className={`${inputClass} w-[280px]`}
+          placeholder="Search company, segment, category, product"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <span className="text-[12px] text-brand-muted">
+          {matchCount} of {categories.length} rows
+        </span>
+        <button onClick={() => setAll(true)} className={`${buttonSecondary} ml-auto`}>Collapse all</button>
+        <button onClick={() => setAll(false)} className={buttonSecondary}>Expand all</button>
+        <button onClick={() => setBulkOpen(true)} className={buttonSecondary}>Bulk Import</button>
+        <button onClick={openAdd} className={buttonPrimary}>+ Add New Category</button>
       </div>
 
       {loading ? (
         <p className="text-sm text-brand-muted">Loading...</p>
       ) : categories.length === 0 ? (
         <p className="text-sm text-brand-muted">No categories yet.</p>
+      ) : matchCount === 0 ? (
+        <p className="text-sm text-brand-muted">Nothing matches “{q}”.</p>
       ) : (
-        <div className="mm-table-wrap">
-          <table className="mm-table">
-            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
-              <tr>
-                <th className="px-3 py-2">BU</th>
-                <th className="px-3 py-2">Segment</th>
-                <th className="px-3 py-2">Cat L1</th>
-                <th className="px-3 py-2">Cat L2</th>
-                <th className="px-3 py-2">Product</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((c) => {
-                const retired = (c as { active?: boolean }).active === false;
-                return (
-                <tr key={c.id} style={retired ? { opacity: 0.55 } : undefined}>
-                  <td className="px-3 py-2">{c.bu}</td>
-                  <td className="px-3 py-2">{c.department}</td>
-                  <td className="px-3 py-2">
-                    {c.cat_l1 ?? "-"}
-                    {retired && (
-                      <span
-                        className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                        style={{ background: "#F3F4F6", color: "#6B7280", border: "1px solid #D8CBB0" }}
+        /* GROUPED: company > department > cat_l1 > sub-categories. It was a
+           flat list of every row in storage order, so one cat_l1 appeared at
+           scattered positions and read as duplication — each row is in fact a
+           distinct (company, department, cat_l1, cat_l2). */
+        <div className="mm-table-wrap divide-y divide-brand-border">
+          {tree.map((b) => {
+            const bKey = `b:${b.bu}`;
+            const bOpen = !collapsed.has(bKey);
+            const bRows = b.depts.reduce((n, d) => n + d.l1s.reduce((m, g) => m + g.rows.length, 0), 0);
+            return (
+              <div key={bKey}>
+                <button
+                  type="button"
+                  onClick={() => toggle(bKey)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-brand-dark"
+                  style={{ background: "#F5F2EC" }}
+                >
+                  <span className="w-3 text-[10px] text-brand-muted">{bOpen ? "▾" : "▸"}</span>
+                  {b.bu}
+                  <span className="text-[10.5px] font-normal normal-case tracking-normal text-brand-muted">
+                    {b.depts.length} segment{b.depts.length === 1 ? "" : "s"} · {bRows} row{bRows === 1 ? "" : "s"}
+                  </span>
+                </button>
+
+                {bOpen && b.depts.map((d) => {
+                  const dKey = `d:${b.bu}|${d.dept}`;
+                  const dOpen = !collapsed.has(dKey);
+                  const dRows = d.l1s.reduce((m, g) => m + g.rows.length, 0);
+                  return (
+                    <div key={dKey}>
+                      <button
+                        type="button"
+                        onClick={() => toggle(dKey)}
+                        className="flex w-full items-center gap-2 py-1.5 pl-6 pr-3 text-left text-[12.5px] font-medium text-brand-dark"
+                        style={{ background: "#FCFBF9" }}
                       >
-                        retired
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">{c.cat_l2 ?? "-"}</td>
-                  <td className="px-3 py-2">{c.product ?? "-"}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => openEdit(c)} className="mr-3 text-brand-brown hover:underline">
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => void setActive(c.id, retired)}
-                      disabled={busy}
-                      className="mr-3 text-brand-muted hover:underline"
-                      title={retired
-                        ? "Offer this category again on the submit form and in new budgets"
-                        : "Stop offering it on the submit form, in the BO scope picker and in new budget drafts. History is untouched and still shows in the spend report."}
-                    >
-                      {retired ? "Reactivate" : "Deactivate"}
-                    </button>
-                    <button
-                      onClick={() => remove(c.id)}
-                      disabled={busy}
-                      className="font-medium text-[#DC2626] hover:underline"
-                      title="Only possible when nothing references this category"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        <span className="w-3 text-[10px] text-brand-muted">{dOpen ? "▾" : "▸"}</span>
+                        {d.dept}
+                        <span className="text-[10.5px] font-normal text-brand-muted">
+                          {d.l1s.length} categor{d.l1s.length === 1 ? "y" : "ies"} · {dRows} row{dRows === 1 ? "" : "s"}
+                        </span>
+                      </button>
+
+                      {dOpen && d.l1s.map((g) => {
+                        const lKey = `l:${b.bu}|${d.dept}|${g.l1}`;
+                        const lOpen = !collapsed.has(lKey);
+                        return (
+                          <div key={lKey}>
+                            <button
+                              type="button"
+                              onClick={() => toggle(lKey)}
+                              className="flex w-full items-center gap-2 py-1.5 pl-12 pr-3 text-left text-[12.5px] text-brand-dark"
+                            >
+                              <span className="w-3 text-[10px] text-brand-muted">{lOpen ? "▾" : "▸"}</span>
+                              {g.l1}
+                              <span className="text-[10.5px] text-brand-subtle">{g.rows.length}</span>
+                            </button>
+
+                            {lOpen && (
+                              <table className="mm-table w-full">
+                                <tbody>
+                                  {g.rows.map((c) => {
+                                    const retired = (c as { active?: boolean }).active === false;
+                                    return (
+                                      <tr key={c.id} style={retired ? { opacity: 0.55 } : undefined}>
+                                        <td className="py-1.5 pl-20 pr-3 text-[13px]">
+                                          {c.cat_l2?.trim() ? c.cat_l2 : <span className="text-brand-subtle">(no sub-category)</span>}
+                                          {retired && (
+                                            <span
+                                              className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                                              style={{ background: "#F3F4F6", color: "#6B7280", border: "1px solid #D8CBB0" }}
+                                            >
+                                              retired
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-[12px] text-brand-muted">{c.product ?? ""}</td>
+                                        <td className="px-3 py-1.5 text-right">
+                                          <button onClick={() => openEdit(c)} className="mr-3 text-brand-brown hover:underline">
+                                            Edit
+                                          </button>
+                                          <button
+                                            onClick={() => void setActive(c.id, retired)}
+                                            disabled={busy}
+                                            className="mr-3 text-brand-muted hover:underline"
+                                            title={retired
+                                              ? "Offer this category again on the submit form and in new budgets"
+                                              : "Stop offering it on the submit form, in the BO scope picker and in new budget drafts. History is untouched and still shows in the spend report."}
+                                          >
+                                            {retired ? "Reactivate" : "Deactivate"}
+                                          </button>
+                                          <button
+                                            onClick={() => remove(c.id)}
+                                            disabled={busy}
+                                            className="font-medium text-[#DC2626] hover:underline"
+                                            title="Only possible when nothing references this category"
+                                          >
+                                            Delete
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
 
