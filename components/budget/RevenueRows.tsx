@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MONTH_NAMES, thb, EM_DASH, isCurrentMonth } from "@/components/spend/format";
+import { MONTH_NAMES, EM_DASH, isCurrentMonth } from "@/components/spend/format";
 import { GoalActualCell } from "@/components/spend/cells";
 import type { RevenueNode } from "@/lib/revenue-goals";
 
@@ -95,6 +95,20 @@ export default function RevenueRows({
         const hasKids = n.children.length > 0;
         const rowTotal = n.months.reduce<number | null>(
           (s, v) => (v === null ? s : (s ?? 0) + v),
+          null,
+        );
+        // Null stays null all the way up: a year total is null only when every
+        // month is null, the same rule the month cells follow. A year with one
+        // known month is that month, not that month plus eleven zeroes.
+        const rowActual = n.actuals.reduce<number | null>(
+          (s, v) => (v === null ? s : (s ?? 0) + v),
+          null,
+        );
+        // The goal for exactly the months an actual exists for. See
+        // GoalActualCell's goalToDate: without it a year that is 8 months old
+        // reports ~66% and reads as missing the target.
+        const goalToDate = n.actuals.reduce<number | null>(
+          (s, v, m) => (v === null ? s : (s ?? 0) + (n.months[m] ?? 0)),
           null,
         );
         return (
@@ -227,10 +241,20 @@ export default function RevenueRows({
               );
             })}
 
-            <td className="px-3 py-1.5 text-right tabular-nums">
-              <span className={`text-[12.5px] ${isTotal ? "font-semibold text-brand-dark" : "text-brand-muted"}`}>
-                {rowTotal === null ? EM_DASH : thb(rowTotal)}
-              </span>
+            {/* Goal AND actual for the year, in the same shape as a month
+                cell, so the eye reads the total the way it reads the months
+                rather than switching conventions at the last column. */}
+            <td
+              className="px-3 py-1.5 text-right align-top"
+              title={
+                rowActual === null
+                  ? "No actual known yet for any month this year"
+                  : goalToDate !== rowTotal
+                    ? "Actual is year-to-date; the percentage divides by the goal for those months only"
+                    : undefined
+              }
+            >
+              <GoalActualCell goal={rowTotal} actual={rowActual} goalToDate={goalToDate} />
             </td>
             {showDelta && <td />}
           </tr>
