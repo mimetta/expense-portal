@@ -1,22 +1,47 @@
 # Outbound API — KC-Dashboard
 
-Read-only feed of revenue, approved budget and actual spend. Versioned at
+Read-only feed of **revenue goals and actuals**. Nothing else. Versioned at
 `/api/external/v1/`.
+
+---
+
+## Cost figures are deliberately not here — read this before adding any
+
+This API carried `/budget` and `/spend` during development. **Both were deleted before first
+use**, and the reason needs to survive the deletion:
+
+- KC-Dashboard is **open to everyone in the company**.
+- A key carries **no scoping** (next section), so every reader of that dashboard would get the
+  full cost breakdown at `cat_l2` grain — **salary lines included**.
+- The portal restricts exactly that per person. `lib/spend.ts#scopeFilter` limits a budget owner
+  to the segments in their `bo_scopes` rows, and someone with no budget role never reaches the
+  figures. Publishing costs through an unscoped key would route around a restriction the portal
+  makes on purpose.
+
+**Revenue differs in kind, not just in degree.** It is a company top line that the portal does
+not restrict per person either, so exposing it withholds nothing the portal itself protects.
+
+If a cost figure is wanted downstream later, that is a **new decision about who may see
+salary-bearing detail**, and it needs per-key scoping built first. It is not a matter of
+restoring a deleted file. The same paragraph is in
+`app/api/external/v1/revenue/route.ts`'s header.
 
 ---
 
 ## The key carries no scoping — read this first
 
-Inside the portal, who sees which budget and spend figures is decided **per person**: a budget
-owner sees the segments in their `bo_scopes` rows, an employee sees the departments on their
-`people` row, and `lib/spend.ts#scopeFilter` enforces it on every read.
+Inside the portal, who sees which figures is decided **per person**: a budget owner sees the
+segments in their `bo_scopes` rows, an employee sees the departments on their `people` row, and
+`lib/spend.ts#scopeFilter` enforces it on every read.
 
-**None of that applies to this API.** A caller holding the key sees **every company, every
-department, every category, for any fiscal year**. There is no per-key scope, no per-department
-key, and no way to issue a narrower one without building that mechanism first.
+**None of that applies to this API.** A caller holding the key sees **everything this API
+exposes, for any company and any fiscal year**. There is no per-key scope, no per-department key,
+and no way to issue a narrower one without building that mechanism first.
 
-Treat the key as equivalent to **full finance-wide read access**, and do not assume the portal's
-permission model constrains anything downstream of it.
+That is the whole reason the surface is limited to revenue (previous section). Do not assume the
+portal's permission model constrains anything downstream of this key — it constrains nothing.
+What keeps restricted data out of KC-Dashboard is that **no endpoint returns it**, not that the
+key is limited.
 
 ---
 
@@ -60,17 +85,18 @@ query string, and the forwarded IP where present. The key label identifies *whic
 ## What is never returned
 
 No requester emails, no descriptions, no supplier names, no request IDs, no budget-owner emails —
-**aggregate figures only**.
+**aggregate figures only**. And no cost figures at all, per the first section.
 
-This is structural, not a filter. `/budget` and `/spend` read pre-aggregated views
-(`v_budget_current`, `v_spend_by_segment_month`) in which the identifying columns are not
-present. `v_budget_current` does carry `owner_email`; it is deliberately not selected.
+This is structural, not a filter. The one endpoint reads `revenue_channels` and `revenue_goals`,
+neither of which carries a person: a channel is a sales route, and a goal row is a figure against
+a channel, month and year.
 
 ---
 
 ## Endpoints
 
-All take `fiscal_year` (required) and `company` (optional — `ONEST` or `SV`; omit for both).
+There is **one**, and it is `GET`. It takes `fiscal_year` (required) and `company` (optional —
+`ONEST` or `SV`; omit for both).
 
 ### `GET /api/external/v1/revenue`
 
@@ -111,62 +137,14 @@ nothing in a month nobody has lived through. Do not coalesce it to zero downstre
 built on it would be wrong. `actual_source` is `"sheet"` (imported) or `"manual"` (typed by a
 CEO/admin), or `null` when no actual exists.
 
-### `GET /api/external/v1/budget`
+### Endpoints that do not exist
 
-**Approved** budget per company / department / cat_l1 / cat_l2 per month.
+`/api/external/v1/budget` and `/api/external/v1/spend` return **404**. They are absent, not
+disabled — see the first section for why, and do not re-add them without making that decision
+again.
 
-```
-GET /api/external/v1/budget?fiscal_year=2026
-```
-
-```jsonc
-{
-  "version": "v1", "fiscal_year": 2026, "company": "ALL",
-  "currency": "THB", "status": "APPROVED",
-  "total": 0,
-  "lines": [
-    {
-      "company": "ONEST", "department": "Retail",
-      "cat_l1": "Utilities", "cat_l2": "Water",
-      "months": [{ "month": 1, "amount": 0 } /* … 12 */],
-      "total": 0
-    }
-  ]
-}
-```
-
-**A draft or submitted revision can never appear.** This reads `v_budget_current`, whose
-definition carries `where r.status = 'APPROVED'` — the guarantee is in SQL, not in a filter here
-that a later edit could drop. `cat_l2` is `null` where the category has no second level.
-
-### `GET /api/external/v1/spend`
-
-Actual spend at the same grain.
-
-```
-GET /api/external/v1/spend?fiscal_year=2026&basis=approved
-```
-
-`basis` is `approved` (default) or `paid`. The response states which was used **and the statuses
-behind it**, because the two differ by real money and a dashboard that silently picks one
-misreports:
-
-```jsonc
-{
-  "version": "v1", "fiscal_year": 2026, "company": "ALL",
-  "currency": "THB",
-  "basis": "approved",
-  "basis_statuses": ["CEO_APPROVED", "PAID"],
-  "note": "company is the company the expense is charged to (use_for_company), not the filing business unit.",
-  "total": 0,
-  "lines": [ /* same shape as /budget */ ]
-}
-```
-
-**`company` means the company the expense is charged to** (`use_for_company`), which is what
-budget ownership keys on since migration 039 — not the business unit the request was filed
-under. 24% of requests differ between the two, so this matters when reconciling against another
-source.
+Any verb other than `GET` on the revenue endpoint returns **405**: the route file exports `GET`
+and nothing else, so there is no write handler to switch off.
 
 ---
 
