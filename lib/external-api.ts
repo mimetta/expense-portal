@@ -7,18 +7,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // ===========================================================================
 // THE KEY CARRIES NO SCOPING. THIS IS THE MOST IMPORTANT FACT ABOUT IT.
 // ===========================================================================
-// Inside the portal, who sees which budget and spend figures is decided per
-// person — a BO sees the segments in their bo_scopes rows, an employee sees
-// the departments on their people row, and lib/spend.ts#scopeFilter enforces
-// it on every read.
+// Inside the portal, who sees which figures is decided per person — a BO sees
+// the segments in their bo_scopes rows, an employee sees the departments on
+// their people row, and lib/spend.ts#scopeFilter enforces it on every read.
 //
-// NONE OF THAT APPLIES HERE. A caller holding the key sees EVERY company,
-// EVERY department and EVERY category, for any fiscal year. There is no
-// per-key scope, no per-department key, and no way to issue a narrower one
-// without building that mechanism first.
+// NONE OF THAT APPLIES HERE. A caller holding the key sees everything this
+// API exposes, for every company and any fiscal year. There is no per-key
+// scope, no per-department key, and no way to issue a narrower one without
+// building that mechanism first.
 //
-// Treat the key as equivalent to full finance-wide read access, and do not
-// assume the portal's permission model constrains anything downstream of it.
+// WHICH IS WHY THE SURFACE IS REVENUE ONLY. /budget and /spend were deleted
+// before first use: KC-Dashboard is open to the whole company, so an unscoped
+// key would publish cost detail at cat_l2 grain, salary lines included, that
+// the portal restricts per person. What keeps that data out of the dashboard
+// is that no endpoint returns it — NOT that the key is limited. Adding a cost
+// endpoint here re-opens a decision that was deliberately closed; see
+// app/api/external/v1/revenue/route.ts and docs/external-api.md.
 // ===========================================================================
 
 export const API_VERSION = "v1";

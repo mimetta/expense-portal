@@ -13,6 +13,27 @@ import { authenticateExternal, readParams, envelope, fetchAll } from "@/lib/exte
 // downstream of this key is constrained by them.
 // ===========================================================================
 //
+// ===========================================================================
+// REVENUE IS THE ONLY THING THIS API EXPOSES. DO NOT ADD COST ENDPOINTS.
+// ===========================================================================
+// /budget and /spend existed here and were DELETED before first use, on
+// purpose. KC-Dashboard is open to everyone in the company, and a key carries
+// no scoping (above) — so a cost endpoint would hand every reader of that
+// dashboard the full cost breakdown at cat_l2 grain, salary lines included.
+// The portal restricts exactly that per person: lib/spend.ts#scopeFilter
+// limits a BO to their bo_scopes segments, and a person without a budget role
+// does not reach the figures at all.
+//
+// Revenue is different in kind, not merely in sensitivity: it is a company
+// top line with no per-person restriction inside the portal either, so
+// publishing it withholds nothing that the portal itself protects.
+//
+// If a cost figure is ever wanted downstream, that is a NEW DECISION about who
+// may see salary-bearing detail, and it needs per-key scoping built first —
+// it is not a matter of restoring a deleted file. Read this paragraph before
+// adding one back, and docs/external-api.md, which says the same.
+// ===========================================================================
+//
 // ONLY GET IS EXPORTED. There is no write path in this file to disable — the
 // other verbs are absent, so Next.js answers them 405.
 //
