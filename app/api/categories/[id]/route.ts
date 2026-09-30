@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
 import { requireSettingsTabRole } from "@/lib/settings-permissions";
 import { logAudit } from "@/lib/audit";
-import { categoryDependencies, renameCategory, totalDependants } from "@/lib/category-guard";
+import { categoryDependencies, renameCategory, totalDependants, DUPLICATE_CATEGORY_MESSAGE, isDuplicateCategory } from "@/lib/category-guard";
 
 interface UpdateCategoryBody {
   bu?: string;
@@ -137,9 +137,17 @@ export async function PATCH(
     // --- anything else (bu, product) --------------------------------------
     const { data, error } = await admin
       .from("categories").update(body).eq("id", id).select().single();
+    if (error && isDuplicateCategory(error)) {
+      return NextResponse.json({ error: DUPLICATE_CATEGORY_MESSAGE }, { status: 409 });
+    }
     if (error) throw error;
     return NextResponse.json({ category: data });
   } catch (err) {
+    // A rename can also collide — renameCategory writes through the SQL
+    // function, so its 23505 arrives here rather than at the update above.
+    if (isDuplicateCategory(err)) {
+      return NextResponse.json({ error: DUPLICATE_CATEGORY_MESSAGE }, { status: 409 });
+    }
     return handleApiError(err);
   }
 }

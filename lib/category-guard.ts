@@ -38,6 +38,20 @@ export async function categoryDependencies(
   return data as CategoryDependencies;
 }
 
+/**
+ * Turns the unique-index violation from migration 048 into something a person
+ * can act on. Postgrest surfaces 23505 with the raw index name, which tells an
+ * admin nothing about what they did wrong.
+ */
+export const DUPLICATE_CATEGORY_MESSAGE =
+  "That category already exists — there is already a row for this company, department, Category L1 and Category L2. " +
+  "Edit the existing one instead, or change one of the four fields.";
+
+export function isDuplicateCategory(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  return !!e && (e.code === "23505" || /categories_coordinate_uniq/.test(e.message ?? ""));
+}
+
 export interface RenameResult {
   categories: number;
   budget_lines: number;
