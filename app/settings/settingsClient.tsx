@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RequiredMark from "@/components/shared/RequiredMark";
 import UsersAccessTab from "@/components/settings/UsersAccessTab";
@@ -858,12 +858,18 @@ function CategoryTab() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const CAT_COLLAPSE_KEY = "mm:settings:categories:collapsed";
 
+  // Null until the key has been read. "Nothing stored" and "stored but empty"
+  // are different: the first means collapse everything, the second means
+  // someone deliberately expanded it all. An empty array cannot tell them
+  // apart, so PRESENCE of the key is what is tested — same reasoning as the
+  // budget grid.
+  const needsDefault = useRef(false);
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(CAT_COLLAPSE_KEY);
-      // No stored state = collapsed by default; the tree is 344 rows.
-      if (raw !== null) setCollapsed(new Set(JSON.parse(raw) as string[]));
-    } catch { /* private mode */ }
+      if (raw === null) needsDefault.current = true;
+      else setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { needsDefault.current = true; }
   }, []);
 
   const load = () => {
@@ -915,6 +921,19 @@ function CategoryTab() {
     }
     return out;
   }, [categories, q]);
+
+  // Collapsed by default, applied once, and only after the rows exist — the
+  // groups are not known before then. A remembered state always wins.
+  useEffect(() => {
+    if (!needsDefault.current || categories.length === 0) return;
+    needsDefault.current = false;
+    const all = new Set<string>();
+    for (const c of categories) {
+      const bu = String(c.bu), dept = String(c.department), l1 = String(c.cat_l1 ?? "—");
+      all.add(`b:${bu}`); all.add(`d:${bu}|${dept}`); all.add(`l:${bu}|${dept}|${l1}`);
+    }
+    setCollapsed(all);
+  }, [categories]);
 
   const matchCount = useMemo(
     () => tree.reduce((n, b) => n + b.depts.reduce((m, d) => m + d.l1s.reduce((k, g) => k + g.rows.length, 0), 0), 0),
