@@ -211,6 +211,49 @@ export async function getRevenueTree(
   };
 }
 
+
+/**
+ * Reads the CURRENT goal/actual for the cells a save is about to touch, so the
+ * audit row can carry a real before value rather than "we wrote something".
+ *
+ * Keyed `${channel_id}:${month}`. Absent = the row does not exist yet.
+ */
+async function readBefore(
+  fiscalYear: number,
+  entries: { channelId: string; month: number }[],
+): Promise<Map<string, { amount: number | null; actual: number | null }>> {
+  const admin = createAdminClient();
+  const ids = Array.from(new Set(entries.map((e) => e.channelId)));
+  const out = new Map<string, { amount: number | null; actual: number | null }>();
+  if (ids.length === 0) return out;
+  const { data, error } = await admin
+    .from("revenue_goals")
+    .select("channel_id, month, amount, actual_amount")
+    .eq("fiscal_year", fiscalYear)
+    .in("channel_id", ids);
+  if (error) throw error;
+  for (const r of data ?? []) {
+    out.set(`${r.channel_id}:${r.month}`, {
+      amount: r.amount == null ? null : Number(r.amount),
+      actual: r.actual_amount == null ? null : Number(r.actual_amount),
+    });
+  }
+  return out;
+}
+
+/** Channel id -> a readable name, so the audit row is legible without a join. */
+async function channelNames(ids: string[]): Promise<Map<string, string>> {
+  const admin = createAdminClient();
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const { data } = await admin
+    .from("revenue_channels").select("id, bu, category, sub_category, channel").in("id", ids);
+  for (const c of data ?? []) {
+    out.set(c.id as string, `${c.bu} · ${c.category} · ${c.sub_category} · ${c.channel}`);
+  }
+  return out;
+}
+
 export interface GoalEntry {
   channelId: string;
   month: number;
@@ -245,6 +288,7 @@ export async function saveRevenueGoals(
   const bad = entries.filter((e) => !known.has(e.channelId));
   if (bad.length > 0) throw new ForbiddenError(`${bad.length} goal(s) name an unknown channel.`);
 
+  const before = await readBefore(fiscalYear, entries);
   const toWrite = entries.filter((e) => e.amount !== null);
   const toClear = entries.filter((e) => e.amount === null);
 
@@ -272,11 +316,43 @@ export async function saveRevenueGoals(
     if (error) throw error;
   }
 
-  await logAudit(viewer.email, null, "REVENUE_GOALS_SAVED", {
-    fiscal_year: fiscalYear,
-    written: toWrite.length,
-    cleared: toClear.length,
-  });
+  // One audit row per SAVE, listing every cell that actually moved.
+  //
+  // Per-cell rows were the other option and are worse here: the sheet import
+  // sends all 156 cells of a year in one call, most of them unchanged, so
+  // per-cell would bury a real edit under 150 no-ops. This keeps the
+  // who/channel/year/month/before/after of PERSON_ACCESS_UPDATED, as a list.
+  //
+  // UNCHANGED CELLS ARE NOT RECORDED, so re-running the same import is
+  // correctly silent rather than logging 156 non-events.
+  const goalChanges = entries
+    .map((e) => {
+      const b = before.get(`${e.channelId}:${e.month}`);
+      const from = b?.amount ?? null;
+      const to = e.amount;
+      return { channelId: e.channelId, month: e.month, from, to };
+    })
+    .filter((c) => c.from !== c.to);
+
+  if (goalChanges.length > 0) {
+    const names = await channelNames(goalChanges.map((c) => c.channelId));
+    await logAudit(viewer.email, null, "REVENUE_GOAL_UPDATED", {
+      fiscal_year: fiscalYear,
+      // Goals are only ever hand-entered today; there is no goal importer.
+      // Recorded explicitly so it stays distinguishable if one is ever added.
+      source: "manual",
+      changed: goalChanges.length,
+      written: toWrite.length,
+      cleared: toClear.length,
+      changes: goalChanges.map((c) => ({
+        channel_id: c.channelId,
+        channel: names.get(c.channelId) ?? null,
+        month: c.month,
+        before: c.from,
+        after: c.to,
+      })),
+    });
+  }
   return { written: toWrite.length, cleared: toClear.length };
 }
 
@@ -313,6 +389,7 @@ export async function saveRevenueActuals(
   if (bad.length > 0) throw new ForbiddenError(`${bad.length} actual(s) name an unknown channel.`);
 
   const now = new Date().toISOString();
+  const before = await readBefore(fiscalYear, entries);
   const toWrite = entries.filter((e) => e.actual !== null);
   const toClear = entries.filter((e) => e.actual === null);
 
@@ -344,9 +421,33 @@ export async function saveRevenueActuals(
     if (error) throw error;
   }
 
-  await logAudit(viewer.email, null, "REVENUE_ACTUALS_SAVED", {
-    fiscal_year: fiscalYear, written: toWrite.length, cleared: toClear.length, source,
-  });
+  // Same shape as the goal audit above, and `source` is what separates a
+  // hand-typed correction from the sheet import — the two are otherwise
+  // indistinguishable in the log, and only one of them is somebody's opinion.
+  const actualChanges = entries
+    .map((e) => {
+      const b = before.get(`${e.channelId}:${e.month}`);
+      return { channelId: e.channelId, month: e.month, from: b?.actual ?? null, to: e.actual };
+    })
+    .filter((c) => c.from !== c.to);
+
+  if (actualChanges.length > 0) {
+    const names = await channelNames(actualChanges.map((c) => c.channelId));
+    await logAudit(viewer.email, null, "REVENUE_ACTUAL_UPDATED", {
+      fiscal_year: fiscalYear,
+      source,
+      changed: actualChanges.length,
+      written: toWrite.length,
+      cleared: toClear.length,
+      changes: actualChanges.map((c) => ({
+        channel_id: c.channelId,
+        channel: names.get(c.channelId) ?? null,
+        month: c.month,
+        before: c.from,
+        after: c.to,
+      })),
+    });
+  }
   return { written: toWrite.length, cleared: toClear.length };
 }
 
