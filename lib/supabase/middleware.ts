@@ -36,11 +36,21 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // /api/cron/* is invoked directly by Vercel Cron (no user session) — those
-  // routes authenticate via a CRON_SECRET bearer token themselves instead.
+  // Two route families carry no user session and authenticate themselves:
+  //
+  //   /api/cron/*        — invoked by Vercel Cron, checks a CRON_SECRET bearer.
+  //   /api/external/v1/* — the outbound read-only API, checks the x-api-key
+  //                        header (lib/external-api.ts).
+  //
+  // Without this exemption the session check below 307s them to /login, and a
+  // machine caller gets an HTML redirect instead of its JSON — which is
+  // exactly what happened on the first deploy of the external API. Exempting
+  // them does NOT make them public: each refuses on its own credential, and
+  // the external one fails closed when its env var is unset.
   const isPublicPath =
     PUBLIC_PATHS.includes(request.nextUrl.pathname) ||
-    request.nextUrl.pathname.startsWith("/api/cron");
+    request.nextUrl.pathname.startsWith("/api/cron") ||
+    request.nextUrl.pathname.startsWith("/api/external/");
 
   if (!isPublicPath && (!user || !isAllowedDomain(user.email))) {
     const loginUrl = new URL("/login", request.url);
