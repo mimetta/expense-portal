@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Branch budget & spend — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--forest:#1F3A2B;--terracotta:#BD5A2E;--cream:#FAF8F4;--sand:#D8CBB0;--ink:#1B1B18;--muted:#6B6B60;
+        --ok:#2E7D52;--warn:#C99A2E;--over:#B23A2F;--ok-t:#1E5537;--over-t:#8E2A21;--radius:8px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums}
+  .wrap{max-width:1420px;margin:0 auto;padding:20px 20px 60px}
+  h1{font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+  .screens{display:flex;margin-bottom:18px;border:1px dashed var(--sand);border-radius:var(--radius);overflow:hidden;background:#FFFDF7}
+  .screens button{flex:1;border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:11px 14px;cursor:pointer;border-left:1px dashed var(--sand)}
+  .screens button:first-child{border-left:0}
+  .screens button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .screens-hint{font-size:11px;color:var(--muted);padding:6px 12px 0;letter-spacing:.04em;text-transform:uppercase}
+  .btn{border:1px solid var(--sand);background:#fff;color:var(--ink);padding:7px 13px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer;font-size:13px}
+  .btn:hover{border-color:var(--forest)}
+  select{font:inherit;padding:7px 11px;border:1px solid var(--sand);border-radius:var(--radius);background:#fff;color:var(--ink)}
+  .bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .spacer{flex:1}
+
+  .branchbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid var(--sand);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px}
+  .branchbar .lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-right:4px}
+  .bchip{border:1px solid var(--sand);background:#fff;border-radius:99px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--ink)}
+  .bchip[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:#fff}
+  .bchip.all{font-weight:500}
+  .bchip.closed{color:#B9B4A7;border-style:dashed}
+  .bchip.none{border-color:#EBD3C4;color:var(--terracotta)}
+  .bdot{display:inline-block;width:5px;height:5px;border-radius:99px;background:var(--terracotta);margin-left:5px;vertical-align:1px}
+
+  .banner{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;line-height:1.5}
+  .banner.info{background:#F6F3EC;border:1px solid var(--sand)}
+  .banner.warn{background:#FBF2EC;border:1px solid #EBD3C4;color:#7A3A18}
+
+  .tbl-scroll{overflow:auto;max-height:62vh;background:#fff;border:1px solid var(--sand);border-radius:var(--radius)}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  th{text-align:right;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 10px;background:#FDFCFA;white-space:nowrap;position:sticky;top:0;z-index:5;box-shadow:inset 0 -1px 0 var(--sand)}
+  th.l{text-align:left}
+  th.namecol{left:0;z-index:6}
+  td{padding:0;border-bottom:1px solid #EFEAE0;white-space:nowrap;text-align:right;background:#fff}
+  .namecol{position:sticky;left:0;z-index:3;background:#fff;min-width:250px;max-width:250px;text-align:left;padding:7px 12px}
+  th.mo,td.mo{width:122px}
+  .totcol{border-left:1px solid var(--sand);padding:7px 12px;font-weight:500;width:128px}
+  tr.dept td{background:var(--forest);color:#fff}
+  tr.dept .namecol{background:var(--forest);color:#fff;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:500}
+  tr.l1 td{background:#F6F3EC}
+  tr.l1 .namecol{background:#F6F3EC;font-weight:500;font-size:12.5px;padding-left:24px}
+  tr.l2 .namecol{padding-left:46px;color:var(--muted);font-size:13px}
+  tr.brrow td{background:#F7FAF7}
+  tr.brrow .namecol{background:#F7FAF7;padding-left:46px;font-size:12.5px}
+  .count{font-size:10.5px;color:var(--muted);font-weight:400;margin-left:7px}
+  tr.dept .count{color:#C6D8CB}
+  .twist{border:0;background:transparent;cursor:pointer;color:inherit;font:inherit;padding:0 6px 0 0;opacity:.7}
+  .kv{display:flex;align-items:baseline;justify-content:space-between;gap:7px;line-height:1.3}
+  .kv .k{font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#A9A497;flex:none}
+  .kv .v{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .kv .v.strong{font-size:13px;font-weight:700;color:var(--ink)}
+  .pcrow{display:flex;justify-content:space-between;gap:7px;margin-top:2px;padding-top:2px;border-top:1px solid rgba(0,0,0,.06)}
+  .pcrow span:first-child{font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#A9A497}
+  .pcrow span:last-child{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .mocell{padding:6px 9px}
+  .cellwrap{padding:5px 9px}
+  input.cell{width:100%;border:0;background:transparent;font-variant-numeric:tabular-nums;font-size:13px;text-align:right;padding:2px 0;color:var(--ink);font-family:inherit}
+  input.cell:hover{background:#FBF9F5}
+  input.cell:focus{outline:2px solid var(--forest);outline-offset:2px;background:#fff;border-radius:3px}
+  input.cell[readonly]{color:var(--muted);cursor:default}
+  input.cell[readonly]:hover{background:transparent}
+  .cell-ok{background:rgba(46,125,82,.10)} .cell-warn{background:rgba(201,154,46,.14)} .cell-over{background:rgba(178,58,47,.12)}
+  tfoot td{background:#FDFCFA;font-weight:700;border-top:1px solid var(--sand);padding:8px 10px;position:sticky;bottom:0;z-index:4}
+  tfoot .namecol{background:#FDFCFA;z-index:5}
+  .note{margin-top:26px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)} .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+  .new{color:var(--terracotta);font-weight:500}
+  .screen{display:none} .screen.on{display:block}
+  .tree{font-size:12.5px;line-height:1.9;color:var(--muted)}
+  .tree b{color:var(--ink);font-weight:500}
+  tr.brhead td{font-weight:500;font-size:12.5px}
+  tr.brhead .namecol{padding-left:12px}
+  tr.brkid .namecol{padding-left:34px;color:var(--muted);font-size:12.5px}
+  tr.brkid.l2k .namecol{padding-left:56px;font-size:12px}
+  .swatch{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:8px;vertical-align:0}
+  tr.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="screens-hint">Mockup only</div>
+    <div class="screens" role="group">
+      <button data-s="budget" aria-pressed="true">Budget · by branch</button>
+      <button data-s="spend" aria-pressed="false">Spend report · by branch</button>
+      <button data-s="tree" aria-pressed="false">Channel hierarchy</button>
+    </div>
+  </div>
+
+  <!-- BUDGET -->
+  <div class="screen on" id="s-budget">
+    <h1>Editing panchita.t's budget · FY2026</h1>
+    <p class="sub">revision 3 · Retail · 50 lines per branch</p>
+
+    <div class="branchbar">
+      <span class="lbl">Branch</span>
+      <button class="bchip all" data-b="all" aria-pressed="true">All branches</button>
+      <button class="bchip" data-b="Siam Discovery">Siam Discovery</button>
+      <button class="bchip" data-b="Vanich House">Vanich House</button>
+      <button class="bchip" data-b="Loft eyes">Loft eyes</button>
+      <button class="bchip" data-b="Gaysorn">Gaysorn<span class="bdot" title="unsaved changes"></span></button>
+      <button class="bchip" data-b="Central Chidlom">Central Chidlom</button>
+      <button class="bchip closed" data-b="DCP">DCP · closed</button>
+      <button class="bchip none" data-b="(no branch)">(no branch)</button>
+    </div>
+
+    <div class="banner info" id="bBanner"></div>
+    <div class="tbl-scroll"><table id="bTable"></table></div>
+  </div>
+
+  <!-- SPEND -->
+  <div class="screen" id="s-spend">
+    <h1>Spend report · FY2026</h1>
+    <p class="sub">ONEST · Retail · approved + paid</p>
+    <div class="bar">
+      <select><option>Retail</option></select>
+      <select id="spendView"><option value="branch">Group by branch</option><option value="cat">Group by category</option></select>
+      <div class="spacer"></div>
+      <span class="sub" style="margin:0">Branch comes from the request's Branch field</span>
+    </div>
+    <div class="banner warn">Six requests this year carry no branch — ฿18,400. They appear as <b>(no branch)</b> rather than being spread across branches or dropped.</div>
+    <div class="tbl-scroll"><table id="sTable"></table></div>
+  </div>
+
+  <!-- TREE -->
+  <div class="screen" id="s-tree">
+    <h1>Channel hierarchy · ONEST</h1>
+    <p class="sub">Four levels: category → sub-category → status → channel. Branches are these same channels.</p>
+    <div style="background:#fff;border:1px solid var(--sand);border-radius:var(--radius);padding:18px 22px" class="tree">
+      <b>Physical store</b><br>
+      &nbsp;&nbsp;<b>1 · Owned store</b> — Song Wat · Talat Noi<br>
+      &nbsp;&nbsp;<b>2 · Specialty partners</b> <span style="color:#B9B4A7">(was Modern Trade)</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<b>2.1 sell</b> — Siam Discovery · Vanich House · Loft eyes · Loft eyes-Thong Lor · Ecotopia · Gaysorn · Unusual &amp; Friend · Tudi<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<b>2.2 use</b> — Momo tennis<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<b>2.3 closed</b> — DCP<br>
+      &nbsp;&nbsp;<b>3 · Event</b> <span style="color:#B9B4A7">(was Pop-up)</span> — Central Chidlom · Emporium · Loopers · LOQA<br>
+      <b>Online</b><br>
+      &nbsp;&nbsp;<b>4 · E-commerce</b> — Shopee · Lazada · TikTok<br>
+      &nbsp;&nbsp;<b>5 · DTC-Thailand</b> — Line Shop · Line OA
+    </div>
+    <div class="banner warn" style="margin-top:14px">
+      <b>The sell / use / closed level is optional.</b> Only Specialty partners has it; Owned store and Event go straight to channels. So the hierarchy is ragged — three levels in places, four in others — which the data model has to allow rather than assume.<br><br>
+      Sheet names still to reconcile: <b>UN&amp;F</b> in the sheet is <b>Unusual &amp; Friend</b> here. And six channels have no sheet row yet — Loft eyes-Thong Lor, Central Chidlom, Momo tennis, Tudi, Emporium, LOQA.
+    </div>
+  </div>
+
+  <div class="note">
+    <b>How branch budgeting works here:</b>
+    <ol>
+      <li class="new"><b>Branch is a selector, not another nesting level.</b> 50 categories across 13 branches is 650 lines; nested, the grid would be unusable. You pick a branch and edit its 50 lines, exactly as today.</li>
+      <li class="new"><b>All branches is read-only</b> — the sum of every branch, so you can see the whole department without leaving the page. Editing happens on a branch.</li>
+      <li class="new"><b>(no branch) is a real bucket.</b> Branch is optional on the submit form, so some spend belongs to no branch. It gets its own tab rather than being hidden or spread.</li>
+      <li class="new"><b>Closed branches stay visible but are marked.</b> DCP keeps its history and can still be opened; it just isn't somewhere new budget would normally go.</li>
+      <li class="new"><b>A dot marks a branch with unsaved changes</b>, so switching branches mid-edit can't lose work silently.</li>
+      <li class="new"><b>Spend report groups by branch or by category</b>, not both at once — branch × category × month is too much for one table.</li>
+      <li class="new"><b>Each branch carries its own colour</b> — a swatch, a tinted header, and a coloured left edge that stays with every row beneath it. With several branches expanded, a row is always traceable to its branch without scrolling back up. The colour is kept off the figures themselves, since those already use green/amber/red for budget use and two colour languages in one cell would fight.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Needs deciding:</b>
+    <ol>
+      <li>Which departments are branch-split? Drawn as a per-department setting. Departments that aren't keep today's single budget.</li>
+      <li>Loopers in two places — one sheet row, two channels.</li>
+      <li>Should the Branch field become required on the submit form for branch-budgeted departments? Otherwise (no branch) grows over time.</li>
+      <li>Do closed branches still accept budget for a future year, or only historical figures?</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const K=1000, NOW=8;
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+const BR=['Siam Discovery','Vanich House','Loft eyes','Gaysorn','Central Chidlom','DCP','(no branch)'];
+const CATS=[
+  {l1:'Store Fixed cost',l2:['Store rental fee','POS software license']},
+  {l1:'Utilities',l2:['Electricity','Water','Internet / Wi-Fi']},
+  {l1:'In-Store Consumables & Supplies',l2:['ค่าส่ง (Grab/Lalamove)']}
+];
+const seed=(b,l2)=>{let h=0;const s=b+l2;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))&0xffff;return 8+(h%40);};
+let branch='all';
+
+function renderBudget(){
+  document.getElementById('bBanner').innerHTML = branch==='all'
+    ? '<b>All branches — read-only.</b> This is the sum of every branch. Pick a branch to edit its figures.'
+    : (branch==='(no branch)'
+       ? '<b>Spend with no branch recorded.</b> You can budget here, but it is usually better to fix the requests so they carry a branch.'
+       : 'Editing <b>'+branch+'</b> · 50 lines · figures here are this branch only.');
+
+  let h='<thead><tr><th class="namecol l">Line</th>';
+  M.forEach(m=>h+='<th class="mo">'+m+'</th>');
+  h+='<th class="totcol">FY total</th></tr></thead><tbody>';
+  const branches = branch==='all'? BR : [branch];
+  const ro = branch==='all';
+
+  h+='<tr class="dept"><td class="namecol">RETAIL<span class="count">'+(branch==='all'?'all branches':branch)+'</span></td><td colspan="13"></td></tr>';
+  CATS.forEach(c=>{
+    h+='<tr class="l1"><td class="namecol"><button class="twist">▾</button>'+c.l1+'<span class="count">'+c.l2.length+'</span></td><td colspan="13"></td></tr>';
+    c.l2.forEach(l2=>{
+      h+='<tr class="l2"><td class="namecol">'+l2+'</td>';
+      M.forEach((_,m)=>{
+        const v=branches.reduce((s,b)=>s+seed(b,l2),0);
+        h+='<td class="mo"><div class="cellwrap"><input class="cell num'+(ro?'':'')+'" value="'+fmt(v*K)+'"'+(ro?' readonly':'')+'></div></td>';
+      });
+      h+='<td class="totcol num">'+fmt(branches.reduce((s,b)=>s+seed(b,l2),0)*12*K)+'</td></tr>';
+    });
+  });
+  h+='</tbody><tfoot><tr><td class="namecol">Total'+(ro?' — all branches':'')+'</td>';
+  const tot=CATS.reduce((s,c)=>s+c.l2.reduce((a,l2)=>a+branches.reduce((b2,b)=>b2+seed(b,l2),0),0),0);
+  M.forEach(()=>h+='<td class="mo mocell"><span class="kv"><span class="v strong num">'+fmt(tot*K)+'</span></span></td>');
+  h+='<td class="totcol num">'+fmt(tot*12*K)+'</td></tr></tfoot>';
+  document.getElementById('bTable').innerHTML=h;
+}
+
+const BRC={'Siam Discovery':'#2E7D52','Vanich House':'#BD5A2E','Loft eyes':'#4A6FA5','Gaysorn':'#8A6AAE',
+           'Central Chidlom':'#C99A2E','DCP':'#9A9A8E','(no branch)':'#B23A2F'};
+const tint=(hex,a)=>{const n=parseInt(hex.slice(1),16);return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';};
+let openBr={};
+
+function renderSpend(){
+  const byBranch=document.getElementById('spendView').value==='branch';
+  let h='<thead><tr><th class="namecol l">'+(byBranch?'Branch':'Category')+'</th>';
+  M.slice(0,NOW+1).forEach(m=>h+='<th class="mo">'+m+'</th>');
+  h+='<th class="totcol">Budget</th><th class="totcol">Actual</th></tr></thead><tbody>';
+
+  const cell=(key,m)=>{
+    const b=seed(key,'b')*3, a=Math.round(b*(0.7+((seed(key,'a')+m)%40)/60));
+    const u=a/b*100, band=u>100?'cell-over':u>=80?'cell-warn':'cell-ok';
+    return {b,a,html:'<td class="mo mocell '+band+'">'
+      +'<div class="kv"><span class="k">Budget</span><span class="v num">'+fmt(b*K)+'</span></div>'
+      +'<div class="kv"><span class="k">Actual</span><span class="v num strong">'+fmt(a*K)+'</span></div>'
+      +'<div class="pcrow"><span>used</span><span>'+Math.round(u)+'%</span></div></td>'};
+  };
+
+  if(byBranch){
+    BR.forEach(br=>{
+      const c=BRC[br]||'#9A9A8E', open=!!openBr[br];
+      let B=0,A=0,cells='';
+      M.slice(0,NOW+1).forEach((_,m)=>{const r=cell(br,m);B+=r.b;A+=r.a;cells+=r.html;});
+      h+='<tr class="brhead" style="background:'+tint(c,.10)+'"><td class="namecol" '
+       +'style="background:'+tint(c,.10)+';box-shadow:inset 3px 0 0 '+c+'">'
+       +'<button class="twist" data-br="'+br+'">'+(open?'▾':'▸')+'</button>'
+       +'<span class="swatch" style="background:'+c+'"></span>'+br
+       +(br==='DCP'?'<span class="count">closed</span>':'')
+       +'<span class="count">'+CATS.length+' categories</span></td>'+cells
+       +'<td class="totcol num">'+fmt(B*K)+'</td><td class="totcol num">'+fmt(A*K)+'</td></tr>';
+
+      CATS.forEach(cat=>{
+        let cB=0,cA=0,cc='';
+        M.slice(0,NOW+1).forEach((_,m)=>{const r=cell(br+cat.l1,m);cB+=r.b;cA+=r.a;cc+=r.html;});
+        h+='<tr class="brkid'+(open?'':' hide')+'"><td class="namecol" style="box-shadow:inset 3px 0 0 '
+         +tint(c,.45)+'">'+cat.l1+'</td>'+cc
+         +'<td class="totcol num">'+fmt(cB*K)+'</td><td class="totcol num">'+fmt(cA*K)+'</td></tr>';
+        cat.l2.forEach(l2=>{
+          let dB=0,dA=0,dd='';
+          M.slice(0,NOW+1).forEach((_,m)=>{const r=cell(br+l2,m);dB+=r.b;dA+=r.a;dd+=r.html;});
+          h+='<tr class="brkid l2k'+(open?'':' hide')+'"><td class="namecol" style="box-shadow:inset 3px 0 0 '
+           +tint(c,.25)+'">'+l2+'</td>'+dd
+           +'<td class="totcol num">'+fmt(dB*K)+'</td><td class="totcol num">'+fmt(dA*K)+'</td></tr>';
+        });
+      });
+    });
+  } else {
+    CATS.forEach(cat=>{
+      let B=0,A=0,cells='';
+      M.slice(0,NOW+1).forEach((_,m)=>{const r=cell(cat.l1,m);B+=r.b;A+=r.a;cells+=r.html;});
+      h+='<tr class="brhead"><td class="namecol"><button class="twist">▸</button>'+cat.l1+'</td>'+cells
+       +'<td class="totcol num">'+fmt(B*K)+'</td><td class="totcol num">'+fmt(A*K)+'</td></tr>';
+    });
+  }
+  h+='</tbody>';
+  document.getElementById('sTable').innerHTML=h;
+  document.querySelectorAll('#sTable .twist[data-br]').forEach(b=>b.addEventListener('click',()=>{
+    openBr[b.dataset.br]=!openBr[b.dataset.br]; renderSpend();
+  }));
+}
+
+document.querySelectorAll('.bchip').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.bchip').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true'); branch=b.dataset.b; renderBudget();
+}));
+document.getElementById('spendView').addEventListener('change',renderSpend);
+document.querySelectorAll('.screens button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.screens button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-'+b.dataset.s).classList.add('on');
+}));
+renderBudget(); renderSpend();
+</script>
+</body>
+</html>
