@@ -973,7 +973,12 @@ export default function BudgetEditorClient({
           </div>
 
 
-          {!editable && (
+          {/* Two different reasons to be read-only, and the banner must give the
+              right one. Making All branches read-only turned this into "this
+              revision is draft and is read-only", which is both wrong and
+              alarming — the revision is perfectly editable, just not through a
+              sum. The roll-up explains itself in BranchBar, so no banner. */}
+          {!editable && !(hasBranchDept && branch === ALL_BRANCHES && status === "DRAFT") && (
             <div
               className="rounded-[10px] px-4 py-3 text-[13px]"
               style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
