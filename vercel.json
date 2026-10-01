@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/document-reminder",
       "schedule": "0 2 10,14 * *"
+    },
+    {
+      "path": "/api/revenue-sync",
+      "schedule": "0 2 * * *"
     }
   ]
 }

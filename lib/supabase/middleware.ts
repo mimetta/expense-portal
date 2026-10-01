@@ -50,6 +50,12 @@ export async function updateSession(request: NextRequest) {
   const isPublicPath =
     PUBLIC_PATHS.includes(request.nextUrl.pathname) ||
     request.nextUrl.pathname.startsWith("/api/cron") ||
+    // Vercel Cron calls this one too, and it does not live under /api/cron
+    // because the budget page's "Sync now" and status poll share it. Its own
+    // handler requires either the cron secret or a CEO/SUPERADMIN session, so
+    // exempting it here changes who may run it not at all — it only stops a
+    // machine caller receiving an HTML redirect instead of JSON.
+    request.nextUrl.pathname === "/api/revenue-sync" ||
     request.nextUrl.pathname.startsWith("/api/external/");
 
   if (!isPublicPath && (!user || !isAllowedDomain(user.email))) {
