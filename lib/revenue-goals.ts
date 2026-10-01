@@ -154,6 +154,18 @@ export async function getRevenueTree(
     }
   }
 
+  // A CLOSED CHANNEL IS NOT OFFERED FOR A YEAR IT NEVER TRADED IN.
+  //
+  // Scoped to the fiscal year being viewed, not to the channel: DCP keeps its
+  // full FY2025 and FY2026 rows and renders exactly as before in those years,
+  // and disappears only from a year it has no figures in. Refusing the WRITE
+  // in saveRevenueGoals is the enforcement; this is what stops a closed
+  // partner being offered an input it will never be allowed to save.
+  //
+  // `goals` is keyed by channel id for THIS fiscal year only (the query above
+  // filters on it), so "has a row this year" is exactly `goals.has(id)`.
+  const visible = channels.filter((c) => !isClosedChannel(c) || goals.has(c.id));
+
   // bu -> category -> sub_category -> channel[]
   //
   // The optional STATUS level is inserted between sub_category and channel
@@ -162,7 +174,7 @@ export async function getRevenueTree(
   // placeholder node. That is what "the model must allow a null status level
   // rather than assume one everywhere" means in practice.
   const byBu = new Map<string, Map<string, Map<string, RevenueChannel[]>>>();
-  for (const c of channels) {
+  for (const c of visible) {
     if (!byBu.has(c.bu)) byBu.set(c.bu, new Map());
     const cats = byBu.get(c.bu)!;
     if (!cats.has(c.category)) cats.set(c.category, new Map());
@@ -258,7 +270,10 @@ export async function getRevenueTree(
       actuals: rollUp(buNodes, "actuals"),
       children: buNodes,
     },
-    channels,
+    // `visible`, not `channels`: the returned list must agree with the tree, or
+    // a closed channel omitted from the grid would still be offered by anything
+    // that builds a picker from this array.
+    channels: visible,
   };
 }
 
