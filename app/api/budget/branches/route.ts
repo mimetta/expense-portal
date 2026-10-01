@@ -11,10 +11,13 @@ import { listBranches } from "@/lib/branches";
 // what can be edited.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await requireUser();
-    return NextResponse.json({ branches: await listBranches() });
+    const raw = new URL(req.url).searchParams.get("year");
+    const year = Number(raw);
+    const fiscalYear = Number.isInteger(year) && year >= 2000 && year <= 2100 ? year : undefined;
+    return NextResponse.json({ branches: await listBranches(fiscalYear) });
   } catch (err) {
     return handleApiError(err);
   }

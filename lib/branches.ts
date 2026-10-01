@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { listChannels, isClosedChannel } from "@/lib/revenue-goals";
 import { type Branch } from "@/lib/branches-shared";
 
@@ -25,15 +26,42 @@ const BRANCH_BU = "ONEST";
  * still has lines to read. They are marked rather than hidden, the same way
  * the revenue grid treats a closed channel.
  */
-export async function listBranches(): Promise<Branch[]> {
+export async function listBranches(fiscalYear?: number): Promise<Branch[]> {
   const channels = await listChannels(true);
-  return channels
-    .filter((c) => c.bu === BRANCH_BU && c.category === "Physical store")
-    .map((c) => ({
-      name: c.channel,
-      group: c.sub_category,
-      status: c.status ?? null,
-      closed: isClosedChannel(c),
-      active: c.active,
-    }));
+  const mine = channels.filter((c) => c.bu === BRANCH_BU && c.category === "Physical store");
+
+  // DID THIS BRANCH TRADE IN THIS YEAR?
+  //
+  // The closed-branch rule asks "does it already budget here", and the budget
+  // page answered that from existing budget_lines alone. Branch budgeting is
+  // new, so NO branch has lines yet — which made DCP unselectable for FY2026
+  // despite carrying ฿53,365 of FY2026 spend and a ฿560,000 revenue goal. A
+  // closed branch must stay budgetable in a year it demonstrably traded,
+  // otherwise its costs can never be planned against.
+  //
+  // Revenue goal rows are the signal, which is the same one
+  // saveRevenueGoals uses — reused rather than invented, and it is a fact
+  // about the YEAR rather than about whether anyone has started budgeting.
+  const traded = new Set<string>();
+  if (fiscalYear) {
+    try {
+      const admin = createAdminClient();
+      const { data } = await admin
+        .from("revenue_goals").select("channel_id").eq("fiscal_year", fiscalYear);
+      const ids = new Set((data ?? []).map((r) => r.channel_id as string));
+      for (const c of mine) if (ids.has(c.id)) traded.add(c.channel);
+    } catch {
+      // Unknown means "no special permission": the branch stays gated by its
+      // closed status alone, which is the conservative direction.
+    }
+  }
+
+  return mine.map((c) => ({
+    name: c.channel,
+    group: c.sub_category,
+    status: c.status ?? null,
+    closed: isClosedChannel(c),
+    active: c.active,
+    tradedThisYear: traded.has(c.channel),
+  }));
 }
