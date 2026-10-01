@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import BudgetGrid from "@/components/budget/BudgetGrid";
+import RevenueSyncBar from "@/components/budget/RevenueSyncBar";
 import { thb, EM_DASH } from "@/components/spend/format";
 import type { BudgetOwnerOption, EditorData, EditorRow } from "@/lib/budget-editor";
 import type { RevenueNode } from "@/lib/revenue-goals";
@@ -620,13 +621,15 @@ export default function BudgetEditorClient({
         </div>
       )}
 
-      {revenue?.syncedAt && (
-        <p className="flex items-center gap-2 text-[12.5px] text-brand-muted">
-          <span style={{ width: 7, height: 7, borderRadius: 99, background: "#2E7D52", flex: "none" }} />
-          Revenue actuals last updated {new Date(revenue.syncedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
-          {revenue.canEdit ? " · entered manually until the sheet sync exists" : ""}
-        </p>
-      )}
+      {/* Replaces the old "last updated · entered manually until the sheet
+          sync exists" line. That read actual_synced_at, i.e. when a CELL last
+          changed — which cannot tell a broken sync from a quiet day, because
+          a refused sync writes no cells at all. This reads the run log. */}
+      <RevenueSyncBar
+        fiscalYear={fiscalYear}
+        canSync={!!revenue?.canEdit}
+        onSynced={loadRevenue}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-start gap-5">
