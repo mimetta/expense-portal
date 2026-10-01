@@ -77,13 +77,30 @@ function readPrivateKey(): string {
     }
   } catch { /* not base64, or not JSON inside it */ }
 
+  // 4. The base64 BODY of a PEM with the BEGIN/END armour stripped off. This
+  //    is what you get by copying the key out of the JSON file by eye, or from
+  //    a UI that treats the dashes as decoration. It is pure base64 of ~1650
+  //    characters where a full PEM is ~1704, so it looks almost right and
+  //    fails with no clue as to why. Re-wrap it rather than make someone
+  //    diagnose a 54-character difference through an encrypted env var.
+  const compact = direct.replace(/\s+/g, "");
+  if (compact.length > 500 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact)) {
+    const lines = compact.match(/.{1,64}/g) ?? [];
+    const rewrapped = `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----\n`;
+    // No validation here beyond the shape — if the bytes are not a PKCS#8 key,
+    // the signing step rejects it, which is the same outcome by a clearer
+    // route than asserting it here.
+    return rewrapped;
+  }
+
   // Says what was tried, never what was found. The length is the one detail
   // that helps (it distinguishes "empty-ish" from "something is there") and
   // reveals nothing usable.
   throw new SheetConfigError(
     `GOOGLE_PRIVATE_KEY is set (${direct.length} chars) but is not a PEM private key, `
-    + "a service-account JSON key file, or either of those base64-encoded. "
-    + "Paste the full PEM including the BEGIN/END lines, or the whole JSON key file.",
+    + "a service-account JSON key file, a bare base64 key body, or any of those "
+    + "base64-encoded. Paste the full PEM including the BEGIN/END lines, or the "
+    + "whole JSON key file.",
   );
 }
 
