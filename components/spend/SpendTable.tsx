@@ -17,6 +17,7 @@ import {
   varianceLabel,
 } from "./format";
 import { FullSpendCell, SimpleSpendCell, GoalActualCell } from "@/components/spend/cells";
+import { branchColour, branchEdge } from "@/lib/branches-shared";
 import type { SpendCell, SpendGranularity, SpendNode, SpendReport } from "@/lib/spend";
 
 interface Props {
@@ -28,6 +29,8 @@ interface Props {
   // per lowest expanded level").
   expanded: Set<string>;
   onToggle: (key: string) => void;
+  /** "branch" colours the drill and labels the top level with the branch. */
+  groupBy?: "category" | "branch";
 }
 
 const CURRENT_MONTH_BG = "#F5F2EC";
@@ -367,6 +370,7 @@ function Row({
   expanded,
   toggle,
   revenue,
+  branchName,
 }: {
   node: SpendNode;
   depth: number;
@@ -376,24 +380,55 @@ function Row({
   expanded: Set<string>;
   toggle: (key: string) => void;
   revenue: SpendReport["revenue"];
+  /**
+   * Set only when grouping by branch. Threaded DOWN from the top-level node
+   * rather than read off each row, because a cat_l1 row knows its category and
+   * not which branch it is sitting inside — and the coloured edge has to
+   * persist through the whole drill to say "still inside this branch".
+   */
+  branchName?: string | null;
 }) {
   const hasChildren = (node.children?.length ?? 0) > 0;
   const isOpen = expanded.has(node.key);
+  const edge = branchName ? branchEdge(branchName, depth) : null;
 
   return (
     <>
-      <tr className={depth > 0 ? "bg-[#FCFBF9]" : undefined}>
+      <tr
+        className={depth > 0 ? "bg-[#FCFBF9]" : undefined}
+        style={
+          // Depth 0 is the branch header: tinted, so the eye finds the branch
+          // boundary without reading labels.
+          branchName && depth === 0
+            ? { background: `${branchColour(branchName)}12` }
+            : undefined
+        }
+      >
         <th
           scope="row"
           className="sticky left-0 z-10 border-r border-brand-border px-3 py-2 text-left font-normal"
           style={{
             width: STICKY_W,
             minWidth: STICKY_W,
-            background: depth > 0 ? "#FCFBF9" : "#FFFFFF",
+            background: branchName && depth === 0
+              ? `${branchColour(branchName)}12`
+              : depth > 0 ? "#FCFBF9" : "#FFFFFF",
             paddingLeft: 12 + depth * 18,
+            // The coloured left edge, fading with depth — one branch's rows
+            // read as one block however deep the drill goes.
+            boxShadow: edge ? `inset 3px 0 0 ${edge}` : undefined,
           }}
         >
           <div className="flex items-center gap-1.5">
+            {branchName && depth === 0 && (
+              <span
+                aria-hidden
+                style={{
+                  width: 9, height: 9, borderRadius: 2, flex: "none",
+                  background: branchColour(branchName),
+                }}
+              />
+            )}
             {hasChildren ? (
               <button
                 type="button"
@@ -454,6 +489,7 @@ function Row({
             expanded={expanded}
             toggle={toggle}
             revenue={revenue}
+            branchName={branchName}
           />
         ))}
     </>
@@ -521,6 +557,7 @@ export default function SpendTable({
   fiscalYear,
   expanded,
   onToggle,
+  groupBy = "category",
 }: Props) {
   const toggle = onToggle;
 
@@ -659,6 +696,7 @@ export default function SpendTable({
                 expanded={expanded}
                 toggle={toggle}
                 revenue={report.revenue}
+                branchName={groupBy === "branch" ? row.name : null}
               />
             ))}
           </tbody>

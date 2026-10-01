@@ -408,7 +408,7 @@ export async function refreshDraftLines(
 
   const have = await fetchAllRows<Record<string, unknown>>((from, to) =>
     admin.from("budget_lines")
-      .select("bu, department, cat_l1, cat_l2")
+      .select("bu, department, cat_l1, cat_l2, branch")
       .eq("revision_id", revisionId)
       .range(from, to),
   );
@@ -488,12 +488,14 @@ export async function saveDraft(
       // column cannot arbitrate ON CONFLICT). Normalise here so callers may
       // still pass null.
       cat_l2: l.cat_l2 ?? "",
+      // Same normalisation, same reason, for branch — migration 055.
+      branch: (l as { branch?: string | null }).branch ?? "",
       month: l.month,
       amount: l.amount,
     }));
     const { error } = await admin
       .from("budget_lines")
-      .upsert(chunk, { onConflict: "revision_id,bu,department,cat_l1,cat_l2,month" });
+      .upsert(chunk, { onConflict: "revision_id,bu,department,cat_l1,cat_l2,branch,month" });
     if (error) throw error;
   }
 
@@ -704,7 +706,7 @@ export async function getRevision(
   const lines = await fetchAllRows<BudgetLine>((from, to) =>
     admin
       .from("budget_lines")
-      .select("id, revision_id, bu, department, cat_l1, cat_l2, month, amount")
+      .select("id, revision_id, bu, department, cat_l1, cat_l2, branch, month, amount")
       .eq("revision_id", revisionId)
       .order("bu")
       .order("department")

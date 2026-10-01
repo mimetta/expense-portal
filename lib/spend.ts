@@ -111,6 +111,13 @@ export interface SpendReportParams {
   months: number[];
   basis: SpendBasis;
   departmentFilter?: string | null;
+  /**
+   * What the FIRST level of the drill is. A TOGGLE, never a second nesting
+   * level — branch inside category (or the reverse) would be four levels deep
+   * and ~600 rows for Retail alone. Swapping the top level keeps the shape and
+   * the totals identical; only the grouping changes.
+   */
+  groupBy?: "category" | "branch";
   viewer: CurrentUser;
 }
 
@@ -126,6 +133,8 @@ interface SpendAggRow {
   status: string;
   amount: number | string;
   amount_net: number | string;
+  /** Migration 056. Empty/null = not branch-split, or not attributed. */
+  branch?: string | null;
 }
 
 interface BudgetRow {
@@ -133,6 +142,8 @@ interface BudgetRow {
   department: string;
   cat_l1: string | null;
   cat_l2: string | null;
+  /** Migration 054/055. Empty string = not branch-split or the (no branch) bucket. */
+  branch?: string | null;
   fiscal_year: number;
   month: number;
   amount: number | string;
@@ -448,6 +459,18 @@ function sortNodes(nodes: SpendNode[]): SpendNode[] {
 
 export async function getSpendReport(params: SpendReportParams): Promise<SpendReport> {
   const { bu, fiscalYear, months, basis, departmentFilter, viewer } = params;
+  const groupBy = params.groupBy ?? "category";
+  // The top level only. Every row still appears under exactly one node in both
+  // groupings, so the totals are identical either way — a toggle must not
+  // change how much was spent.
+  const topLevel = (r: { department: string | null; branch?: string | null }) => {
+    if (groupBy !== "branch") return label(r.department);
+    // Everything outside Retail has no branch by definition (migration 058),
+    // so it groups as one honest bucket rather than as "(uncategorized)",
+    // which would read as missing data rather than as not-applicable.
+    const b = (r.branch ?? "").trim();
+    return b === "" ? "(no branch)" : b;
+  };
 
   const scope = scopeFilter(viewer);
   if (scope === "none") {
@@ -475,7 +498,7 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
   const buildSpendQuery = () => {
     let q = supabase
       .from(spendViewName())
-      .select("bu, use_for_company, fiscal_year, month, department, cat_l1, cat_l2, status, amount, amount_net")
+      .select("bu, use_for_company, fiscal_year, month, department, cat_l1, cat_l2, status, amount, amount_net, branch")
       .in("fiscal_year", [fiscalYear - 1, fiscalYear])
       .in("status", [...actualStatuses, ...pendingStatuses]);
     if (bu) q = q.eq("bu", bu);
@@ -493,7 +516,7 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
   const buildBudgetQuery = () => {
     let q = supabase
       .from("v_budget_current")
-      .select("bu, department, cat_l1, cat_l2, fiscal_year, month, amount")
+      .select("bu, department, cat_l1, cat_l2, branch, fiscal_year, month, amount")
       .eq("fiscal_year", fiscalYear);
     if (bu) q = q.eq("bu", bu);
     if (departmentFilter) q = q.eq("department", departmentFilter);
@@ -550,7 +573,7 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
     if (row.fiscal_year !== fiscalYear) continue;
 
     const path: [string, string, string] = [
-      label(row.department),
+      topLevel(row),
       label(row.cat_l1),
       label(row.cat_l2),
     ];
@@ -567,7 +590,7 @@ export async function getSpendReport(params: SpendReportParams): Promise<SpendRe
   for (const row of budgetRows) {
     const value = num(row.amount);
     const path: [string, string, string] = [
-      label(row.department),
+      topLevel(row),
       label(row.cat_l1),
       label(row.cat_l2),
     ];

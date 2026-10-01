@@ -54,6 +54,7 @@ function parseState(params: URLSearchParams, currentYear: number): SpendFilterSt
         : defaultPeriodFor(granularity),
     year: Number.isInteger(yearRaw) && yearRaw >= 2000 && yearRaw <= 2100 ? yearRaw : currentYear,
     basis: params.get("basis") === "paid" ? "paid" : "approved",
+    groupBy: params.get("group") === "branch" ? "branch" : "category",
     department: params.get("segment") || null,
   };
 }
@@ -65,6 +66,7 @@ function toQuery(state: SpendFilterState): string {
   if (state.granularity !== "year") params.set("period", String(state.period));
   params.set("year", String(state.year));
   params.set("basis", state.basis);
+  if (state.groupBy === "branch") params.set("group", "branch"); else params.delete("group");
   if (state.department) params.set("segment", state.department);
   return params.toString();
 }
@@ -227,6 +229,7 @@ export default function SpendReportClient() {
       year: String(state.year),
       months: months.join(","),
       basis: state.basis,
+      groupBy: state.groupBy,
     });
     if (state.bu) params.set("bu", state.bu);
     if (state.department) params.set("department", state.department);
@@ -251,7 +254,7 @@ export default function SpendReportClient() {
     return () => {
       cancelled = true;
     };
-  }, [state.year, state.bu, state.basis, state.department, months]);
+  }, [state.year, state.bu, state.basis, state.department, state.groupBy, months]);
 
   const onChange = useCallback((next: Partial<SpendFilterState>) => {
     setState((prev) => ({ ...prev, ...next }));
@@ -360,6 +363,7 @@ export default function SpendReportClient() {
             fiscalYear={state.year}
             expanded={expanded}
             onToggle={onToggle}
+            groupBy={state.groupBy}
           />
           <SpendTrend report={report} fiscalYear={state.year} />
           <PendingPanel requests={report.pending_requests} />

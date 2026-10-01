@@ -10,6 +10,12 @@ export interface SpendFilterState {
   year: number;
   basis: SpendBasis;
   department: string | null;
+  /**
+   * The FIRST drill level. A toggle between two groupings, never a second
+   * nesting level — branch inside category would be four levels and, for
+   * Retail alone, ~600 rows. Totals are identical either way.
+   */
+  groupBy: "category" | "branch";
 }
 
 interface Props {
@@ -149,6 +155,28 @@ export default function SpendFilters({ value, years, departments, onChange }: Pr
               title="Paid requests only — money that has actually left the company"
             >
               Paid only
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div className="mm-label mb-1">Group by</div>
+          <div className="mm-tabs">
+            <button
+              type="button"
+              onClick={() => onChange({ groupBy: "category" })}
+              className={`mm-tab ${value.groupBy === "category" ? "mm-tab-active" : ""}`}
+              title="Segment › category › sub-category"
+            >
+              Category
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange({ groupBy: "branch" })}
+              className={`mm-tab ${value.groupBy === "branch" ? "mm-tab-active" : ""}`}
+              title="Branch › category › sub-category. The same figures regrouped — the totals do not change."
+            >
+              Branch
             </button>
           </div>
         </div>

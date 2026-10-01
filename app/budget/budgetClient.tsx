@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import BudgetGrid from "@/components/budget/BudgetGrid";
 import RevenueSyncBar from "@/components/budget/RevenueSyncBar";
+import BranchBar from "@/components/budget/BranchBar";
+import {
+  ALL_BRANCHES, NO_BRANCH, isBranchSplit, branchColumnValue, type Branch,
+} from "@/lib/branches-shared";
 import { thb, EM_DASH } from "@/components/spend/format";
 import type { BudgetOwnerOption, EditorData, EditorRow } from "@/lib/budget-editor";
 import type { RevenueNode } from "@/lib/revenue-goals";
@@ -150,6 +154,12 @@ export default function BudgetEditorClient({
   // is always that one company's. Empty only in the instant before the first
   // load resolves, since the available companies come from the data.
   const [buFilter, setBuFilter] = useState<string>("");
+  // Branch is a SELECTOR, not a filter stacked on the others: it decides which
+  // single branch is being edited, and "All branches" is a read-only roll-up.
+  // In the query string so a branch view is shareable, like the fiscal year.
+  const [branch, setBranch] = useState<string>(() =>
+    searchParams.get("branch") || ALL_BRANCHES);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [busy, setBusy] = useState(false);
   // SUPERADMIN only. Defaults to themselves if they happen to hold BO scope,
@@ -187,6 +197,21 @@ export default function BudgetEditorClient({
   // The second was reported as a bug; it is the rule. The API enforces the
   // same viewer check regardless — see app/api/revenue/channels/route.ts.
   const [canAddChannel, setCanAddChannel] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/budget/branches", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!cancelled) setBranches(body.branches ?? []);
+      } catch {
+        // The bar simply does not render; the grid is unaffected.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const dirtyRef = useRef<Map<string, EditorRow>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -388,6 +413,7 @@ export default function BudgetEditorClient({
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     q.set("year", String(fiscalYear));
+    if (branch !== ALL_BRANCHES) q.set("branch", branch); else q.delete("branch");
     window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
   }, [fiscalYear]);
 
@@ -406,6 +432,7 @@ export default function BudgetEditorClient({
           department: r.department,
           cat_l1: r.cat_l1,
           cat_l2: r.cat_l2,
+          branch: r.branch,
           month: i + 1,
           amount,
         })),
@@ -493,13 +520,62 @@ export default function BudgetEditorClient({
   );
 
   // --- derived --------------------------------------------------------------
-  const visible = useMemo(
-    () =>
-      rows.filter(
-        (r) => (!deptFilter || r.department === deptFilter) && (!buFilter || r.bu === buFilter),
-      ),
-    [rows, deptFilter, buFilter],
+  // Does this owner's budget contain any branch-split department at all?
+  // Nobody else sees the bar.
+  const hasBranchDept = useMemo(
+    () => rows.some((r) => isBranchSplit(r.department)),
+    [rows],
   );
+
+  // Which branches already hold lines THIS fiscal year — the input to the
+  // closed-branch rule, which asks "does it already budget here", never "is
+  // the year in the future".
+  const branchesWithLines = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) if (isBranchSplit(r.department) && r.branch) s.add(r.branch);
+    return s;
+  }, [rows]);
+
+  const dirtyBranches = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of Array.from(dirtyRef.current.values())) {
+      s.add(r.branch ?? NO_BRANCH);
+    }
+    return s;
+    // `save` is the trigger: dirtyRef is a ref, so this recomputes when the
+    // save state moves rather than on every keystroke.
+  }, [save]);
+
+  const visible = useMemo(() => {
+    const base = rows.filter(
+      (r) => (!deptFilter || r.department === deptFilter) && (!buFilter || r.bu === buFilter),
+    );
+    if (!hasBranchDept || branch === ALL_BRANCHES) {
+      if (branch !== ALL_BRANCHES || !hasBranchDept) return base;
+      // ALL BRANCHES: sum the branch-split rows per coordinate, and leave every
+      // other department exactly as it is. Read-only — see BranchBar.
+      const summed = new Map<string, EditorRow>();
+      const out: EditorRow[] = [];
+      for (const r of base) {
+        if (!isBranchSplit(r.department)) { out.push(r); continue; }
+        const k = `${r.bu}|${r.department}|${r.cat_l1}|${r.cat_l2 ?? ""}`;
+        const prev = summed.get(k);
+        if (!prev) {
+          summed.set(k, { ...r, key: k, branch: null, proposed: [...r.proposed] });
+          continue;
+        }
+        for (let i = 0; i < prev.proposed.length; i++) prev.proposed[i] += r.proposed[i] ?? 0;
+      }
+      return out.concat(Array.from(summed.values()));
+    }
+    // One branch. Non-branch-split departments are hidden while a branch is
+    // selected: they have no branch, so showing them under "Song Wat" would
+    // say something untrue about them.
+    const want = branchColumnValue(branch);
+    return base.filter((r) =>
+      isBranchSplit(r.department) ? (r.branch ?? null) === want : false,
+    );
+  }, [rows, deptFilter, buFilter, branch, hasBranchDept]);
 
   // Null, not 0, when no goal exists anywhere: a percentage of nothing is not
   // 0%, it is unanswerable.
@@ -601,7 +677,10 @@ export default function BudgetEditorClient({
 
   const status = data?.revision?.status ?? "DRAFT";
   const pill = STATUS_PILL[status] ?? STATUS_PILL.DRAFT;
-  const editable = !!data?.revision && status === "DRAFT";
+  // Never editable on the roll-up: a figure typed into a sum has no single
+  // branch to be written to.
+  const editable = !!data?.revision && status === "DRAFT"
+    && !(hasBranchDept && branch === ALL_BRANCHES);
   const title = !ownerEmail
     ? `Budget · FY${fiscalYear}`
     : onBehalf
@@ -840,6 +919,25 @@ export default function BudgetEditorClient({
             </div>
           )}
 
+          {hasBranchDept && branches.length > 0 && (
+            <div className="mb-3">
+              <BranchBar
+                branches={branches}
+                selected={branch}
+                onSelect={(next) => {
+                  // Flush before switching, so an edit cannot be stranded on a
+                  // branch that is no longer on screen. The dot warns; this
+                  // makes the warning unnecessary in the common case.
+                  void flush();
+                  setBranch(next);
+                }}
+                dirtyBranches={dirtyBranches}
+                branchesWithLines={branchesWithLines}
+                fiscalYear={fiscalYear}
+                busy={busy}
+              />
+            </div>
+          )}
           <BudgetGrid
             rows={visible}
             onChange={editable ? onChange : null}

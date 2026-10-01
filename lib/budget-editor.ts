@@ -23,6 +23,8 @@ export interface EditorRow {
   department: string;
   cat_l1: string;
   cat_l2: string | null;
+  /** Retail only; null elsewhere and for the (no branch) bucket. Migration 054. */
+  branch: string | null;
   /** 12 proposed figures, index 0 = January. */
   proposed: number[];
   /** 12 currently-approved figures — the comparison basis for highlighting. */
@@ -64,8 +66,14 @@ export interface EditorData {
 }
 
 const zero12 = () => Array.from({ length: 12 }, () => 0);
-const rowKey = (l: { bu: string; department: string; cat_l1: string; cat_l2: string | null }) =>
-  `${l.bu}|${l.department}|${l.cat_l1}|${l.cat_l2 ?? ""}`;
+// The key carries BRANCH, so two branches holding the same category are two
+// rows rather than one that silently overwrites the other. It matches the
+// shape of budget_lines_uniq (migration 054), which also coalesces both
+// nullable parts -- the key and the constraint must agree or the editor will
+// merge rows the database keeps apart.
+const rowKey = (l: {
+  bu: string; department: string; cat_l1: string; cat_l2: string | null; branch?: string | null;
+}) => `${l.bu}|${l.department}|${l.cat_l1}|${l.cat_l2 ?? ""}|${l.branch ?? ""}`;
 
 /**
  * Folds flat per-month rows into one row per line with a 12-slot array.
@@ -138,6 +146,7 @@ export async function getEditorData(
   const seen = new Map<string, EditorRow>();
   for (const l of lines) {
     const k = rowKey(l);
+    const bareKey = rowKey({ ...l, branch: null });
     if (seen.has(k)) continue;
     seen.set(k, {
       key: k,
@@ -145,9 +154,15 @@ export async function getEditorData(
       department: l.department,
       cat_l1: l.cat_l1,
       cat_l2: l.cat_l2,
+      branch: (l as { branch?: string | null }).branch ?? null,
       proposed: proposed.get(k) ?? zero12(),
-      approved: approved.get(k) ?? zero12(),
-      priorActual: prior.get(k) ?? zero12(),
+      // The approved view and prior-year actuals are NOT branch-split, so they
+      // are looked up on the branch-less coordinate. A branch row therefore
+      // compares against its category's whole approved figure rather than
+      // against nothing -- the alternative was every branch row showing a zero
+      // baseline and reading as a 100% increase.
+      approved: approved.get(bareKey) ?? zero12(),
+      priorActual: prior.get(bareKey) ?? zero12(),
     });
   }
   const rows = Array.from(seen.values()).sort(
@@ -155,6 +170,7 @@ export async function getEditorData(
       a.department.localeCompare(b.department) ||
       a.cat_l1.localeCompare(b.cat_l1) ||
       (a.cat_l2 ?? "").localeCompare(b.cat_l2 ?? "") ||
+      (a.branch ?? "").localeCompare(b.branch ?? "") ||
       a.bu.localeCompare(b.bu),
   );
 
