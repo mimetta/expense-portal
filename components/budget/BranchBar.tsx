@@ -2,7 +2,7 @@
 
 import {
   ALL_BRANCHES, ALL_BRANCHES_LABEL, NO_BRANCH, NO_BRANCH_LABEL,
-  branchColour, type Branch,
+  BRANCH_GROUP_ORDER, BRANCH_STATUS_ORDER, branchColour, type Branch,
 } from "@/lib/branches-shared";
 
 // The branch SELECTOR. Branch is never another nesting level.
@@ -10,16 +10,28 @@ import {
 // ===========================================================================
 // WHY A SELECTOR AND NOT A LEVEL IN THE GRID.
 // ===========================================================================
-// Retail carries ~39 category coordinates and there are 16 branches. Nesting
-// branch inside the grid would be ~600 rows to scroll past to reach one
-// figure, and dragging a category to reorder it would have to mean something
-// across all 16 at once. One branch at a time is the only shape that stays
-// usable, so the bar switches context rather than expanding it.
+// Retail carries ~19 category coordinates per company and there are 16
+// branches. Nesting branch inside the grid would be hundreds of rows to scroll
+// past to reach one figure, and dragging a category to reorder would have to
+// mean something across every branch at once. One branch at a time is the only
+// shape that stays usable, so this switches context rather than expanding it.
 //
-// "All branches" is READ-ONLY and sums every branch. That is not a limitation
-// to work around later: a figure typed into a sum has no single branch to be
-// written to, and splitting it automatically would invent an allocation nobody
-// chose.
+// ===========================================================================
+// WHY A DROPDOWN AND NOT CHIPS.
+// ===========================================================================
+// This was a row of chips. Sixteen branches wrapped onto three lines at
+// 1280px, and every store added makes it worse — the control grew with the
+// data, which a selector must not. A <select> is one line whatever the branch
+// count, and optgroups carry the same hierarchy the chip group labels did.
+//
+// What a <select> cannot carry is colour, and the unsaved-changes dot. Both
+// are kept, outside it: the swatch and the dot sit beside the control for the
+// CURRENT value, and the dot is repeated as a marker in the option text so a
+// branch with pending edits is findable in the list.
+//
+// "All branches" is READ-ONLY and sums every branch. Not a limitation to work
+// around later: a figure typed into a sum has no single branch to be written
+// to, and splitting it automatically would invent an allocation nobody chose.
 
 interface Props {
   branches: Branch[];
@@ -33,124 +45,123 @@ interface Props {
   busy?: boolean;
 }
 
+/**
+ * Budgetable if it already budgets here, OR it traded here. The second matters
+ * because branch budgeting is new: without it a closed branch still accruing
+ * cost this year could never be given a budget at all.
+ */
+const isDisabled = (b: Branch, withLines: Set<string>) =>
+  (b.closed || !b.active) && !withLines.has(b.name) && !b.tradedThisYear;
+
 export default function BranchBar({
   branches, selected, onSelect, dirtyBranches, branchesWithLines, fiscalYear, busy,
 }: Props) {
-  const groups = Array.from(new Set(branches.map((b) => b.group)));
+  // `branches` arrives already ordered by lib/branches.ts#listBranches
+  // (group → status → sort_order), so the groups below are built by walking it
+  // in that order rather than sorting again — one ordering, in one place.
+  const groups: { label: string; items: Branch[] }[] = [];
+  for (const g of BRANCH_GROUP_ORDER) {
+    const inGroup = branches.filter((b) => b.group === g);
+    if (inGroup.length === 0) continue;
+    const withStatus = inGroup.filter((b) => b.status);
+    if (withStatus.length === 0) {
+      groups.push({ label: g, items: inGroup });
+      continue;
+    }
+    // A sub-category that uses the status level becomes one optgroup per
+    // status — "Specialty partners › sell" — because <optgroup> cannot nest.
+    for (const st of BRANCH_STATUS_ORDER) {
+      const items = inGroup.filter((b) => b.status === st);
+      if (items.length) groups.push({ label: `${g} › ${st}`, items });
+    }
+    const bare = inGroup.filter((b) => !b.status);
+    if (bare.length) groups.push({ label: g, items: bare });
+  }
 
-  const Chip = ({
-    value, label, colour, closed, disabled, title,
-  }: {
-    value: string; label: string; colour?: string;
-    closed?: boolean; disabled?: boolean; title?: string;
-  }) => {
-    const active = selected === value;
-    const dirty = dirtyBranches.has(value);
-    return (
-      <button
-        type="button"
-        onClick={() => !disabled && onSelect(value)}
-        disabled={disabled || busy}
-        title={title}
-        className="relative flex shrink-0 items-center gap-1.5 rounded-[6px] border px-2.5 py-1 text-[12.5px] transition-colors disabled:cursor-not-allowed"
-        style={{
-          borderColor: active ? "#1F3A2B" : "#D8CBB0",
-          background: active ? "#1F3A2B" : "#FFFFFF",
-          color: active ? "#FFFFFF" : disabled ? "#9CA3AF" : "#1A1A1A",
-          opacity: disabled ? 0.55 : 1,
-        }}
-      >
-        {colour && (
-          <span
-            aria-hidden
-            style={{
-              width: 8, height: 8, borderRadius: 2, flex: "none",
-              background: colour,
-              outline: active ? "1px solid rgba(255,255,255,.6)" : "none",
-            }}
-          />
-        )}
-        <span className={closed ? "line-through decoration-1" : undefined}>{label}</span>
-        {closed && (
-          <span className="text-[10px]" style={{ color: active ? "#D8CBB0" : "#8E2A21" }}>
-            closed
-          </span>
-        )}
-        {/* Unsaved work on a branch you are not looking at. Without this,
-            switching branch mid-edit loses the edit with nothing on screen
-            having said so. */}
-        {dirty && (
-          <span
-            title="Unsaved changes on this branch"
-            style={{
-              width: 6, height: 6, borderRadius: 99, flex: "none",
-              background: active ? "#FFFFFF" : "#BD5A2E",
-            }}
-          />
-        )}
-      </button>
-    );
-  };
+  const current = branches.find((b) => b.name === selected);
+  const dirtyHere = dirtyBranches.has(selected);
+  const dirtyElsewhere = Array.from(dirtyBranches).filter((d) => d !== selected);
 
   return (
     <div
       className="rounded-[10px] px-3 py-2"
       style={{ background: "#FDFCFB", border: "1px solid #F0EAE0" }}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <span className="mr-1 text-[10px] uppercase tracking-[0.05em] text-brand-subtle">
-          Branch
-        </span>
-
-        <Chip
-          value={ALL_BRANCHES}
-          label={ALL_BRANCHES_LABEL}
-          title="Every branch summed. Read-only — a figure typed into a sum has no single branch to be written to."
-        />
-
-        {groups.map((g) => (
-          <span key={g} className="flex flex-wrap items-center gap-1.5">
-            <span className="ml-1 text-[10px] text-brand-subtle">{g}</span>
-            {branches
-              .filter((b) => b.group === g)
-              .map((b) => {
-                // A closed branch is OFFERED for a year it already budgets in,
-                // and refused for a year it does not — the same rule revenue
-                // goals follow, reused rather than restated.
-                // Budgetable if it already budgets here, OR it traded here.
-                // The second matters because branch budgeting is new: without
-                // it, a closed branch that is still accruing cost this year
-                // could never be given a budget at all.
-                const disabled = (b.closed || !b.active)
-                  && !branchesWithLines.has(b.name)
-                  && !b.tradedThisYear;
-                return (
-                  <Chip
-                    key={b.name}
-                    value={b.name}
-                    label={b.name}
-                    colour={branchColour(b.name)}
-                    closed={b.closed || !b.active}
-                    disabled={disabled}
-                    title={
-                      disabled
-                        ? `${b.name} is closed and did not trade in FY${fiscalYear} — it cannot be given a new year's budget. Its past years are unchanged.`
-                        : b.closed
-                          ? `${b.name} is closed but traded in FY${fiscalYear}, so that year stays budgetable and editable.`
-                          : undefined
-                    }
-                  />
-                );
-              })}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <label className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.05em] text-brand-subtle">
+            Branch
           </span>
-        ))}
+          {/* The colour a <select> cannot show, for the current value. */}
+          {current && (
+            <span
+              aria-hidden
+              style={{
+                width: 9, height: 9, borderRadius: 2, flex: "none",
+                background: branchColour(current.name),
+              }}
+            />
+          )}
+          <select
+            className="mm-input w-[280px]"
+            value={selected}
+            disabled={busy}
+            onChange={(e) => onSelect(e.target.value)}
+          >
+            <option value={ALL_BRANCHES}>
+              {ALL_BRANCHES_LABEL}
+              {dirtyBranches.size > 0 ? "  •" : ""}
+            </option>
 
-        <span className="mx-1 h-4 w-px" style={{ background: "#E5E0D5" }} />
-        <Chip
-          value={NO_BRANCH}
-          label={NO_BRANCH_LABEL}
-          title="Retail spend not attributable to one branch. Retail's own data already needs this — 26 FY2026 requests name the branch &quot;All branch&quot;."
-        />
+            {groups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.items.map((b) => {
+                  const disabled = isDisabled(b, branchesWithLines);
+                  return (
+                    <option key={b.name} value={b.name} disabled={disabled}>
+                      {b.name}
+                      {b.closed ? " — closed" : !b.active ? " — inactive" : ""}
+                      {disabled ? ` (no FY${fiscalYear})` : ""}
+                      {dirtyBranches.has(b.name) ? "  •" : ""}
+                    </option>
+                  );
+                })}
+              </optgroup>
+            ))}
+
+            <optgroup label="Not a branch">
+              <option value={NO_BRANCH}>
+                {NO_BRANCH_LABEL}
+                {dirtyBranches.has(NO_BRANCH) ? "  •" : ""}
+              </option>
+            </optgroup>
+          </select>
+        </label>
+
+        {/* The dot, for the value on screen. */}
+        {dirtyHere && (
+          <span className="flex items-center gap-1.5 text-[11.5px] text-brand-accent">
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: "#BD5A2E" }} />
+            unsaved changes here
+          </span>
+        )}
+
+        {/* And for branches NOT on screen — the case the chips' dots existed
+            for. Switching away from unsaved work must not be silent. */}
+        {dirtyElsewhere.length > 0 && (
+          <span className="text-[11.5px] text-brand-accent">
+            • unsaved on{" "}
+            {dirtyElsewhere.map((d) => (d === NO_BRANCH ? NO_BRANCH_LABEL : d)).join(", ")}
+          </span>
+        )}
+
+        {current?.closed && (
+          <span className="text-[11.5px] text-brand-muted">
+            {branchesWithLines.has(current.name) || current.tradedThisYear
+              ? `Closed — FY${fiscalYear} stays editable because it traded this year.`
+              : `Closed — no FY${fiscalYear} activity.`}
+          </span>
+        )}
       </div>
 
       {selected === ALL_BRANCHES && (

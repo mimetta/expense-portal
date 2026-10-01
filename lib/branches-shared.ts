@@ -31,6 +31,38 @@ export const NO_BRANCH_LABEL = "(no branch)";
 export const ALL_BRANCHES = "__all__";
 export const ALL_BRANCHES_LABEL = "All branches";
 
+// The hierarchy order, which is DELIBERATE AND NOT ALPHABETICAL. Alphabetical
+// would give Event, Owned store, Specialty partners and closed, sell, use —
+// both wrong. Channel order within a group lives in revenue_channels.sort_order
+// (migration 060) so adding a store is a data change; only these two
+// structural lists are in code, because they are not things an admin edits.
+export const BRANCH_GROUP_ORDER = ["Owned store", "Specialty partners", "Event"];
+export const BRANCH_STATUS_ORDER = ["sell", "use", "closed"];
+
+const orderIndex = (list: string[], v: string | null) => {
+  const i = list.indexOf(v ?? "");
+  // Anything unlisted sorts after everything listed rather than before, so a
+  // new sub-category appears at the end instead of silently jumping the queue.
+  return i === -1 ? list.length : i;
+};
+
+/** Group → status → sort_order → name, per the agreed hierarchy. */
+export function compareBranches(a: Branch, b: Branch): number {
+  return orderIndex(BRANCH_GROUP_ORDER, a.group) - orderIndex(BRANCH_GROUP_ORDER, b.group)
+    || orderIndex(BRANCH_STATUS_ORDER, a.status) - orderIndex(BRANCH_STATUS_ORDER, b.status)
+    || (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    || a.name.localeCompare(b.name);
+}
+
+/**
+ * Branches worth offering. An INACTIVE channel with NO status is excluded
+ * entirely — Another story, Siplor, LOFT EYES - Tong lor are retired rows
+ * nobody will budget, and the last is a misspelling of a live branch. A closed
+ * branch is NOT excluded: it is still shown, marked, and selectable in a year
+ * it traded.
+ */
+export const isOfferableBranch = (b: Branch) => b.active || b.closed;
+
 export interface Branch {
   /** revenue_channels.channel — what budget_lines.branch stores. */
   name: string;
@@ -40,6 +72,8 @@ export interface Branch {
   status: string | null;
   closed: boolean;
   active: boolean;
+  /** revenue_channels.sort_order — the within-group order, held as data. */
+  sortOrder?: number;
   /**
    * Did this branch have revenue goal rows in the fiscal year being viewed?
    * A CLOSED branch that traded in the year stays budgetable there — its costs
