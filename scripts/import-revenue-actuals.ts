@@ -67,9 +67,12 @@ async function main() {
   // ACTIVE channels only, matching the sync. An inactive channel satisfying
   // the "every portal channel appears" check would mask a real gap.
   const { data: chanRows, error } = await admin
-    .from("revenue_channels").select("id, bu, channel, active").eq("bu", SHEET_BU).eq("active", true);
+    .from("revenue_channels").select("id, bu, channel, status, active").eq("bu", SHEET_BU).eq("active", true);
   if (error) throw error;
-  const portalChannels = (chanRows ?? []).map((c) => ({ id: c.id as string, channel: c.channel as string }));
+  const portalChannels = (chanRows ?? []).map((c) => ({
+    id: c.id as string, channel: c.channel as string,
+    closed: (c as { status?: string | null }).status === "closed",
+  }));
 
   // The write goes through saveRevenueActuals, so the CEO/SUPERADMIN gate and
   // the audit row are the same ones the UI uses — not a direct table write.

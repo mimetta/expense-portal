@@ -17,13 +17,14 @@ import type { RevenueNode } from "@/lib/revenue-goals";
 const GOAL_BG = "#F4F7F4";
 const GOAL_ACCENT = "#1F3A2B";
 
-const INDENT: Record<RevenueNode["level"], number> = {
-  total: 12,
-  bu: 26,
-  category: 40,
-  sub_category: 54,
-  channel: 68,
-};
+// Indent by DEPTH, not by level. The status level is optional, so a channel
+// can sit at depth 4 (Owned store › Song Wat) or depth 5 (Specialty partners ›
+// sell › Tudi); keying off the level name would collide a status node with its
+// own children, and keying off a fixed channel indent would shove every
+// statusless channel rightwards to make room for a level it does not have.
+const INDENT_BY_DEPTH = [12, 26, 40, 54, 68, 82];
+const indentFor = (depth: number) =>
+  INDENT_BY_DEPTH[Math.min(depth, INDENT_BY_DEPTH.length - 1)];
 
 interface Props {
   tree: RevenueNode;
@@ -52,9 +53,13 @@ const parseNum = (s: string) => {
   return Number.isFinite(n) ? n : null;
 };
 
-function flatten(node: RevenueNode, open: Set<string>, out: RevenueNode[] = []): RevenueNode[] {
-  out.push(node);
-  if (open.has(node.key)) for (const c of node.children) flatten(c, open, out);
+interface FlatRow { node: RevenueNode; depth: number }
+
+function flatten(
+  node: RevenueNode, open: Set<string>, depth = 0, out: FlatRow[] = [],
+): FlatRow[] {
+  out.push({ node, depth });
+  if (open.has(node.key)) for (const c of node.children) flatten(c, open, depth + 1, out);
   return out;
 }
 
@@ -89,7 +94,7 @@ export default function RevenueRows({
 
   return (
     <tbody>
-      {rows.map((n) => {
+      {rows.map(({ node: n, depth }) => {
         const isTotal = n.level === "total";
         const isChannel = n.level === "channel";
         const hasKids = n.children.length > 0;
@@ -122,7 +127,7 @@ export default function RevenueRows({
             <th
               scope="row"
               className="sticky left-0 z-10 border-r border-brand-border py-1.5 pr-3 text-left font-normal"
-              style={{ background: GOAL_BG, paddingLeft: INDENT[n.level] }}
+              style={{ background: GOAL_BG, paddingLeft: indentFor(depth) }}
             >
               <div className="flex items-center gap-1.5">
                 {hasKids ? (
@@ -266,7 +271,7 @@ export default function RevenueRows({
           <th
             scope="row"
             className="sticky left-0 z-10 border-r border-brand-border py-1.5 pr-3 text-left font-normal"
-            style={{ background: GOAL_BG, paddingLeft: INDENT.channel }}
+            style={{ background: GOAL_BG, paddingLeft: indentFor(5) }}
           >
             <button
               type="button"
