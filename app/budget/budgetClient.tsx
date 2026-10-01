@@ -538,9 +538,15 @@ export default function BudgetEditorClient({
   // Which branches already hold lines THIS fiscal year — the input to the
   // closed-branch rule, which asks "does it already budget here", never "is
   // the year in the future".
+  // SERVER-LOADED rows only. A client-materialised row is a blank the user has
+  // not filled in; counting it would unlock a closed branch merely by looking
+  // at it.
   const branchesWithLines = useMemo(() => {
     const s = new Set<string>();
-    for (const r of rows) if (isBranchSplit(r.department) && r.branch) s.add(r.branch);
+    for (const r of rows) {
+      if ((r as { materialised?: boolean }).materialised) continue;
+      if (isBranchSplit(r.department) && r.branch) s.add(r.branch);
+    }
     return s;
   }, [rows]);
 
@@ -592,11 +598,31 @@ export default function BudgetEditorClient({
           key: makeRowKey({ ...t, branch: want }),
           branch: want,
           proposed: Array.from({ length: 12 }, () => 0),
-        });
+          // Flagged, because `branchesWithLines` must not count it. Without
+          // this the projection is circular: selecting a closed branch
+          // materialises rows for it, which then makes it look like it
+          // already budgets here, which is exactly what unlocks it.
+          materialised: true,
+        } as EditorRow & { materialised: true });
       }
       return additions.length ? prev.concat(additions) : prev;
     });
   }, [branch, hasBranchDept, data?.revision?.id]);
+
+  // ?year=2027&branch=DCP reaches the grid directly — a disabled <option>
+  // stops a click, not a URL. The server refuses the save either way
+  // (assertBranchesAreBudgetable), but silently editing a grid whose save will
+  // be rejected is worse than being put back where you started.
+  useEffect(() => {
+    if (branch === ALL_BRANCHES || branch === NO_BRANCH || branches.length === 0) return;
+    const b = branches.find((x) => x.name === branch);
+    if (!b) return;
+    const ok = !(b.closed || !b.active) || branchesWithLines.has(b.name) || b.tradedThisYear;
+    if (!ok) {
+      setBranch(ALL_BRANCHES);
+      setNotice(`${b.name} is closed and did not trade in FY${fiscalYear}, so it cannot be given a budget for that year. Showing all branches instead.`);
+    }
+  }, [branch, branches, branchesWithLines, fiscalYear]);
 
   const visible = useMemo(() => {
     const base = rows.filter(
