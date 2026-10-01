@@ -17,9 +17,21 @@ export interface RevenueChannel {
   category: string;
   sub_category: string;
   channel: string;
+  /**
+   * OPTIONAL fourth level, below sub_category (migration 053). NULL for every
+   * sub-category that does not use one -- Owned store, Event, E-commerce,
+   * DTC-Thailand. Only Specialty partners populates it today (sell|use|closed).
+   * Nullable on purpose: a '' or 'none' sentinel would force every consumer to
+   * special-case it and would grow the tree a level nobody wanted.
+   */
+  status: string | null;
   sort_order: number;
   active: boolean;
 }
+
+/** A channel nobody may open a NEW fiscal year's goals against. */
+export const CLOSED_STATUS = "closed";
+export const isClosedChannel = (c: { status?: string | null }) => c.status === CLOSED_STATUS;
 
 /**
  * A row in the revenue tree. `months[i]` is null where nothing is set —
@@ -29,7 +41,7 @@ export interface RevenueChannel {
  */
 export interface RevenueNode {
   key: string;
-  level: "total" | "bu" | "category" | "sub_category" | "channel";
+  level: "total" | "bu" | "category" | "sub_category" | "status" | "channel";
   label: string;
   /** The GOAL per month. null = not yet open. */
   months: (number | null)[];
@@ -42,6 +54,8 @@ export interface RevenueNode {
   /** Channel rows only — the id goals are written against. */
   channelId?: string;
   active?: boolean;
+  /** Channel rows only. 'closed' means no NEW fiscal year may be opened against it. */
+  status?: string | null;
   children: RevenueNode[];
 }
 
@@ -65,10 +79,11 @@ export async function listChannels(includeInactive = false): Promise<RevenueChan
   const admin = createAdminClient();
   let q = admin
     .from("revenue_channels")
-    .select("id, bu, category, sub_category, channel, sort_order, active")
+    .select("id, bu, category, sub_category, channel, status, sort_order, active")
     .order("bu")
     .order("category")
     .order("sub_category")
+    .order("status", { nullsFirst: true })
     .order("sort_order")
     .order("channel");
   if (!includeInactive) q = q.eq("active", true);
@@ -140,6 +155,12 @@ export async function getRevenueTree(
   }
 
   // bu -> category -> sub_category -> channel[]
+  //
+  // The optional STATUS level is inserted between sub_category and channel
+  // only where a channel actually has one. A sub-category whose channels all
+  // carry status NULL renders exactly as before -- no empty level, no
+  // placeholder node. That is what "the model must allow a null status level
+  // rather than assume one everywhere" means in practice.
   const byBu = new Map<string, Map<string, Map<string, RevenueChannel[]>>>();
   for (const c of channels) {
     if (!byBu.has(c.bu)) byBu.set(c.bu, new Map());
@@ -158,7 +179,7 @@ export async function getRevenueTree(
     for (const [catName, subs] of Array.from(cats.entries())) {
       const subNodes: RevenueNode[] = [];
       for (const [subName, chans] of Array.from(subs.entries())) {
-        const chanNodes: RevenueNode[] = chans.map((c: RevenueChannel) => ({
+        const toChannelNode = (c: RevenueChannel): RevenueNode => ({
           key: c.id,
           level: "channel" as const,
           label: c.channel,
@@ -166,8 +187,38 @@ export async function getRevenueTree(
           actuals: actuals.get(c.id) ?? nulls(),
           channelId: c.id,
           active: c.active,
+          status: c.status ?? null,
           children: [],
-        }));
+        });
+
+        const withStatus = chans.filter((c: RevenueChannel) => c.status);
+        let chanNodes: RevenueNode[];
+        if (withStatus.length === 0) {
+          chanNodes = chans.map(toChannelNode);
+        } else {
+          // Mixed is possible in principle; a channel with no status under a
+          // sub-category that uses one sits at the sub-category level rather
+          // than being filed under an invented status.
+          const byStatus = new Map<string, RevenueChannel[]>();
+          const bare: RevenueChannel[] = [];
+          for (const c of chans) {
+            if (!c.status) { bare.push(c); continue; }
+            if (!byStatus.has(c.status)) byStatus.set(c.status, []);
+            byStatus.get(c.status)!.push(c);
+          }
+          chanNodes = bare.map(toChannelNode);
+          for (const [statusName, group] of Array.from(byStatus.entries())) {
+            const kids = group.map(toChannelNode);
+            chanNodes.push({
+              key: `${buName}|${catName}|${subName}|${statusName}`,
+              level: "status",
+              label: statusName,
+              months: rollUp(kids),
+              actuals: rollUp(kids, "actuals"),
+              children: kids,
+            });
+          }
+        }
         subNodes.push({
           key: `${buName}|${catName}|${subName}`,
           level: "sub_category",
@@ -287,6 +338,36 @@ export async function saveRevenueGoals(
   const known = new Set(valid.map((c) => c.id));
   const bad = entries.filter((e) => !known.has(e.channelId));
   if (bad.length > 0) throw new ForbiddenError(`${bad.length} goal(s) name an unknown channel.`);
+
+  // A CLOSED CHANNEL KEEPS ITS HISTORY BUT MAY NOT OPEN A NEW YEAR.
+  //
+  // `active = false` is the wrong lever for this: listChannels() filters on it,
+  // so deactivating DCP would take its 462,264.25 of FY2026 actuals out of the
+  // tree and out of every revenue total. So "closed" is a STATUS, and the rule
+  // is enforced per fiscal year rather than per channel.
+  //
+  // The test is "does this channel already have rows in THIS year" — not "is
+  // the year in the past". Editing a year it already trades in stays allowed,
+  // so a historical figure can still be corrected; only opening a year it
+  // never traded in is refused.
+  const closedIds = new Set(valid.filter(isClosedChannel).map((c) => c.id));
+  const closedTouched = Array.from(new Set(
+    entries.filter((e) => closedIds.has(e.channelId)).map((e) => e.channelId),
+  ));
+  if (closedTouched.length > 0) {
+    const { data: existing } = await admin
+      .from("revenue_goals").select("channel_id")
+      .eq("fiscal_year", fiscalYear).in("channel_id", closedTouched);
+    const hasYear = new Set((existing ?? []).map((r) => r.channel_id as string));
+    const opening = closedTouched.filter((id) => !hasYear.has(id));
+    if (opening.length > 0) {
+      const names = valid.filter((c) => opening.includes(c.id)).map((c) => c.channel);
+      throw new ForbiddenError(
+        `${names.join(", ")} ${names.length === 1 ? "is" : "are"} closed and cannot be given `
+        + `FY${fiscalYear} goals. Past years keep their figures and stay editable.`,
+      );
+    }
+  }
 
   const before = await readBefore(fiscalYear, entries);
   const toWrite = entries.filter((e) => e.amount !== null);

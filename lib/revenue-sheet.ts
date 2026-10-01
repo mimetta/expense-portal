@@ -31,6 +31,25 @@ export const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 const TOTAL_ROW_PREFIX = "totalsales";
 
+/**
+ * Sheet names that norm() cannot reconcile with the portal's, keyed on the
+ * NORMALISED sheet name.
+ *
+ * norm() absorbs case, spacing and punctuation. It deliberately does NOT
+ * absorb abbreviations or plurals: a fuzzy matcher here would silently bind
+ * the wrong channel to real money, and the whole point of the unknown-channel
+ * check is that a name it does not recognise stops the run.
+ *
+ * So the exceptions are DECLARED, one line each, with the reason. Keep this
+ * map small and keep the comments — it is also the one place where a typo can
+ * be legitimised into a match.
+ */
+const SHEET_ALIASES: Record<string, string> = {
+  // The sheet writes the plural "Unusual&Friends"; the portal channel is
+  // singular. One trailing character apart, which norm() leaves distinct.
+  unusualfriends: "Unusual & Friend",
+};
+
 const MONTHS = [
   "jan", "feb", "mar", "apr", "may", "jun",
   "jul", "aug", "sep", "oct", "nov", "dec",
@@ -165,7 +184,12 @@ export function parseSheetTable(rows: string[][]): ParsedSheet {
   return { channels, totalRow, headerRowIndex };
 }
 
-export interface PortalChannel { id: string; channel: string }
+export interface PortalChannel {
+  id: string;
+  channel: string;
+  /** Closed channels are exempt from the "must appear in the sheet" check. */
+  closed?: boolean;
+}
 
 export interface ValidationOutcome {
   ok: boolean;
@@ -219,7 +243,9 @@ export function validateSheet(
   const byName = new Map(portalChannels.map((c) => [norm(c.channel), c]));
   const seen = new Set<string>();
   for (const row of parsed.channels) {
-    const hit = byName.get(norm(row.name));
+    const key = norm(row.name);
+    const aliased = SHEET_ALIASES[key];
+    const hit = byName.get(key) ?? (aliased ? byName.get(norm(aliased)) : undefined);
     if (!hit) {
       problems.push({
         code: "unknown_channel",
@@ -237,6 +263,11 @@ export function validateSheet(
   //    from the sheet — which would otherwise leave its old figures in place
   //    looking freshly synced.
   for (const c of portalChannels) {
+    // A CLOSED channel is exempt. It keeps its history and is still importable
+    // while the sheet lists it, but the sheet will eventually stop carrying a
+    // closed partner — and if that failed validation, closing a channel would
+    // break the daily sync permanently and nothing could be imported at all.
+    if (c.closed) continue;
     if (!seen.has(norm(c.channel))) {
       problems.push({
         code: "missing_channel",

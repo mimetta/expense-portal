@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listChannels, saveRevenueActuals } from "@/lib/revenue-goals";
+import { listChannels, saveRevenueActuals, isClosedChannel } from "@/lib/revenue-goals";
 import { notifyUsers } from "@/lib/notifications";
 import { ceoWebhookUrl, postToWebhook } from "@/lib/discord";
 import { fetchRevenueTab } from "@/lib/google-sheets";
@@ -152,7 +152,7 @@ export async function runRevenueSync(opts: SyncOptions): Promise<SyncOutcome> {
   const parsed = parseSheetTable(rows);
   const verdict = validateSheet(
     parsed,
-    channels.map((c) => ({ id: c.id, channel: c.channel })),
+    channels.map((c) => ({ id: c.id, channel: c.channel, closed: isClosedChannel(c) })),
     rows,
   );
 
