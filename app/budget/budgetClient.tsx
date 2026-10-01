@@ -520,6 +520,12 @@ export default function BudgetEditorClient({
   );
 
   // --- derived --------------------------------------------------------------
+  // Must match lib/budget-editor.ts#rowKey EXACTLY. The two disagreeing would
+  // make a materialised row save to a different coordinate than it displays.
+  const makeRowKey = (r: {
+    bu: string; department: string; cat_l1: string; cat_l2: string | null; branch: string | null;
+  }) => `${r.bu}|${r.department}|${r.cat_l1}|${r.cat_l2 ?? ""}|${r.branch ?? ""}`;
+
   // Does this owner's budget contain any branch-split department at all?
   // Nobody else sees the bar.
   const hasBranchDept = useMemo(
@@ -545,6 +551,50 @@ export default function BudgetEditorClient({
     // `save` is the trigger: dirtyRef is a ref, so this recomputes when the
     // save state moves rather than on every keystroke.
   }, [save]);
+
+  // MATERIALISE A BRANCH'S LINES ON DEMAND.
+  //
+  // Branch lines only exist once somebody has budgeted, which was circular: a
+  // branch could not be budgeted because it had no lines to type into, so
+  // selecting one showed "0 of 44 lines" and the empty state.
+  //
+  // Selecting a branch now projects the owner's FULL category set onto it, at
+  // zero where nothing has been entered. These rows are client-side only —
+  // nothing is written until a figure is typed and saved, so the database
+  // still gains a line because somebody budgeted, never because a branch
+  // exists. Pre-creating them would be 44 categories x 16 branches x 12 months
+  // = 8,448 empty rows per owner per year, almost all of which would stay zero.
+  useEffect(() => {
+    if (!hasBranchDept || branch === ALL_BRANCHES) return;
+    const want = branchColumnValue(branch);
+    setRows((prev) => {
+      // One template per coordinate, for `approved` and `priorActual` — those
+      // are NOT branch-split, so every branch's row shares the same baseline.
+      const templates = new Map<string, EditorRow>();
+      const present = new Set<string>();
+      for (const r of prev) {
+        if (!isBranchSplit(r.department)) continue;
+        const coord = `${r.bu}|${r.department}|${r.cat_l1}|${r.cat_l2 ?? ""}`;
+        if (!templates.has(coord)) templates.set(coord, r);
+        if ((r.branch ?? null) === want) present.add(coord);
+      }
+      const additions: EditorRow[] = [];
+      for (const [coord, t] of Array.from(templates.entries())) {
+        if (present.has(coord)) continue;
+        // Branches are ONEST Physical store channels, so a named branch only
+        // projects onto ONEST coordinates. The (no branch) bucket takes every
+        // company, which is where SV Retail legitimately sits.
+        if (want !== null && t.bu !== "ONEST") continue;
+        additions.push({
+          ...t,
+          key: makeRowKey({ ...t, branch: want }),
+          branch: want,
+          proposed: Array.from({ length: 12 }, () => 0),
+        });
+      }
+      return additions.length ? prev.concat(additions) : prev;
+    });
+  }, [branch, hasBranchDept, data?.revision?.id]);
 
   const visible = useMemo(() => {
     const base = rows.filter(
@@ -866,8 +916,22 @@ export default function BudgetEditorClient({
                   ))}
                 </select>
               </label>
+              {/* `rows` grows as branches are materialised, so "N of rows.length"
+                  would drift to a meaningless denominator once a few branches
+                  have been visited. With a branch selected the count is stated
+                  on its own, with why the other departments are absent. */}
               <p className="text-[12px] text-brand-muted">
-                {visible.length} of {rows.length} lines
+                {hasBranchDept && branch !== ALL_BRANCHES ? (
+                  <>
+                    {visible.length} line{visible.length === 1 ? "" : "s"} ·{" "}
+                    {branch === NO_BRANCH ? "no branch" : branch}
+                    <span className="text-brand-subtle">
+                      {" "}— branch-split departments only; pick All branches for the rest
+                    </span>
+                  </>
+                ) : (
+                  <>{visible.length} of {rows.length} lines</>
+                )}
               </p>
               <button
                 type="button"
