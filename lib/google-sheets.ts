@@ -36,11 +36,55 @@ function b64url(input: Buffer | string): string {
 function readPrivateKey(): string {
   const raw = process.env.GOOGLE_PRIVATE_KEY;
   if (!raw || !raw.trim()) throw new SheetConfigError("GOOGLE_PRIVATE_KEY is not set.");
-  const key = raw.includes("\\n") ? raw.replace(/\\n/g, "\n") : raw;
-  if (!key.includes("BEGIN") || !key.includes("PRIVATE KEY")) {
-    throw new SheetConfigError("GOOGLE_PRIVATE_KEY does not look like a PEM private key.");
+
+  const looksPem = (s: string) => s.includes("BEGIN") && s.includes("PRIVATE KEY");
+  // Vercel's env UI stores a pasted PEM with literal backslash-n rather than
+  // real newlines; a value pasted with surrounding quotes keeps them too.
+  const unescape = (s: string) => {
+    let v = s.trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    return v.includes("\\n") ? v.replace(/\\n/g, "\n") : v;
+  };
+
+  // THREE SHAPES, because all three are what people actually paste, and the
+  // difference is invisible once the value is encrypted in Vercel:
+  //   1. the PEM itself,
+  //   2. the whole service-account JSON key file,
+  //   3. the PEM base64-encoded, which some guides recommend to dodge the
+  //      newline problem entirely.
+  // Accepting all three is not a weakening — each still has to be a usable RSA
+  // key or the signing step below fails. It just removes a class of
+  // "configured correctly but in the other format" failure.
+  const direct = unescape(raw);
+  if (looksPem(direct)) return direct;
+
+  if (direct.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(direct) as { private_key?: string };
+      if (parsed.private_key && looksPem(parsed.private_key)) return unescape(parsed.private_key);
+    } catch {
+      // fall through to the error below — never echo the parse failure, it can
+      // quote the surrounding key material.
+    }
   }
-  return key;
+
+  try {
+    const decoded = Buffer.from(direct, "base64").toString("utf8");
+    if (looksPem(decoded)) return decoded;
+    if (decoded.trim().startsWith("{")) {
+      const parsed = JSON.parse(decoded) as { private_key?: string };
+      if (parsed.private_key && looksPem(parsed.private_key)) return unescape(parsed.private_key);
+    }
+  } catch { /* not base64, or not JSON inside it */ }
+
+  // Says what was tried, never what was found. The length is the one detail
+  // that helps (it distinguishes "empty-ish" from "something is there") and
+  // reveals nothing usable.
+  throw new SheetConfigError(
+    `GOOGLE_PRIVATE_KEY is set (${direct.length} chars) but is not a PEM private key, `
+    + "a service-account JSON key file, or either of those base64-encoded. "
+    + "Paste the full PEM including the BEGIN/END lines, or the whole JSON key file.",
+  );
 }
 
 /** Service-account JWT -> OAuth access token. */
