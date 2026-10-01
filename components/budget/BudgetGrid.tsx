@@ -193,15 +193,48 @@ const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
  * for the editable cells below it, and must not out-shout them. Zero renders
  * as an em dash for the same reason it does everywhere else in this app.
  */
-function GroupTotal({ value, bg }: { value: number; bg: string }) {
+/**
+ * The share line carried by every aggregate cell — department row, category
+ * row and the footer — in the same 10px subtle treatment the line rows use, so
+ * it reads as annotation rather than competing with the figure above it.
+ *
+ * AN ABSENT GOAL IS AN EM DASH, NEVER 0%. A month with no goal set is "not yet
+ * open", not a month whose goal was missed by everything; 0% would assert the
+ * second. Rendered only where there IS a figure to express as a share — a cell
+ * whose own value is an em dash does not need a second em dash beneath it.
+ */
+function ShareLine({ value, goal }: { value: number; goal: number | null | undefined }) {
+  if (!value) return null;
+  const share = shareOfGoal(value, goal);
+  // font-normal is explicit, not inherited: the footer cell is font-semibold
+  // and this line would otherwise come out bold, which is the one thing it
+  // must not be.
+  return (
+    <div className="text-[10px] font-normal leading-tight text-brand-subtle">
+      {share ?? EM_DASH}
+    </div>
+  );
+}
+
+function GroupTotal({
+  value,
+  bg,
+  goal,
+}: {
+  value: number;
+  bg: string;
+  /** Undefined when the caller has no goal data at all (revenue block absent). */
+  goal?: number | null;
+}) {
   return (
     <td
-      className="py-1 text-right tabular-nums"
+      className="py-1 text-right align-top tabular-nums"
       style={{ paddingLeft: 2, paddingRight: GUTTER_W, background: bg }}
     >
       <span className="text-[11px] font-normal text-brand-muted">
         {value ? thb(value) : EM_DASH}
       </span>
+      {goal !== undefined && <ShareLine value={value} goal={goal} />}
     </td>
   );
 }
@@ -325,6 +358,15 @@ export default function BudgetGrid({
   // ONEST+SV figure — which is what made the old percentage misleading for
   // an owner holding lines in both.
   const goalMonths = revenue?.tree.months ?? null;
+  // The year denominator, for the FY-total column of the same rows. Null when
+  // no month has a goal — so the share line there is an em dash rather than a
+  // percentage of nothing. Undefined (not null) when there is no revenue block
+  // at all, which is what tells GroupTotal to omit the line entirely instead of
+  // showing an em dash on a page that has no goals to speak of.
+  const goalYearTotal = goalMonths
+    ? goalMonths.reduce<number | null>((s, v) => (v === null ? s : (s ?? 0) + v), null)
+    : null;
+  const hasGoals = goalMonths !== null;
 
   const focusCell = useCallback((rowIdx: number, month: number) => {
     const el = gridRef.current?.querySelector<HTMLInputElement>(
@@ -504,12 +546,21 @@ export default function BudgetGrid({
                   </span>
                 </th>
                 {gd.months.map((v, m) => (
-                  <GroupTotal key={m} value={v} bg="#F5F2EC" />
+                  <GroupTotal
+                    key={m}
+                    value={v}
+                    bg="#F5F2EC"
+                    goal={hasGoals ? goalMonths?.[m] ?? null : undefined}
+                  />
                 ))}
-                <td className="px-3 py-1.5 text-right tabular-nums" style={{ background: "#F5F2EC" }}>
+                <td
+                  className="px-3 py-1.5 text-right align-top tabular-nums"
+                  style={{ background: "#F5F2EC" }}
+                >
                   <span className="text-[11px] font-normal text-brand-muted">
                     {gd.total ? thb(gd.total) : EM_DASH}
                   </span>
+                  {hasGoals && <ShareLine value={gd.total} goal={goalYearTotal} />}
                 </td>
                 {showDelta && <td style={{ background: "#F5F2EC" }} />}
               </tr>,
@@ -572,12 +623,21 @@ export default function BudgetGrid({
                     </span>
                   </th>
                   {gc.months.map((v, m) => (
-                    <GroupTotal key={m} value={v} bg="#FCFBF9" />
+                    <GroupTotal
+                      key={m}
+                      value={v}
+                      bg="#FCFBF9"
+                      goal={hasGoals ? goalMonths?.[m] ?? null : undefined}
+                    />
                   ))}
-                  <td className="px-3 py-1 text-right tabular-nums" style={{ background: "#FCFBF9" }}>
+                  <td
+                    className="px-3 py-1 text-right align-top tabular-nums"
+                    style={{ background: "#FCFBF9" }}
+                  >
                     <span className="text-[11px] font-normal text-brand-muted">
                       {gc.total ? thb(gc.total) : EM_DASH}
                     </span>
+                    {hasGoals && <ShareLine value={gc.total} goal={goalYearTotal} />}
                   </td>
                   {showDelta && <td style={{ background: "#FCFBF9" }} />}
                 </tr>,
@@ -746,7 +806,7 @@ export default function BudgetGrid({
             {monthTotals.map((t, m) => (
               <td
                 key={m}
-                className="sticky bottom-0 py-2 text-right font-semibold tabular-nums"
+                className="sticky bottom-0 py-2 text-right align-top font-semibold tabular-nums"
                 // Same right gutter as the body cells so the footer total sits
                 // under the inputs rather than 14px to their right.
                 style={{
@@ -758,13 +818,15 @@ export default function BudgetGrid({
                 }}
               >
                 {t ? thb(t) : EM_DASH}
+                {hasGoals && <ShareLine value={t} goal={goalMonths?.[m] ?? null} />}
               </td>
             ))}
             <td
-              className="sticky bottom-0 px-3 py-2 text-right font-semibold tabular-nums text-brand-dark"
+              className="sticky bottom-0 px-3 py-2 text-right align-top font-semibold tabular-nums text-brand-dark"
               style={{ zIndex: 30, background: "#F9F8F6", boxShadow: "inset 0 1px 0 #D8CBB0" }}
             >
               {thb(sum(monthTotals))}
+              {hasGoals && <ShareLine value={sum(monthTotals)} goal={goalYearTotal} />}
             </td>
             {showDelta && (
               <td

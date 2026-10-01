@@ -2244,3 +2244,52 @@ Also here: every revenue goal/actual edit writes `REVENUE_GOAL_UPDATED` /
 before/after, and `source` distinguishing `manual` from `sheet`. **Only cells that
 actually changed are recorded**, so re-running an import is silent rather than logging
 156 non-events.
+
+---
+
+## ONEST Marketing category cleanup (migration 051) — and why SV still differs
+
+ONEST's Marketing categories had been reorganised into `Brand Building` (10 cat_l2) and
+`Revenue & Conversion` (8 cat_l2), but the old flat cat_l1 names were never retired — so
+ONEST carried the same concepts at two levels at once and new requests could still be filed
+against the obsolete one. 051 retires four leftovers, **ONEST only**:
+
+| retired (ONEST) | now lives at |
+| --- | --- |
+| `Content Production` (cat_l1) | `Brand Building › Content Production` |
+| `Marketing Influencer/KOLs` (cat_l1) | `Brand Building › Marketing Influencer / KOL` |
+| `E-Commerce › GWP` | `Revenue & Conversion › E-Commerce Promotion Support` |
+| `E-Commerce › Marketplace` | `Revenue & Conversion › Marketplace Campaign` |
+
+`E-Commerce` is no longer an active cat_l1 in ONEST. 20 request headers, 29 items_json entries,
+96 budget_lines and 4 categories rows moved; FY2026 totals unchanged to the satang.
+
+**Capitalisation is load-bearing.** The stored names are `Brand Building` / `Revenue &
+Conversion` with capitals. `Brand building` / `Revenue & conversion` differ by a single byte
+(`62` vs `42`, `63` vs `43`) and would create a SECOND parent rather than match the existing
+one. The migration pins the stored bytes as constants.
+
+**Soft delete, not hard.** `categories.active = false` (the flag migration 042 added) — already
+honoured by `GET /api/categories` and `lib/budget-revisions.ts`, so a retired row leaves every
+picker without taking its history with it.
+
+**Colliding budget_lines were summed into the destination and the source row deleted.** All 96
+sources happened to carry ฿0.00, so the sum was a value no-op, but it is written as a real sum.
+Both halves are snapshotted (`source_deleted` rows restore verbatim, `destination_summed` rows
+record how much to subtract back) — reversing one without the other would double-count.
+
+### SV is deliberately untouched, and is NOT consistent with ONEST
+
+SV/Marketing keeps `Content Production`, `Marketing Influencer/KOLs` and `E-Commerce` (with GWP
+and Marketplace) as active cat_l1 rows. **Do not "finish" this by reflex** — it was an explicit
+instruction. But the evidence says SV is **un-reorganised rather than differently organised**:
+four SV cat_l1 names — `Affiliate`, `Content Production`, `Live`, `Website` — exist in ONEST as
+cat_l2 beneath `Brand Building` or `Revenue & Conversion`. ONEST nested exactly what SV left
+flat, and SV has neither parent at all.
+
+Doing the same for SV has a prerequisite: **`akanit.t`'s `bo_scopes.cat_l1_scope` lists the OLD
+names and neither new one**, so creating the parents without extending that scope would leave SV
+Marketing with no budget owner in scope — the fault migration 017 existed to fix.
+`chawanphat.b`'s ONEST scope already lists both old and new names, so ONEST needed no scope
+change; her three now-retired entries are inert, not broken, and were left alone because scope is
+edited through Settings with an audit row, not by migration.

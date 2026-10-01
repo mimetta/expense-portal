@@ -81,15 +81,30 @@ export function GoalActualCell({
   goal,
   actual,
   partial,
+  goalToDate,
 }: {
   goal: number | null;
   actual: number | null;
   /** Current month: the comparison is unfair, so "of goal" is suppressed. */
   partial?: boolean;
+  /**
+   * The goal covering ONLY the months the actual actually covers. Set on a
+   * year-total cell, where the actual is year-to-date but the goal is the
+   * whole year: dividing one by the other would report a complete year's
+   * underperformance when all that happened is the year is not over. When it
+   * differs from `goal` the percentage divides by THIS and says "to date", so
+   * the figure above and the figure it is divided by are never silently
+   * different things. Omit it on a month cell, where the two coincide.
+   */
+  goalToDate?: number | null;
 }) {
   const known = actual !== null;
-  const comparable = known && goal !== null && goal > 0;
-  const color = !known ? NONE : comparable ? (actual >= goal! ? UP : DOWN) : INK;
+  // Undefined means "no separate basis given" — a month cell. Null means a
+  // basis was computed and there is none, which is not the same thing.
+  const basis = goalToDate === undefined ? goal : goalToDate;
+  const comparable = known && basis !== null && basis > 0;
+  const toDate = goalToDate !== undefined && goalToDate !== goal;
+  const color = !known ? NONE : comparable ? (actual >= basis! ? UP : DOWN) : INK;
   return (
     <>
       <Kv k="Goal">
@@ -105,8 +120,8 @@ export function GoalActualCell({
       {comparable && (
         <PcRow
           first
-          k={partial ? "partial month" : "of goal"}
-          v={partial ? EM_DASH : `${Math.round((actual! / goal!) * 100)}%`}
+          k={partial ? "partial month" : toDate ? "of goal to date" : "of goal"}
+          v={partial ? EM_DASH : `${Math.round((actual! / basis!) * 100)}%`}
         />
       )}
     </>
