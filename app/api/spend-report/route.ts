@@ -56,6 +56,9 @@ export async function GET(req: NextRequest) {
     }
 
     const basis: SpendBasis = searchParams.get("basis") === "paid" ? "paid" : "approved";
+    // Default "category": an unrecognised value must not silently regroup the
+    // report under a heading nobody asked for.
+    const groupBy = searchParams.get("groupBy") === "branch" ? "branch" as const : "category" as const;
     const departmentFilter = searchParams.get("department") || null;
 
     const report = await getSpendReport({
@@ -63,6 +66,7 @@ export async function GET(req: NextRequest) {
       fiscalYear,
       months,
       basis,
+      groupBy,
       departmentFilter,
       viewer: user,
     });
