@@ -456,6 +456,63 @@ export async function refreshDraftLines(
   return { added: missing.length, existing: haveKeys.size, stale };
 }
 
+/**
+ * A CLOSED branch may not be given budget in a year it did not trade in.
+ *
+ * THE SERVER IS THE BOUNDARY HERE, not the dropdown. The budget page disables
+ * the option, but `branch` comes from the query string — ?year=2027&branch=DCP
+ * reaches the grid directly, and a disabled <option> stops a click, not a
+ * request. Without this a closed store could be budgeted for a year it does
+ * not exist in.
+ *
+ * "Did it trade" reuses the revenue-goal signal (lib/branches.ts), and
+ * "already budgets here" lets an existing year stay correctable — the same two
+ * conditions saveRevenueGoals applies, so a branch and its revenue agree about
+ * which years are open.
+ */
+async function assertBranchesAreBudgetable(
+  lines: BudgetLine[], fiscalYear: number, revisionId: string,
+): Promise<void> {
+  const named = Array.from(new Set(
+    lines.map((l) => (l as { branch?: string | null }).branch ?? "").filter((b) => b !== ""),
+  ));
+  if (named.length === 0) return;
+
+  const admin = createAdminClient();
+  const { data: chans } = await admin
+    .from("revenue_channels").select("id, channel, status")
+    .eq("bu", "ONEST").eq("category", "Physical store").in("channel", named);
+  const closed = (chans ?? []).filter((c) => c.status === "closed");
+  if (closed.length === 0) return;
+
+  // Already budgeting in this year, in THIS revision or any other.
+  const { data: existing } = await admin
+    .from("budget_lines").select("branch, revision_id")
+    .in("branch", closed.map((c) => c.channel as string));
+  const budgets = new Set(
+    (existing ?? []).filter((r) => r.revision_id !== revisionId).map((r) => r.branch as string),
+  );
+
+  // Or traded in this year.
+  const { data: goals } = await admin
+    .from("revenue_goals").select("channel_id").eq("fiscal_year", fiscalYear);
+  const tradedIds = new Set((goals ?? []).map((g) => g.channel_id as string));
+  const traded = new Set(
+    closed.filter((c) => tradedIds.has(c.id as string)).map((c) => c.channel as string),
+  );
+
+  const refused = closed
+    .map((c) => c.channel as string)
+    .filter((name) => !budgets.has(name) && !traded.has(name));
+  if (refused.length > 0) {
+    throw new ForbiddenError(
+      `${refused.join(", ")} ${refused.length === 1 ? "is" : "are"} closed and did not trade in `
+      + `FY${fiscalYear}, so ${refused.length === 1 ? "it" : "they"} cannot be given a budget for `
+      + `that year. Past years keep their figures and stay editable.`,
+    );
+  }
+}
+
 export async function saveDraft(
   revisionId: string,
   lines: BudgetLine[],
@@ -476,6 +533,7 @@ export async function saveDraft(
     );
   }
   await assertLinesAreRealCategories(lines);
+  await assertBranchesAreBudgetable(lines, revision.fiscal_year, revisionId);
 
   const admin = createAdminClient();
   for (let i = 0; i < lines.length; i += 500) {
