@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listChannels, isClosedChannel } from "@/lib/revenue-goals";
-import { type Branch } from "@/lib/branches-shared";
+import {
+  type Branch, compareBranches, isOfferableBranch,
+} from "@/lib/branches-shared";
 
 // Branches, for Retail budgeting. SERVER ONLY — this reaches revenue_goals and
 // therefore next/headers. Client components import lib/branches-shared.
@@ -56,12 +58,21 @@ export async function listBranches(fiscalYear?: number): Promise<Branch[]> {
     }
   }
 
-  return mine.map((c) => ({
-    name: c.channel,
-    group: c.sub_category,
-    status: c.status ?? null,
-    closed: isClosedChannel(c),
-    active: c.active,
-    tradedThisYear: traded.has(c.channel),
-  }));
+  return mine
+    .map((c) => ({
+      name: c.channel,
+      group: c.sub_category,
+      status: c.status ?? null,
+      closed: isClosedChannel(c),
+      active: c.active,
+      sortOrder: c.sort_order,
+      tradedThisYear: traded.has(c.channel),
+    }))
+    // Retired rows nobody will budget: inactive AND carrying no status.
+    // "LOFT EYES - Tong lor" is also a misspelling of a live branch, so
+    // offering it would invite budgeting the wrong one.
+    .filter(isOfferableBranch)
+    // Ordered ONCE, here, so the dropdown can walk the list rather than
+    // re-deriving an order the server already knows.
+    .sort(compareBranches);
 }
