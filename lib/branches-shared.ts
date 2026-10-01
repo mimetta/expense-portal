@@ -40,6 +40,12 @@ export interface Branch {
   status: string | null;
   closed: boolean;
   active: boolean;
+  /**
+   * Did this branch have revenue goal rows in the fiscal year being viewed?
+   * A CLOSED branch that traded in the year stays budgetable there — its costs
+   * have to be plannable against. Absent when the caller asked for no year.
+   */
+  tradedThisYear?: boolean;
 }
 
 /**

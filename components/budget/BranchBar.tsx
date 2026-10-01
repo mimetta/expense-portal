@@ -117,7 +117,13 @@ export default function BranchBar({
                 // A closed branch is OFFERED for a year it already budgets in,
                 // and refused for a year it does not — the same rule revenue
                 // goals follow, reused rather than restated.
-                const disabled = (b.closed || !b.active) && !branchesWithLines.has(b.name);
+                // Budgetable if it already budgets here, OR it traded here.
+                // The second matters because branch budgeting is new: without
+                // it, a closed branch that is still accruing cost this year
+                // could never be given a budget at all.
+                const disabled = (b.closed || !b.active)
+                  && !branchesWithLines.has(b.name)
+                  && !b.tradedThisYear;
                 return (
                   <Chip
                     key={b.name}
@@ -128,9 +134,9 @@ export default function BranchBar({
                     disabled={disabled}
                     title={
                       disabled
-                        ? `${b.name} is closed and has no FY${fiscalYear} lines — it cannot be given a new year's budget. Its past years are unchanged.`
+                        ? `${b.name} is closed and did not trade in FY${fiscalYear} — it cannot be given a new year's budget. Its past years are unchanged.`
                         : b.closed
-                          ? `${b.name} is closed. FY${fiscalYear} lines already exist, so they stay editable.`
+                          ? `${b.name} is closed but traded in FY${fiscalYear}, so that year stays budgetable and editable.`
                           : undefined
                     }
                   />

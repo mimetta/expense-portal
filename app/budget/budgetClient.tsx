@@ -202,7 +202,7 @@ export default function BudgetEditorClient({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/budget/branches", { cache: "no-store" });
+        const res = await fetch(`/api/budget/branches?year=${fiscalYear}`, { cache: "no-store" });
         if (!res.ok) return;
         const body = await res.json();
         if (!cancelled) setBranches(body.branches ?? []);
@@ -211,7 +211,9 @@ export default function BudgetEditorClient({
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+    // Re-fetched per year: whether a closed branch traded is a fact about the
+    // YEAR, so it has to move when the year selector does.
+  }, [fiscalYear]);
 
   const dirtyRef = useRef<Map<string, EditorRow>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
