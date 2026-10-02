@@ -674,16 +674,21 @@ export default function RequestForm({
    * The Retail branch options. revenue_channels when available, the old
    * products list when the endpoint failed.
    *
-   * canBudgetBranch is REUSED rather than restated: a closed branch may be
-   * named only for a year it traded in. `hasLinesThisYear` is false here —
-   * /submit has no budget lines to consult — so the decision rests entirely on
-   * tradedThisYear, which is what "the request's period falls in a year they
-   * traded" means.
+   * canBudgetBranch is REUSED rather than restated. Its second argument means
+   * "does this branch already have activity in the year in question" — on the
+   * budget page that is existing budget lines; here, where there are none to
+   * consult, it is `tradedThisYear`, which /api/budget/branches computes from
+   * revenue goal rows for the requested year.
+   *
+   * Passing a literal false here was wrong and shipped briefly: it made the
+   * function return false for EVERY closed branch, so DCP was offered for no
+   * year at all rather than for the years it traded. The signal has to be
+   * passed in, not assumed away.
    */
   const retailBranchOptions = (): string[] => {
     if (!branches) return productOptionsFor("Retail");
     return branches
-      .filter((b) => b.active && canBudgetBranch(b as never, false))
+      .filter((b) => b.active && canBudgetBranch(b as never, !!b.tradedThisYear))
       .map((b) => b.name);
   };
 
