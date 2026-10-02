@@ -5,16 +5,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Shared plumbing for the read-only outbound API (/api/external/v1/*).
 //
 // ===========================================================================
-// THE KEY CARRIES NO SCOPING. THIS IS THE MOST IMPORTANT FACT ABOUT IT.
+// SCOPING IS COARSE AND PER-KEY. IT IS NOT THE PORTAL'S PERMISSION MODEL.
 // ===========================================================================
 // Inside the portal, who sees which figures is decided per person — a BO sees
 // the segments in their bo_scopes rows, an employee sees the departments on
 // their people row, and lib/spend.ts#scopeFilter enforces it on every read.
 //
-// NONE OF THAT APPLIES HERE. A caller holding the key sees everything this
-// API exposes, for every company and any fiscal year. There is no per-key
-// scope, no per-department key, and no way to issue a narrower one without
-// building that mechanism first.
+// NONE OF THAT APPLIES HERE. A key may be restricted to some channel
+// CATEGORIES (API_KEYS below) and nothing finer: there is no per-department
+// key, no per-person key, and no row-level rule. Within its categories a
+// holder sees every company and any fiscal year.
 //
 // WHICH IS WHY THE SURFACE IS REVENUE ONLY. /budget and /spend were deleted
 // before first use: KC-Dashboard is open to the whole company, so an unscoped
@@ -33,9 +33,54 @@ const RATE_WINDOW_MS = 60_000;
 
 export const KEY_HEADER = "x-api-key";
 
+/**
+ * Which consumer holds which key, and HOW MUCH OF THE DATA IT MAY SEE.
+ *
+ * A key's label and its reach are ONE THING, declared together. Splitting them
+ * — a label here, a scope somewhere else — is how a key ends up labelled
+ * correctly and scoped wrongly, which is the failure that matters.
+ *
+ * `categories: null` means full access. A label with a category list may read
+ * ONLY revenue_channels rows in those categories, and every figure it is handed
+ * is computed from that subset — see scopedChannelCategories below.
+ *
+ * Adding a consumer is an entry here plus the env var. The secret itself is
+ * never in this file, in the database, or in git.
+ */
+export interface KeyDefinition {
+  /** The env var holding the live secret. */
+  envVar: string;
+  /**
+   * revenue_channels.category values this key may read, or null for all.
+   * Scoping is applied IN THE QUERY, never by trimming the response.
+   */
+  categories: string[] | null;
+}
+
+export const API_KEYS: Record<string, KeyDefinition> = {
+  "kc-dashboard": { envVar: "KC_DASHBOARD_API_KEY", categories: null },
+  // Store operations see their own stores and nothing else. Online revenue
+  // (E-commerce, DTC-Thailand) is not theirs to read — not as rows, and not
+  // inside a total they could subtract it out of.
+  "store-ops": { envVar: "STORE_OPS_API_KEY", categories: ["Physical store"] },
+};
+
+/**
+ * The overlap variant accepted during rotation. Logged under the SAME label,
+ * so a rotating consumer's rate limit stays whole.
+ */
+const previousVarFor = (envVar: string) => `${envVar}_PREVIOUS`;
+
 export interface ExternalCaller {
   keyLabel: string;
+  /** null = unrestricted. Mirrors KeyDefinition.categories. */
+  categories: string[] | null;
+  /** True when the caller authenticated with the PREVIOUS value. */
+  usedPreviousKey: boolean;
 }
+
+/** The category filter for a caller, or null when unrestricted. */
+export const scopedChannelCategories = (caller: ExternalCaller) => caller.categories;
 
 function ok<T>(value: T) { return { ok: true as const, value }; }
 function fail(status: number, error: string, extra: Record<string, unknown> = {}) {
@@ -56,13 +101,18 @@ const clientIp = (req: Request) =>
 
 async function logCall(
   endpoint: string, keyLabel: string, status: number, req: Request,
+  usedPreviousKey = false,
 ): Promise<void> {
   try {
     const admin = createAdminClient();
     await admin.from("external_api_calls").insert({
       endpoint, key_label: keyLabel, status,
       ip: clientIp(req),
-      query: new URL(req.url).search || null,
+      // The PREVIOUS key is recorded distinguishably, appended to the query
+      // column so it needs no schema change. Without it "has the consumer
+      // actually rotated?" is unanswerable, and an overlap window that cannot
+      // be closed with confidence is one that stays open forever.
+      query: `${new URL(req.url).search || ""}${usedPreviousKey ? " [previous-key]" : ""}` || null,
     });
   } catch {
     // Logging must never turn a good response into a failed one. The rate
@@ -80,13 +130,25 @@ async function logCall(
 export async function authenticateExternal(
   req: Request, endpoint: string,
 ): Promise<{ ok: true; value: ExternalCaller } | { ok: false; response: NextResponse }> {
-  const expected = process.env.KC_DASHBOARD_API_KEY;
-  const keyLabel = "kc-dashboard";
+  // Every configured key, current and previous. Unconfigured labels are simply
+  // absent — a missing STORE_OPS_API_KEY means store-ops cannot call, not that
+  // the API is down.
+  const candidates: { label: string; secret: string; previous: boolean }[] = [];
+  for (const [label, def] of Object.entries(API_KEYS)) {
+    const current = process.env[def.envVar];
+    if (current && current.trim() !== "") {
+      candidates.push({ label, secret: current, previous: false });
+    }
+    const prev = process.env[previousVarFor(def.envVar)];
+    if (prev && prev.trim() !== "") {
+      candidates.push({ label, secret: prev, previous: true });
+    }
+  }
 
-  // Unconfigured is a refusal, not an open door. Deploying without the env var
-  // must not accidentally publish finance data.
-  if (!expected || expected.trim() === "") {
-    await logCall(endpoint, keyLabel, 503, req);
+  // 503 ONLY when NOTHING is configured. One consumer's variable being unset
+  // is that consumer's problem, not an outage for the others.
+  if (candidates.length === 0) {
+    await logCall(endpoint, "unconfigured", 503, req);
     return fail(503, "This API is not configured on the server.");
   }
 
@@ -95,23 +157,43 @@ export async function authenticateExternal(
     await logCall(endpoint, "unauthenticated", 401, req);
     return fail(401, `Missing ${KEY_HEADER} header.`);
   }
-  if (!secretEquals(presented, expected)) {
+
+  // NO SHORT-CIRCUIT. Every candidate is compared even after one matches, so
+  // the time taken does not reveal WHICH key matched, or how many are
+  // configured. `matched` is assigned rather than returned from inside the
+  // loop for exactly that reason — an early return here would reintroduce the
+  // timing signal the constant-time compare exists to remove.
+  let matched: { label: string; previous: boolean } | null = null;
+  for (const c of candidates) {
+    const hit = secretEquals(presented, c.secret);
+    if (hit && matched === null) matched = { label: c.label, previous: c.previous };
+  }
+
+  if (matched === null) {
+    // UNDER "unauthenticated", NEVER under a real label: a wrong key must not
+    // consume a genuine consumer's rate-limit quota, and a burst of 401s stays
+    // visually separable in the log.
     await logCall(endpoint, "unauthenticated", 401, req);
     return fail(401, "Invalid API key.");
   }
 
-  // Rate limit, counted from the log so it holds across lambda instances.
+  const def = API_KEYS[matched.label];
+
+  // Rate limit, counted from the log so it holds across lambda instances, and
+  // PER LABEL so one consumer cannot exhaust another's allowance. The previous
+  // key counts under the same label, so rotating does not hand a consumer a
+  // second allowance.
   try {
     const admin = createAdminClient();
     const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString();
     const { count, error } = await admin
       .from("external_api_calls")
       .select("id", { count: "exact", head: true })
-      .eq("key_label", keyLabel)
+      .eq("key_label", matched.label)
       .gte("ts", since);
     if (error) throw error;
     if ((count ?? 0) >= RATE_LIMIT) {
-      await logCall(endpoint, keyLabel, 429, req);
+      await logCall(endpoint, matched.label, 429, req, matched.previous);
       return fail(429, `Rate limit exceeded: ${RATE_LIMIT} requests per minute.`, {
         retry_after_seconds: Math.ceil(RATE_WINDOW_MS / 1000),
       });
@@ -119,12 +201,16 @@ export async function authenticateExternal(
   } catch {
     // Cannot read the log => cannot enforce the limit => refuse. An
     // unenforceable limit is not a limit.
-    await logCall(endpoint, keyLabel, 503, req);
+    await logCall(endpoint, matched.label, 503, req, matched.previous);
     return fail(503, "Rate limiting is unavailable; request refused.");
   }
 
-  await logCall(endpoint, keyLabel, 200, req);
-  return ok({ keyLabel });
+  await logCall(endpoint, matched.label, 200, req, matched.previous);
+  return ok({
+    keyLabel: matched.label,
+    categories: def.categories,
+    usedPreviousKey: matched.previous,
+  });
 }
 
 /** Fiscal year + optional company, validated the same way for every endpoint. */
