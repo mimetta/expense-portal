@@ -440,6 +440,21 @@ function SupplierTab() {
 
 // --- Tab 2: Product/SKU Management --------------------------------------------
 
+/**
+ * Segments a PRODUCT can belong to — every department except Retail.
+ *
+ * A Retail "product" is a BRANCH, and branches are revenue_channels. Since
+ * /submit started reading its Retail branch list from the channels, a Retail
+ * row created here feeds nothing: it would sit in the table looking like a
+ * configured branch and never appear in any picker.
+ *
+ * The EXISTING seven Retail rows are deliberately NOT removed. Song Wat and
+ * Talat Noi are named on 138 and 98 requests; the rows are the only record
+ * that those values were ever a managed list rather than free text. This stops
+ * new ones being made, it does not rewrite history.
+ */
+const PRODUCT_SEGMENTS = DEPARTMENTS.filter((d) => d !== "Retail");
+
 const emptyProductForm = () => ({
   sku_code: "",
   product_name: "",
@@ -607,10 +622,15 @@ function ProductTab() {
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
               >
                 <option value="">-</option>
-                {DEPARTMENTS.map((d) => (
+                {PRODUCT_SEGMENTS.map((d) => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-brand-subtle">
+                Retail is not listed: a Retail branch is a <strong>revenue channel</strong>, added
+                on the Budget page. Creating one here would do nothing — Submit reads branches from
+                the channel list.
+              </p>
             </div>
             <div>
               <label className={labelClass}>BU<RequiredMark /></label>
