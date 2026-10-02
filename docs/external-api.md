@@ -3,6 +3,9 @@
 Read-only feed of **revenue goals and actuals**. Nothing else. Versioned at
 `/api/external/v1/`.
 
+Each consumer holds its own key, and a key may be **scoped to part of the data** — see
+[Keys and their scope](#keys-and-their-scope).
+
 ---
 
 ## Cost figures are deliberately not here — read this before adding any
@@ -34,8 +37,10 @@ Inside the portal, who sees which figures is decided **per person**: a budget ow
 segments in their `bo_scopes` rows, an employee sees the departments on their `people` row, and
 `lib/spend.ts#scopeFilter` enforces it on every read.
 
-**None of that applies to this API.** A caller holding the key sees **everything this API
-exposes, for any company and any fiscal year**. There is no per-key scope, no per-department key,
+**None of that applies to this API.** A caller holding a key sees **everything that key's scope
+allows, for any company and any fiscal year**. Scope is coarse and per-key (currently: all
+channels, or Physical store only) — it is NOT the portal's per-person model, and there is no
+per-department or per-person key. There is no per-key scope, no per-department key,
 and no way to issue a narrower one without building that mechanism first.
 
 That is the whole reason the surface is limited to revenue (previous section). Do not assume the
@@ -148,21 +153,83 @@ and nothing else, so there is no write handler to switch off.
 
 ---
 
-## Rotating the key
+## Keys and their scope
+
+Each consumer holds its **own key**, declared in `lib/external-api.ts#API_KEYS`. A key's label
+and its reach are one thing, in one place — a key is never labelled in one file and scoped in
+another.
+
+| label | env var | may read |
+|---|---|---|
+| `kc-dashboard` | `KC_DASHBOARD_API_KEY` | **all channels** — Physical store *and* Online |
+| `store-ops` | `STORE_OPS_API_KEY` | **Physical store only** — Owned store, Specialty partners, Event |
+
+`store-ops` cannot see Online (E-commerce, DTC-Thailand) **as rows or inside any total**. The
+scope is applied in the query, so a restricted key never loads a channel it may not read — there
+is no filtered-out row to leak through a later edit or a totals line somebody adds without
+noticing. No request parameter widens it: `company` is a parameter, scope is not — it comes from
+which secret matched.
+
+### Totals are the total of what your key can see
+
+Every response carries both:
+
+```jsonc
+"scope":  { "channel_categories": ["Physical store"], "complete": false },
+"totals": { "goal": 0, "actual": 0 }
+```
+
+`complete: false` means figures cover only the categories listed. **`totals` sums the channels
+actually returned, never the company.** A scoped key is deliberately never handed a company-wide
+figure it cannot break down, because the hidden channels would then be recoverable by
+subtraction. An unscoped key gets `"channel_categories": "ALL", "complete": true`.
+
+### Labelling and rate limits
+
+Each label has its **own** 60/minute allowance, counted from `external_api_calls.key_label`, so
+one consumer cannot exhaust another's. A key that does not match anything is logged under
+`unauthenticated` and never against a real label — a wrong key cannot spend a genuine consumer's
+quota.
+
+Keys are compared **without short-circuiting**: every configured key is checked even after one
+matches, so response timing does not reveal which key matched or how many exist.
+
+`503` is returned only when **no** key is configured at all. One consumer's variable being unset
+means that consumer cannot call; it is not an outage for the others.
+
+---
+
+## Rotating a key — with an overlap window
+
+Each key accepts a second value during rotation: `<ENV_VAR>_PREVIOUS`. Both authenticate, both
+log under the **same label**, so a rotating consumer's rate limit stays whole.
 
 1. Generate a new value — e.g. `openssl rand -hex 32`. Do not commit it anywhere.
-2. In the Vercel project, set `KC_DASHBOARD_API_KEY` to the new value (Production, and Preview
-   if KC-Dashboard points at a preview URL).
-3. Redeploy, or trigger a redeploy — environment variables are read at runtime per invocation,
-   but a redeploy guarantees every instance picks it up.
-4. Update the key in KC-Dashboard.
+2. In Vercel, set **`<ENV_VAR>_PREVIOUS`** to the value currently live.
+3. Set **`<ENV_VAR>`** to the new value.
+4. Redeploy. Both keys now work.
+5. Give the consumer the new key.
+6. **Confirm they have moved**, from the call log — see below.
+7. Remove `<ENV_VAR>_PREVIOUS` and redeploy.
 
-There is **one key and no overlap window**: the moment step 3 takes effect, requests with the old
-key get `401` until step 4 is done. Plan the two together, or accept a gap. Supporting two valid
-keys at once would need a second env var and a change to `lib/external-api.ts`.
+Step 6 is the point of the whole arrangement. A call made with the previous value is recorded
+distinguishably: its `query` column ends with `[previous-key]`.
 
-Check `external_api_calls` after rotating: a run of `401`s with `key_label = 'unauthenticated'`
-means KC-Dashboard is still presenting the old key.
+```sql
+select key_label, count(*) as still_on_old_key
+  from external_api_calls
+ where ts > now() - interval '24 hours'
+   and query like '%[previous-key]%'
+ group by key_label;
+```
+
+Zero rows for a label over a period longer than that consumer's polling interval means it has
+rotated and `_PREVIOUS` is safe to remove. **Do not skip to step 7 on a guess** — an overlap
+window nobody can confirm is closed is one that stays open indefinitely, which is the failure
+this replaces.
+
+Rotating without an overlap is still possible: set the new value, redeploy, and accept that the
+consumer gets `401` until it is updated.
 
 ---
 

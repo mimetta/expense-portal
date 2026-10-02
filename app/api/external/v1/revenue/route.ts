@@ -1,16 +1,27 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleApiError } from "@/lib/api-helpers";
-import { authenticateExternal, readParams, envelope, fetchAll } from "@/lib/external-api";
+import {
+  authenticateExternal, readParams, envelope, fetchAll, scopedChannelCategories,
+} from "@/lib/external-api";
 
 // GET /api/external/v1/revenue?fiscal_year=2026&company=ONEST
 //
 // Revenue GOAL and ACTUAL per channel per month.
 //
 // ===========================================================================
-// THE KEY CARRIES NO SCOPING. A caller holding it sees every company and
-// every channel. The portal's per-person visibility rules do NOT apply here —
-// see lib/external-api.ts for the full statement. Do not assume anything
-// downstream of this key is constrained by them.
+// A KEY'S SCOPE IS COARSE AND IS NOT THE PORTAL'S PERMISSION MODEL.
+// ===========================================================================
+// Keys are per-consumer and may be restricted to some channel categories
+// (lib/external-api.ts#API_KEYS): kc-dashboard reads everything, store-ops
+// reads Physical store only. That is the WHOLE of the scoping — there is no
+// per-department or per-person key, and the portal's per-person visibility
+// rules do NOT apply here. Do not assume a holder is constrained by them
+// beyond the category list its key carries.
+//
+// Scope is applied IN THE QUERY below, and every total is computed from the
+// rows that query returned. A scoped key is never handed a company-wide
+// figure it cannot break down, because the hidden channels would then be
+// recoverable by subtraction.
 // ===========================================================================
 //
 // ===========================================================================
@@ -52,9 +63,19 @@ export async function GET(req: Request) {
 
     const admin = createAdminClient();
 
+    // SCOPE IS APPLIED IN THE QUERY, not by trimming the response.
+    //
+    // A key restricted to Physical store never loads an Online channel at all,
+    // so there is no filtered-out row to leak through a later edit, a debug
+    // log, or a totals line someone adds without noticing. The caller cannot
+    // widen this: `company` is a request parameter, `categories` is not — it
+    // comes from which secret matched.
+    const categories = scopedChannelCategories(auth.value);
+
     let chanQ = admin.from("revenue_channels")
       .select("id, bu, category, sub_category, channel, active");
     if (company) chanQ = chanQ.eq("bu", company);
+    if (categories) chanQ = chanQ.in("category", categories);
     const { data: channels, error: chanErr } = await chanQ;
     if (chanErr) throw chanErr;
 
@@ -107,11 +128,28 @@ export async function GET(req: Request) {
         };
       });
 
+    // EVERY FIGURE HERE IS THE TOTAL OF WHAT THIS KEY CAN SEE.
+    //
+    // `rows` is already scoped, so these sums cannot contain a channel the
+    // caller may not read. That matters more than it looks: handing a scoped
+    // key a company-wide total it cannot break down would leak the hidden
+    // channels by subtraction, which is the whole reason the roll-up is
+    // computed from the returned rows rather than queried separately.
+    const sumRows = (pick: "goal_total" | "actual_total") =>
+      rows.reduce<number | null>(
+        (t, r) => (r[pick] === null ? t : (t ?? 0) + (r[pick] as number)), null);
+
     return envelope({
       fiscal_year: fiscalYear,
       company: company ?? "ALL",
       currency: "THB",
       note: "actual = null means not yet known; it is never reported as 0.",
+      // Stated, not implied: a consumer must be able to tell that a figure is
+      // partial without having to know how its key was issued.
+      scope: categories
+        ? { channel_categories: categories, complete: false }
+        : { channel_categories: "ALL", complete: true },
+      totals: { goal: sumRows("goal_total"), actual: sumRows("actual_total") },
       channels: rows,
     });
   } catch (err) {
