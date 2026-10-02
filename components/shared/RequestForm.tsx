@@ -20,6 +20,7 @@ import {
 } from "@/lib/constants";
 import { computeTotals } from "@/lib/totals";
 import { formatCurrency } from "@/lib/format";
+import { canBudgetBranch, type Branch as BranchOption } from "@/lib/branches-shared";
 import type {
   CategoryRow,
   CompanyRow,
@@ -372,6 +373,19 @@ export default function RequestForm({
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
+  // RETAIL BRANCHES COME FROM revenue_channels, NOT products.
+  //
+  // A branch IS a revenue channel (lib/branches.ts). Reading `products` here
+  // was the second source of truth: five people could add a branch the budget
+  // page would never offer, one person could add a branch nobody could file
+  // against, and the two lists had drifted to 7 vs 16 — including two stale
+  // spellings ("Lofteyes", "Unusual&Friend") that migrations 059 and 061 had
+  // just reconciled out of `requests` and this picker would have reintroduced
+  // on the next Retail request.
+  //
+  // R&D keeps productOptionsFor: an R&D product is genuinely a product.
+  const [branches, setBranches] = useState<BranchOption[] | null>(null);
+  const [branchFallback, setBranchFallback] = useState(false);
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [custodians, setCustodians] = useState<PettyCashCustodianRow[]>([]);
@@ -622,6 +636,56 @@ export default function RequestForm({
           .map((c) => c.cat_l2 as string),
       ),
     );
+
+  // Re-fetched when the request's own fiscal year changes: whether a CLOSED
+  // branch may be named depends on whether it traded in THAT year, which is a
+  // fact about the year, not about the branch.
+  const branchYear = Number(budgetPeriod.slice(0, 4)) || new Date().getFullYear();
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/budget/branches?year=${branchYear}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`branches ${res.status}`);
+        const body = await res.json();
+        if (!Array.isArray(body.branches)) throw new Error("branches: unexpected shape");
+        if (!cancelled) { setBranches(body.branches); setBranchFallback(false); }
+      } catch (e) {
+        // FALL BACK TO THE OLD products LIST RATHER THAN AN EMPTY DROPDOWN.
+        //
+        // /submit is the most-used page in this app and must not stop
+        // accepting Retail requests because a budget endpoint is down. The
+        // fallback list is stale and may offer a retired spelling — that is
+        // strictly better than a submitter being unable to name their branch
+        // at all.
+        if (!cancelled) {
+          setBranches(null);
+          setBranchFallback(true);
+          // Logged, so a silent permanent fallback is visible rather than
+          // looking like the branch list simply being short.
+          console.error("[RequestForm] /api/budget/branches failed — falling back to the products list", e);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [branchYear]);
+
+  /**
+   * The Retail branch options. revenue_channels when available, the old
+   * products list when the endpoint failed.
+   *
+   * canBudgetBranch is REUSED rather than restated: a closed branch may be
+   * named only for a year it traded in. `hasLinesThisYear` is false here —
+   * /submit has no budget lines to consult — so the decision rests entirely on
+   * tradedThisYear, which is what "the request's period falls in a year they
+   * traded" means.
+   */
+  const retailBranchOptions = (): string[] => {
+    if (!branches) return productOptionsFor("Retail");
+    return branches
+      .filter((b) => b.active && canBudgetBranch(b as never, false))
+      .map((b) => b.name);
+  };
 
   const productOptionsFor = (dept: string) =>
     Array.from(
@@ -1268,13 +1332,18 @@ export default function RequestForm({
             <label className={labelClass}>Branch (optional)</label>
             <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
               <option value="">-</option>
-              {productOptionsFor("Retail").map((name) => (
+              {retailBranchOptions().map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-            {productOptionsFor("Retail").length === 0 && (
+            {retailBranchOptions().length === 0 && (
               <p className="mt-1 text-xs text-brand-subtle">
-                No branches yet — add them in Settings &gt; Product/SKU Management (Segment = Retail).
+                No branches yet — add them on the Budget page (a branch is a revenue channel).
+              </p>
+            )}
+            {branchFallback && (
+              <p className="mt-1 text-xs" style={{ color: "#92400E" }}>
+                Branch list unavailable — showing the older list. It may be out of date.
               </p>
             )}
           </div>
@@ -1449,7 +1518,10 @@ export default function RequestForm({
                             required={rowFieldMode === "branch"}
                           >
                             <option value="">Select...</option>
-                            {productOptionsFor(item.segment ?? "").map((name) => (
+                            {(rowFieldMode === "branch"
+                              ? retailBranchOptions()
+                              : productOptionsFor(item.segment ?? "")
+                            ).map((name) => (
                               <option key={name} value={name}>{name}</option>
                             ))}
                           </select>
