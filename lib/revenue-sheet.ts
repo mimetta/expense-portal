@@ -192,8 +192,14 @@ export interface PortalChannel {
 }
 
 export interface ValidationOutcome {
+  /** True when nothing REFUSES the run. Warnings do not clear this flag. */
   ok: boolean;
+  /** Refuse the whole run. The sheet is wrong and a person must fix it. */
   problems: SheetProblem[];
+  /**
+   * Proceed, but say so loudly. The sheet is probably just behind the portal.
+   */
+  warnings: SheetProblem[];
   /** sheet name -> portal channel, for the rows that matched. */
   matched: { row: SheetChannelRow; channel: PortalChannel }[];
   /** Cosmetic name differences that were accepted, e.g. "Line OA" -> "LINE OA". */
@@ -216,6 +222,7 @@ export function validateSheet(
   rows: string[][],
 ): ValidationOutcome {
   const problems: SheetProblem[] = [];
+  const warnings: SheetProblem[] = [];
   const matched: { row: SheetChannelRow; channel: PortalChannel }[] = [];
   const renames: string[] = [];
 
@@ -258,10 +265,27 @@ export function validateSheet(
     matched.push({ row, channel: hit });
   }
 
-  // 3. Every active portal channel must appear in the sheet. The reverse of
-  //    the check above, and the one that catches a channel SILENTLY DROPPED
-  //    from the sheet — which would otherwise leave its old figures in place
-  //    looking freshly synced.
+  // 3. A portal channel absent from the sheet is a WARNING, not a refusal.
+  //
+  // ===========================================================================
+  // WHY THIS CASE DIFFERS FROM THE ONE ABOVE.
+  // ===========================================================================
+  // An unmatched SHEET row means THE SHEET IS WRONG — a typo, or a channel
+  // somebody invented in the spreadsheet. Importing it would mean inventing a
+  // revenue stream in the portal from a misspelling, so that still refuses the
+  // whole run.
+  //
+  // An unmatched PORTAL channel usually means THE SHEET HAS NOT CAUGHT UP YET.
+  // Somebody added a branch in the portal this morning and the sheet gains its
+  // row tomorrow. Refusing everything for that stopped ALL revenue actuals
+  // updating — including every channel that matched perfectly — and the person
+  // who added the channel had no way to know they had done it.
+  //
+  // So: import what matched, leave the unmatched channel's figures exactly as
+  // they were, and report it loudly. The risk this accepts is the one the
+  // message names — a channel silently DROPPED from the sheet keeps its old
+  // figures while looking freshly synced — which is why it is surfaced in the
+  // run summary, the budget page banner and Discord rather than only here.
   for (const c of portalChannels) {
     // A CLOSED channel is exempt. It keeps its history and is still importable
     // while the sheet lists it, but the sheet will eventually stop carrying a
@@ -269,9 +293,9 @@ export function validateSheet(
     // break the daily sync permanently and nothing could be imported at all.
     if (c.closed) continue;
     if (!seen.has(norm(c.channel))) {
-      problems.push({
+      warnings.push({
         code: "missing_channel",
-        message: `Portal channel "${c.channel}" is active but absent from the sheet. Its figures would silently keep their previous values.`,
+        message: `Portal channel "${c.channel}" is not in the sheet — its figures were left unchanged. Add a row for it to the sheet, or close the channel if it has retired.`,
       });
     }
   }
@@ -291,7 +315,9 @@ export function validateSheet(
     });
   }
 
-  return { ok: problems.length === 0, problems, matched, renames, summed, stated };
+  // Warnings deliberately do NOT clear `ok`: they are things to tell somebody
+  // about, not reasons to withhold figures that are perfectly good.
+  return { ok: problems.length === 0, problems, warnings, matched, renames, summed, stated };
 }
 
 export interface ActualCell { channelId: string; month: number; actual: number | null }

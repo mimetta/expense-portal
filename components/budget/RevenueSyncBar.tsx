@@ -22,6 +22,7 @@ interface SyncStatus {
   lastSuccessAt: string | null;
   lastStatus: "success" | "validation_failed" | "error" | null;
   lastProblems: string[];
+  lastWarnings: string[];
   stale: boolean;
   staleHours: number | null;
 }
@@ -34,6 +35,7 @@ interface RunOutcome {
   nulledMonths: { month: number; reason: string }[];
   renames: string[];
   problems: string[];
+  warnings?: string[];
   error?: string;
 }
 
@@ -91,7 +93,11 @@ export default function RevenueSyncBar({
   // Never-synced is NOT treated as stale — see getSyncStatus. Warning on a
   // fresh deployment would train everyone to ignore this bar, which is the one
   // thing it cannot afford.
-  const tone = status.stale && !never
+  // A run that succeeded but skipped a channel is NOT green. Green would say
+  // "everything is current", and for that channel it is not — which is the
+  // whole reason the run no longer refuses outright.
+  const partial = status.lastStatus === "success" && status.lastWarnings.length > 0;
+  const tone = (status.stale && !never) || partial
     ? { bg: "#FEF3C7", border: "#F59E0B", fg: "#92400E", dot: "#F59E0B" }
     : status.lastStatus === "success" || never
       ? { bg: "#F0F4EF", border: "#9CAE8C", fg: "#1F3A2B", dot: "#2E7D52" }
@@ -111,6 +117,11 @@ export default function RevenueSyncBar({
               : <>Revenue actuals last synced <strong>{when(status.lastSuccessAt)}</strong></>}
             {status.stale && !never && (
               <> — <strong>{status.staleHours}h ago</strong>. The daily sync has not succeeded in over 48 hours; these figures may be out of date.</>
+            )}
+            {partial && (
+              <> — <strong>{status.lastWarnings.length} channel
+                {status.lastWarnings.length === 1 ? "" : "s"} not in the sheet</strong>, figures
+                left unchanged.</>
             )}
             {status.lastStatus !== "success" && status.lastRunAt && (
               <> · last attempt {when(status.lastRunAt)} <strong>failed</strong>
@@ -142,6 +153,15 @@ export default function RevenueSyncBar({
         </ul>
       )}
 
+      {/* Named, not counted: "1 channel not in the sheet" leaves the reader
+          hunting for which. */}
+      {partial && !result && (
+        <ul className="mt-2 list-disc space-y-0.5 pl-5">
+          {status.lastWarnings.slice(0, 6).map((w, i) => <li key={i}>{w}</li>)}
+          {status.lastWarnings.length > 6 && <li>…and {status.lastWarnings.length - 6} more.</li>}
+        </ul>
+      )}
+
       {result && (
         <div className="mt-2">
           {result.ok ? (
@@ -152,6 +172,17 @@ export default function RevenueSyncBar({
                 ? ` · months left unknown: ${result.nulledMonths.map((n) => n.month).join(", ")}`
                 : ""}
               {result.renames.length ? ` · name mappings: ${result.renames.join(", ")}` : ""}
+              {result.warnings && result.warnings.length > 0 && (
+                <>
+                  <br />
+                  <strong>{result.warnings.length} channel
+                  {result.warnings.length === 1 ? "" : "s"} not in the sheet</strong> — figures
+                  left unchanged:
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                    {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                </>
+              )}
             </span>
           ) : (
             <>

@@ -1248,6 +1248,22 @@ function AddChannelModal({
           <h2 className="mm-modal-title">Add a revenue channel</h2>
         </div>
         <div className="mm-modal-body space-y-3">
+          {/* Said at the moment of acting, not in documentation nobody reads.
+              Adding a channel used to stop ALL revenue actuals updating until
+              the sheet caught up, and the person adding it had no way to know.
+              The sync no longer refuses outright, but the new channel's figures
+              still will not arrive until the sheet has a row for it. */}
+          <div
+            className="rounded-[8px] px-3 py-2 text-[12.5px]"
+            style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+          >
+            A new channel needs a matching row in the revenue sheet before its
+            actuals will arrive. Until then the daily sync imports every other
+            channel as usual and reports this one as missing — it no longer
+            refuses the whole run.
+            <br />
+            For a Retail branch, this also makes it selectable on Submit.
+          </div>
           <label className="block">
             <span className="mm-label mb-1 block">Business unit</span>
             <select className="mm-input w-full" value={bu} onChange={(e) => setBu(e.target.value)}>

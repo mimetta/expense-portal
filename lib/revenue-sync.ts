@@ -39,6 +39,8 @@ export interface SyncOutcome {
   nulledMonths: { month: number; reason: "future" | "all_zero" }[];
   renames: string[];
   problems: string[];
+  /** Channels the portal has and the sheet did not. Figures left unchanged. */
+  warnings: string[];
 }
 
 /** Who hears about a broken sync. CEOs and superadmins — the people who can act. */
@@ -86,6 +88,42 @@ async function announceFailure(fiscalYear: number, headline: string, problems: s
   }
 }
 
+/**
+ * Tell somebody about a run that SUCCEEDED but skipped a channel.
+ *
+ * Deliberately noisy — in-app and Discord, the same channels a failure uses.
+ * The whole point of no longer refusing the run is that the skipped channel
+ * must not become invisible: silently importing 20 of 21 channels is exactly
+ * the "stale data looks like fresh data" failure this feature exists to
+ * prevent, just narrowed to one row.
+ */
+async function announceWarnings(fiscalYear: number, warnings: string[], written: number) {
+  const message = `Revenue sync FY${fiscalYear} imported ${written} figures, but `
+    + `${warnings.length} channel${warnings.length === 1 ? " was" : "s were"} not in the sheet `
+    + `and kept their previous values.`;
+  try {
+    const to = await failureRecipients();
+    if (to.length) await notifyUsers(to, `revenue-sync-${fiscalYear}`, "REVENUE_SYNC_PARTIAL", message);
+  } catch (e) {
+    console.error("revenue-sync: in-app warning notification failed", e);
+  }
+  try {
+    const url = ceoWebhookUrl();
+    if (url) {
+      await postToWebhook(url,
+        `🟡 **Revenue sync FY${fiscalYear} — imported with warnings**\n`
+        + `${written} figures written. ${warnings.length} portal channel`
+        + `${warnings.length === 1 ? "" : "s"} had no row in the sheet and `
+        + `${warnings.length === 1 ? "its figures were" : "their figures were"} left unchanged:\n`
+        + warnings.slice(0, 8).map((w) => `• ${w}`).join("\n")
+        + (warnings.length > 8 ? `\n…and ${warnings.length - 8} more.` : "")
+        + `\n_Add a row to the sheet, or close the channel if it has retired._`);
+    }
+  } catch (e) {
+    console.error("revenue-sync: discord warning notification failed", e);
+  }
+}
+
 /** Record the attempt. Non-fatal: a missing log must not refuse a good import. */
 async function recordRun(row: Record<string, unknown>) {
   try {
@@ -128,7 +166,7 @@ export async function runRevenueSync(opts: SyncOptions): Promise<SyncOutcome> {
     return {
       ok: false, fiscalYear, tabName, status,
       channelsMatched: 0, cellsWritten: 0, cellsCleared: 0,
-      nulledMonths: [], renames: [], problems,
+      nulledMonths: [], renames: [], problems, warnings: [],
     };
   };
 
@@ -161,6 +199,7 @@ export async function runRevenueSync(opts: SyncOptions): Promise<SyncOutcome> {
     const kinds = Array.from(new Set(verdict.problems.map((p) => p.code))).join(", ");
     return fail("validation_failed", `${problems.length} validation problem(s) [${kinds}]`, problems);
   }
+  const warnings = verdict.warnings.map((p: SheetProblem) => p.message);
 
   // --- write --------------------------------------------------------------
   const built = buildEntries(verdict.matched, parsed.totalRow, fiscalYear, opts.now ?? new Date());
@@ -182,8 +221,14 @@ export async function runRevenueSync(opts: SyncOptions): Promise<SyncOutcome> {
     channels_matched: verdict.matched.length,
     cells_written: written, cells_cleared: cleared,
     problems: [] as unknown,
-    note: verdict.renames.length ? `name mappings: ${verdict.renames.join(", ")}` : null,
+    warnings: warnings as unknown,
+    note: [
+      warnings.length ? `${warnings.length} channel(s) not in the sheet` : null,
+      verdict.renames.length ? `name mappings: ${verdict.renames.join(", ")}` : null,
+    ].filter(Boolean).join(" · ") || null,
   });
+
+  if (warnings.length > 0) await announceWarnings(fiscalYear, warnings, written);
 
   return {
     ok: true, fiscalYear, tabName, status: "success",
@@ -192,6 +237,7 @@ export async function runRevenueSync(opts: SyncOptions): Promise<SyncOutcome> {
     nulledMonths: built.nulledMonths,
     renames: verdict.renames,
     problems: [],
+    warnings,
   };
 }
 
@@ -200,6 +246,8 @@ export interface SyncStatus {
   lastSuccessAt: string | null;
   lastStatus: "success" | "validation_failed" | "error" | null;
   lastProblems: string[];
+  /** Channels missing from the sheet on the last run, which still succeeded. */
+  lastWarnings: string[];
   /** True when the last SUCCESS is older than STALE_AFTER_HOURS, or there has never been one. */
   stale: boolean;
   staleHours: number | null;
@@ -213,12 +261,12 @@ export interface SyncStatus {
 export async function getSyncStatus(): Promise<SyncStatus> {
   const empty: SyncStatus = {
     lastRunAt: null, lastSuccessAt: null, lastStatus: null,
-    lastProblems: [], stale: false, staleHours: null,
+    lastProblems: [], lastWarnings: [], stale: false, staleHours: null,
   };
   try {
     const admin = createAdminClient();
     const { data: last } = await admin
-      .from("revenue_sync_runs").select("started_at, status, problems")
+      .from("revenue_sync_runs").select("started_at, status, problems, warnings")
       .order("started_at", { ascending: false }).limit(1).maybeSingle();
     const { data: ok } = await admin
       .from("revenue_sync_runs").select("started_at")
@@ -240,6 +288,7 @@ export async function getSyncStatus(): Promise<SyncStatus> {
       lastSuccessAt,
       lastStatus: (last.status as SyncStatus["lastStatus"]) ?? null,
       lastProblems: Array.isArray(last.problems) ? (last.problems as string[]) : [],
+      lastWarnings: Array.isArray(last.warnings) ? (last.warnings as string[]) : [],
       stale: lastSuccessAt === null || (hours !== null && hours > STALE_AFTER_HOURS),
       staleHours: hours === null ? null : Math.floor(hours),
     };
