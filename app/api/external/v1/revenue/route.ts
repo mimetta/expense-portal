@@ -3,6 +3,7 @@ import { handleApiError } from "@/lib/api-helpers";
 import {
   authenticateExternal, readParams, envelope, fetchAll, scopedChannelCategories,
 } from "@/lib/external-api";
+import { getSyncStatus } from "@/lib/revenue-sync";
 
 // GET /api/external/v1/revenue?fiscal_year=2026&company=ONEST
 //
@@ -73,7 +74,7 @@ export async function GET(req: Request) {
     const categories = scopedChannelCategories(auth.value);
 
     let chanQ = admin.from("revenue_channels")
-      .select("id, bu, category, sub_category, channel, active");
+      .select("id, bu, category, sub_category, channel, status, active");
     if (company) chanQ = chanQ.eq("bu", company);
     if (categories) chanQ = chanQ.in("category", categories);
     const { data: channels, error: chanErr } = await chanQ;
@@ -121,10 +122,23 @@ export async function GET(req: Request) {
         });
         const sum = (pick: "goal" | "actual") =>
           months.reduce<number | null>((t, m) => (m[pick] === null ? t : (t ?? 0) + (m[pick] as number)), null);
+        // The last month this channel has an actual for. A consumer cannot
+        // derive it safely from `months` alone: a null means "not known", and
+        // scanning for the last non-null is exactly the logic that gets
+        // written differently by every caller.
+        const lastActualMonth = months.reduce<number | null>(
+          (last, m) => (m.actual === null ? last : m.month), null);
         return {
           company: c.bu, category: c.category, sub_category: c.sub_category,
-          channel: c.channel, active: c.active !== false,
+          channel: c.channel,
+          // The OPTIONAL fourth hierarchy level (migration 053): sell | use |
+          // closed under Specialty partners, null everywhere else. Null is
+          // meaningful — "this sub-category has no status level" — not missing
+          // data, so it is always present rather than omitted.
+          status: (c as { status?: string | null }).status ?? null,
+          active: c.active !== false,
           months, goal_total: sum("goal"), actual_total: sum("actual"),
+          last_actual_month: lastActualMonth,
         };
       });
 
@@ -139,11 +153,38 @@ export async function GET(req: Request) {
       rows.reduce<number | null>(
         (t, r) => (r[pick] === null ? t : (t ?? 0) + (r[pick] as number)), null);
 
+    // FRESHNESS IS ABOUT THE LAST SUCCESS, NOT THE LAST ATTEMPT.
+    //
+    // A sync that fails writes nothing, so the figures below are whatever the
+    // last SUCCESSFUL run left. Reporting "last attempted" would let a week of
+    // failures look like a fresh feed, which is the failure the budget page
+    // banner exists to prevent — the same guarantee belongs here, because a
+    // downstream dashboard cannot see that banner.
+    const sync = await getSyncStatus();
+    const ageHours = sync.lastSuccessAt
+      ? Math.floor((Date.now() - new Date(sync.lastSuccessAt).getTime()) / 3_600_000)
+      : null;
+
     return envelope({
       fiscal_year: fiscalYear,
       company: company ?? "ALL",
       currency: "THB",
       note: "actual = null means not yet known; it is never reported as 0.",
+      // Stated as both an instant and an AGE: "2026-10-05T02:00Z" needs the
+      // reader to know what today is, and a dashboard rendering a cached
+      // response may not.
+      freshness: {
+        last_successful_sync_at: sync.lastSuccessAt,
+        age_hours: ageHours,
+        stale: sync.stale,
+        // The last ATTEMPT, so a consumer can tell "nothing changed" from
+        // "the last run failed and these figures are being held".
+        last_attempt_at: sync.lastRunAt,
+        last_attempt_status: sync.lastStatus,
+        // Channels the portal has that the sheet did not on that run; their
+        // figures were left unchanged and may be older than the stamp above.
+        channels_not_in_sheet: sync.lastWarnings.length,
+      },
       // Stated, not implied: a consumer must be able to tell that a figure is
       // partial without having to know how its key was issued.
       scope: categories
