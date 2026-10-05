@@ -126,21 +126,80 @@ GET /api/external/v1/revenue?fiscal_year=2026&company=ONEST
       "sub_category": "E-commerce",
       "channel": "Shopee",
       "active": true,
+      "status": "sell",
       "months": [
         { "month": 1, "goal": 0, "actual": 0, "actual_source": "sheet" }
         // … 12 entries
       ],
       "goal_total": 0,
-      "actual_total": 0
+      "actual_total": 0,
+      "last_actual_month": 9
     }
-  ]
+  ],
+  "freshness": {
+    "last_successful_sync_at": "2026-10-05T02:00:25Z",
+    "age_hours": 0,
+    "stale": false,
+    "last_attempt_at": "2026-10-05T02:00:25Z",
+    "last_attempt_status": "success",
+    "channels_not_in_sheet": 0
+  }
 }
 ```
+
+### `status` — the optional fourth hierarchy level
+
+`sell` | `use` | `closed`, and **`null` where the sub-category has no status level** — Owned
+store, Event, and both Online sub-categories. Null is meaningful ("this level does not apply"),
+not missing data, so the field is always present.
+
+Only *Specialty partners* uses it today. A `closed` channel keeps its historical figures and is
+no longer given new ones.
+
+### `last_actual_month`
+
+The highest month this channel has a non-null actual for, or `null` if it has none. Provided so
+every consumer does not write its own scan over `months` and get the null handling subtly
+different.
+
+⚠️ **It can include a part-complete current month.** The sync imports the current month as it
+stands, so on the 5th of October a channel may report `last_actual_month: 10` on five days of
+trade. Treat it as "the latest month with any figure", not "the latest complete month".
+
+### `freshness` — how old the figures are
+
+**`last_successful_sync_at` is the last run that actually WROTE figures**, not the last attempt. A
+failed sync writes nothing, so the figures served are whatever the last success left; reporting
+the attempt would let a week of failures look like a fresh feed.
+
+| field | meaning |
+|---|---|
+| `last_successful_sync_at` | when figures were last written. `null` if never |
+| `age_hours` | how old that is, so a cached response does not need the reader to know today's date |
+| `stale` | true when the last success is over 48 hours old, or there has never been one |
+| `last_attempt_at` / `last_attempt_status` | `success` \| `validation_failed` \| `error` — tells "nothing changed" apart from "the last run failed and these figures are being held" |
+| `channels_not_in_sheet` | channels the portal had and the sheet did not on that run. **Their figures were left unchanged and may be older than the stamp above.** |
+
+**If `stale` is true, or `last_attempt_status` is not `success`, say so in your UI.** The portal
+shows a banner for exactly this; a downstream dashboard cannot see that banner.
+
+### A caveat on zero that this API cannot fix for you
 
 **`actual: null` means "not yet known" and is never `0`.** A zero would assert the business took
 nothing in a month nobody has lived through. Do not coalesce it to zero downstream; a percentage
 built on it would be wrong. `actual_source` is `"sheet"` (imported) or `"manual"` (typed by a
 CEO/admin), or `null` when no actual exists.
+
+**But a `0` is not proof of a zero month.** The source spreadsheet writes `0.00` into every cell
+it has no figure for — there are no blank cells in it — so a partner that posts its numbers late
+is indistinguishable, in the data, from one that sold nothing. `null` is used only where the
+portal can prove the month is unknown: a future month, or a month where every channel *and* the
+sheet total read zero.
+
+Investigated 2026-10-05 and deliberately not "fixed": any rule like *"a zero in a month where
+other channels have figures means unposted"* would silently erase a genuine zero, and genuine
+zeros exist (Unusual & Friend read 0 in July and August and 6,120 in September). Fixing it
+requires the sheet to distinguish the two — a blank cell, or a posted-through marker.
 
 ### Endpoints that do not exist
 
