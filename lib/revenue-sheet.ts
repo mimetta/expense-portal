@@ -57,14 +57,21 @@ const MONTHS = [
 
 export interface SheetChannelRow {
   name: string;
-  /** Twelve values, Jan..Dec. Blank cells read as 0 — see the NULL rules below. */
-  months: number[];
+  /**
+   * Twelve values, Jan..Dec.
+   *
+   * null = the cell was BLANK, which means "not known". 0 = the cell held a
+   * genuine zero. The sheet cannot currently express the difference — every
+   * cell in it is a formula result, so none is ever blank — but this is the
+   * mapping the moment it can, and a prerequisite for making that change.
+   */
+  months: (number | null)[];
 }
 
 export interface ParsedSheet {
   channels: SheetChannelRow[];
   /** The sheet's own "Total sales by Channel" row, Jan..Dec, or null if absent. */
-  totalRow: number[] | null;
+  totalRow: (number | null)[] | null;
   /** Index of the row the Jan..Dec header was found on, for diagnostics. */
   headerRowIndex: number;
 }
@@ -160,18 +167,23 @@ function headerDisorder(cells: string[]): string[] {
 export function parseSheetTable(rows: string[][]): ParsedSheet {
   const headerRowIndex = findHeaderRow(rows);
   const channels: SheetChannelRow[] = [];
-  let totalRow: number[] | null = null;
+  let totalRow: (number | null)[] | null = null;
 
   const start = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
   for (let i = start; i < rows.length; i++) {
     const cells = rows[i] ?? [];
     const name = (cells[0] ?? "").trim();
     if (!name) continue;
-    const months: number[] = [];
+    const months: (number | null)[] = [];
     let ok = true;
     for (let c = 1; c <= 12; c++) {
       const raw = (cells[c] ?? "").trim().replace(/,/g, "").replace(/^฿/, "");
-      if (raw === "") { months.push(0); continue; }
+      // A BLANK CELL IS NOT A ZERO. It read as 0 until now, which made a
+      // partner that posts late indistinguishable from one that sold nothing.
+      // null carries "not known" through to the import, where it becomes a
+      // NULL actual rather than an asserted zero — see migration 040 for why
+      // that distinction is worth this much care.
+      if (raw === "") { months.push(null); continue; }
       const n = Number(raw);
       if (!Number.isFinite(n)) { ok = false; break; }
       months.push(n);
@@ -301,8 +313,13 @@ export function validateSheet(
   }
 
   // 4. The channel rows must reproduce the sheet's own total.
-  const summed = parsed.channels.reduce((s, c) => s + c.months.reduce((a, v) => a + v, 0), 0);
-  const stated = parsed.totalRow ? parsed.totalRow.reduce((s, v) => s + v, 0) : null;
+  // A BLANK CONTRIBUTES NOTHING TO THE SUM, and must not break the check: it
+  // is an unknown, not a figure that went missing. Only real numbers are
+  // added, on both sides, so a sheet with blanks still reconciles against its
+  // own total row exactly as one without them does.
+  const addKnown = (a: number, v: number | null) => (v === null ? a : a + v);
+  const summed = parsed.channels.reduce((s, c) => s + c.months.reduce(addKnown, 0), 0);
+  const stated = parsed.totalRow ? parsed.totalRow.reduce(addKnown, 0) : null;
   if (stated === null) {
     problems.push({
       code: "no_total_row",
@@ -327,6 +344,8 @@ export interface BuildResult {
   /** 1-based months written as NULL, and why. */
   nulledMonths: { month: number; reason: "future" | "all_zero" }[];
   genuineZeros: number;
+  /** Cells that were blank in the sheet and imported as NULL, not zero. */
+  blankCells: number;
   value: number;
 }
 
@@ -356,14 +375,20 @@ export interface BuildResult {
  */
 export function buildEntries(
   matched: { row: SheetChannelRow; channel: PortalChannel }[],
-  totalRow: number[] | null,
+  totalRow: (number | null)[] | null,
   fiscalYear: number,
   now: Date,
 ): BuildResult {
   const curYear = now.getFullYear(), curMonth = now.getMonth() + 1;
   const nulledMonths: { month: number; reason: "future" | "all_zero" }[] = [];
+  let blankCells = 0;
 
   const isFuture = (m: number) => fiscalYear > curYear || (fiscalYear === curYear && m > curMonth);
+  // Strictly 0, never null: a column of BLANKS is not "every channel read
+  // zero". Each blank is already null in its own right, so the whole-column
+  // rule has nothing to add there — and treating blank as zero here would
+  // reintroduce, for the column rule, exactly the conflation the per-cell
+  // change removes.
   const allZero = (m: number) =>
     matched.every((x) => x.row.months[m - 1] === 0) &&
     (totalRow === null || totalRow[m - 1] === 0);
@@ -380,13 +405,17 @@ export function buildEntries(
     for (let m = 1; m <= 12; m++) {
       if (nullMonth.has(m)) { entries.push({ channelId: channel.id, month: m, actual: null }); continue; }
       const v = row.months[m - 1];
+      // THE THIRD WAY A MONTH BECOMES NULL, and the only per-CELL one: this
+      // channel's cell was blank while others in the same month had figures.
+      // That is precisely the late-posting partner the column rule cannot see.
+      if (v === null) { blankCells++; entries.push({ channelId: channel.id, month: m, actual: null }); continue; }
       if (v === 0) genuineZeros++;
       value += v;
       entries.push({ channelId: channel.id, month: m, actual: v });
     }
   }
 
-  return { entries, nulledMonths, genuineZeros, value };
+  return { entries, nulledMonths, genuineZeros, value, blankCells };
 }
 
 /** The tab this reads, per fiscal year. Exact — a missing tab fails loudly. */
