@@ -147,6 +147,24 @@ GET /api/external/v1/revenue?fiscal_year=2026&company=ONEST
 }
 ```
 
+### Which channels are returned
+
+**Active channels only**, matching every other part of the portal. A retired channel is not
+returned and its goals are not counted in `totals` — a closed-down store should not inflate a
+company target.
+
+**`closed` is not `inactive`.** A channel with `status: "closed"` is still returned: DCP closed
+mid-year but traded, keeps its figures, and belongs in the year's totals. Only the `active` flag
+is filtered.
+
+The `active` field is still on every channel, and is currently always `true`. It is kept so that
+offering retired channels as an explicit opt-in later is an **additive** change rather than a
+breaking one.
+
+⚠️ **Changed 2026-10-05.** Before this, the API returned inactive channels and counted their
+goals, so its FY2026 goal total read ฿40,000 higher than the portal's own — one retired store.
+If you have a stored comparison from before that date, it will differ by exactly that.
+
 ### `status` — the optional fourth hierarchy level
 
 `sell` | `use` | `closed`, and **`null` where the sub-category has no status level** — Owned
