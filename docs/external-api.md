@@ -294,11 +294,20 @@ consumer gets `401` until it is updated.
 
 ## Versioning
 
-The path is `/v1/` and every response carries `"version": "v1"`. Fields may be **added** within
-v1; existing field names, types and meanings will not change. A breaking change gets `/v2/`, and
-`/v1/` keeps working until KC-Dashboard has moved.
+The path is `/v1/` and **every response carries `"version": "v1"`**. That value will not change
+while v1 exists.
 
----
+**Fields may be ADDED within v1**; existing field names, types and meanings will not change.
+`status`, `last_actual_month` and `freshness` were added this way on 2026-10-05 — additive, so
+`version` stayed `v1` and nothing downstream had to move.
+
+**A breaking change ships as `/v2/` ALONGSIDE `/v1/`, not in place of it.** Both serve
+simultaneously, with notice before v1 is retired, so a consumer moves on its own schedule rather
+than on ours. Reasons a change counts as breaking: removing a field, renaming one, changing a
+type, or changing what an existing field means — including a null becoming a zero or vice versa.
+
+Build against the version check: a consumer that rejects anything other than its expected
+`version` is doing the right thing, and this contract is what makes that safe.
 
 ## Auditing revenue edits
 
@@ -307,3 +316,14 @@ Separately from this API, every revenue goal and actual edit now writes an `audi
 month, and the before/after of each cell that actually moved. `source` distinguishes `"manual"`
 from `"sheet"`. Unchanged cells are not recorded, so re-running the same import is silent rather
 than logging 156 non-events.
+
+**Revenue goals are not approved.** Unlike a budget revision — which is DRAFT → SUBMITTED →
+APPROVED and only counts once a CEO approves it — a revenue goal takes effect the moment it is
+saved. There is no approval step, no pending state, and nothing to wait for. If you are looking
+for "when was this goal approved", the answer is that the question does not apply; "when was it
+entered, and by whom" is the audit log above.
+
+**The audit begins 2026-09-30.** It shipped that day, so an edit made before it leaves no row.
+For FY2026 specifically that turns out to cost nothing — every non-zero goal was entered after it
+existed — but a `revenue_goals.updated_at` is NOT a substitute: the daily sync rewrites that
+column on every run, so it reports when a row was last touched, not when its goal was set.
