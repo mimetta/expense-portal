@@ -74,7 +74,19 @@ export async function GET(req: Request) {
     const categories = scopedChannelCategories(auth.value);
 
     let chanQ = admin.from("revenue_channels")
-      .select("id, bu, category, sub_category, channel, status, active");
+      .select("id, bu, category, sub_category, channel, status, active")
+      // ACTIVE ONLY, matching every other part of the portal.
+      //
+      // This query was the odd one out: it returned retired channels and
+      // counted their goals in `totals`, so "Another story" — inactive, with a
+      // ฿40,000 FY2026 goal — inflated the company target by exactly that,
+      // and the API disagreed with the spend report on a headline figure.
+      // Siplor and LOFT EYES - Tong lor came through too, at zero.
+      //
+      // CLOSED IS NOT INACTIVE. DCP is status='closed' and active=true: it
+      // traded this year, keeps its figures, and must keep appearing. Only
+      // `active` is filtered here, never `status`.
+      .eq("active", true);
     if (company) chanQ = chanQ.eq("bu", company);
     if (categories) chanQ = chanQ.in("category", categories);
     const { data: channels, error: chanErr } = await chanQ;
@@ -136,6 +148,10 @@ export async function GET(req: Request) {
           // meaningful — "this sub-category has no status level" — not missing
           // data, so it is always present rather than omitted.
           status: (c as { status?: string | null }).status ?? null,
+          // Always true now that the query filters on it. KEPT deliberately:
+          // if retired channels are ever offered as an opt-in, the field is
+          // already in the contract and that becomes an additive change
+          // rather than a breaking one.
           active: c.active !== false,
           months, goal_total: sum("goal"), actual_total: sum("actual"),
           last_actual_month: lastActualMonth,
