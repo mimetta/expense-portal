@@ -1215,12 +1215,29 @@ function AddChannelModal({
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [channel, setChannel] = useState("");
+  const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
   const buNode = tree?.children.find((b) => b.label === bu) ?? null;
   const categories = buNode ? buNode.children.map((c) => c.label) : [];
+  const subNode = buNode?.children.find((c) => c.label === category)?.children
+    .find((sc) => sc.label === subCategory) ?? null;
   const subs =
     buNode?.children.find((c) => c.label === category)?.children.map((sc) => sc.label) ?? [];
+
+  // DOES THIS SUB-CATEGORY USE THE STATUS LEVEL? Read FROM THE TREE, not from
+  // a hardcoded "Specialty partners": the tree inserts a `status` node only
+  // where channels actually carry one, so a future sub-category that adopts
+  // the level works here with no code change.
+  //
+  // The server enforces the same rule independently (lib/revenue-goals.ts
+  // #addChannel) — this is the courtesy, that is the boundary.
+  const usesStatus = (subNode?.children ?? []).some((n) => n.level === "status");
+  // Offered options are the fixed vocabulary; the groups that already exist
+  // are shown first so an admin picks an existing one rather than inventing a
+  // fourth value nobody renders.
+  const existing = (subNode?.children ?? []).filter((n) => n.level === "status").map((n) => n.label);
+  const statusOptions = Array.from(new Set([...existing, "sell", "use", "closed"]));
 
   const submit = async () => {
     setBusy(true);
@@ -1228,7 +1245,13 @@ function AddChannelModal({
       const res = await fetch("/api/revenue/channels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bu, category, sub_category: subCategory, channel }),
+        body: JSON.stringify({
+          bu, category, sub_category: subCategory, channel,
+          // null, not "", when the level does not apply — the column is
+          // nullable precisely so "this sub-category has no status" is
+          // representable.
+          status: usesStatus ? status : null,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Could not add the channel");
       onAdded();
@@ -1239,7 +1262,8 @@ function AddChannelModal({
     }
   };
 
-  const ready = bu.trim() && category.trim() && subCategory.trim() && channel.trim();
+  const ready = bu.trim() && category.trim() && subCategory.trim() && channel.trim()
+    && (!usesStatus || status.trim());
 
   return (
     <div className="mm-modal-overlay" style={{ backdropFilter: "blur(2px)" }} onClick={onClose}>
@@ -1292,12 +1316,48 @@ function AddChannelModal({
               list="rev-subs"
               value={subCategory}
               onChange={(e) => setSubCategory(e.target.value)}
-              placeholder="Modern Trade"
+              placeholder="Specialty partners"
             />
             <datalist id="rev-subs">
               {subs.map((c) => <option key={c} value={c} />)}
             </datalist>
           </label>
+
+          {/* Only where the level exists. Rendering a disabled or empty Status
+              for Owned store would imply the level applies there and somebody
+              merely has not filled it in. */}
+          {usesStatus && (
+            <label className="block">
+              <span className="mm-label mb-1 block">
+                Status<span style={{ color: "#DC2626" }}> *</span>
+              </span>
+              <select
+                className="mm-input w-full"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <option value="">Choose…</option>
+                {statusOptions.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-brand-subtle">
+                {subCategory} groups its channels by status. Without one the channel renders
+                beside sell / use / closed instead of inside a group.
+              </p>
+              {status === "closed" && (
+                <p
+                  className="mt-1 rounded-[6px] px-2 py-1.5 text-xs"
+                  style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+                >
+                  <strong>A new channel is rarely &ldquo;closed&rdquo;.</strong> That means a store
+                  that traded and then shut — it keeps its history and cannot be given a budget for
+                  a year it did not trade in. If this door is open, choose <strong>sell</strong> or{" "}
+                  <strong>use</strong>.
+                </p>
+              )}
+            </label>
+          )}
           <label className="block">
             <span className="mm-label mb-1 block">Channel</span>
             <input
