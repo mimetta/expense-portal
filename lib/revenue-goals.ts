@@ -549,7 +549,10 @@ export async function saveRevenueActuals(
 
 /** Adds a channel — and with it, implicitly, its category/sub-category. */
 export async function addChannel(
-  input: { bu: string; category: string; sub_category: string; channel: string },
+  input: {
+    bu: string; category: string; sub_category: string; channel: string;
+    status?: string | null;
+  },
   viewer: CurrentUser,
 ): Promise<RevenueChannel> {
   assertCanEditRevenueGoals(viewer);
@@ -558,6 +561,38 @@ export async function addChannel(
     if (!String(input[f] ?? "").trim()) throw new ForbiddenError(`${f} is required.`);
   }
   const admin = createAdminClient();
+
+  // DOES THIS SUB-CATEGORY USE THE STATUS LEVEL? Answered FROM THE DATA, not
+  // from a hardcoded "Specialty partners": a sub-category uses the level when
+  // any existing channel under it carries a status. A future one therefore
+  // works with no code change, which is the whole point of the level being
+  // optional.
+  //
+  // Enforced here, not only in the modal: a channel added without a status
+  // under a sub-category that uses one renders as a SIBLING of sell/use/closed
+  // rather than inside a group, which is the bug this fixes. The UI can be
+  // bypassed; this cannot.
+  const { data: siblingRows } = await admin
+    .from("revenue_channels")
+    .select("status")
+    .eq("bu", input.bu.trim())
+    .eq("category", input.category.trim())
+    .eq("sub_category", input.sub_category.trim());
+  const usesStatus = (siblingRows ?? []).some((r) => r.status);
+  const status = String(input.status ?? "").trim() || null;
+
+  if (usesStatus && !status) {
+    throw new ForbiddenError(
+      `"${input.sub_category.trim()}" groups its channels by status, so a status is required. `
+      + `Choose sell, use or closed.`,
+    );
+  }
+  if (!usesStatus && status) {
+    throw new ForbiddenError(
+      `"${input.sub_category.trim()}" does not use the status level, so a status cannot be set. `
+      + `Leave it blank.`,
+    );
+  }
   // Sort after whatever is already in that sub-category.
   const { data: siblings } = await admin
     .from("revenue_channels")
@@ -576,12 +611,13 @@ export async function addChannel(
       category: input.category.trim(),
       sub_category: input.sub_category.trim(),
       channel: input.channel.trim(),
+      status,
       sort_order,
     })
     .select("*")
     .single();
   if (error) throw error;
-  await logAudit(viewer.email, null, "REVENUE_CHANNEL_ADDED", { ...input });
+  await logAudit(viewer.email, null, "REVENUE_CHANNEL_ADDED", { ...input, status });
   return data as RevenueChannel;
 }
 

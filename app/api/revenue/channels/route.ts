@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     assertCanManageChannels(user);
     const body = (await req.json()) as {
       bu: string; category: string; sub_category: string; channel: string;
+      status?: string | null;
     };
     return NextResponse.json({ channel: await addChannel(body, user) });
   } catch (err) {
