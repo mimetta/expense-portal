@@ -4,14 +4,10 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RequiredMark from "@/components/shared/RequiredMark";
 import UsersAccessTab from "@/components/settings/UsersAccessTab";
-import { BANK_OPTIONS, BUSINESS_UNITS, DEPARTMENTS, PAYMENT_METHODS, type Role } from "@/lib/constants";
+import { BANK_OPTIONS, BUSINESS_UNITS, DEPARTMENTS, PAYMENT_METHODS } from "@/lib/constants";
 import {
-  canAccessSettingsTab,
-  firstAccessibleSettingsTab,
   SETTINGS_TABS,
-  DEFAULT_SETTINGS_TAB_ROLES,
   type SettingsTab,
-  type ManagedSettingsTab,
 } from "@/lib/permissions";
 import type {
   AnnouncementRow,
@@ -102,35 +98,40 @@ function SettingsClientInner() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [userLoading, setUserLoading] = useState(true);
   const [tab, setTabState] = useState<Tab | null>(null);
-  // DB-backed settings_tab_permissions config, replacing the old hardcoded
-  // SETTINGS_TAB_ROLES — null while still loading, in which case every
-  // canAccessSettingsTab/firstAccessibleSettingsTab call below falls back
-  // to DEFAULT_SETTINGS_TAB_ROLES (its own default parameter), which is
-  // byte-for-byte the same as today's seeded DB values, so there's no
-  // visible flash of wrong tabs while this is in flight.
-  const [tabConfig, setTabConfig] = useState<Record<ManagedSettingsTab, Role[]> | null>(null);
+  // The old DB-backed settings_tab_permissions fetch lived here. It is gone:
+  // stage 2b stopped consulting that table (canAccessSettingsTab ignores the
+  // `config` argument whenever a person is present), so the round trip only
+  // fed a tab computation that has itself been replaced by the server's
+  // answer. Keeping it would have implied the table still governs something.
+  // WHICH TABS THIS PERSON MAY SEE, DECIDED BY THE SERVER.
+  //
+  // This used to be recomputed here with canAccessSettingsTab, which silently
+  // took its legacy ROLE-ONLY branch in the browser: that function only
+  // consults per-person overrides when `user.person` is present, and `person`
+  // is not serialised to the client. So an override granted in Users & access
+  // did nothing here, and a revoking one left the tab on screen.
+  //
+  // Now the server answers and the client renders — the same arrangement the
+  // Nav already uses for page access.
+  const [tabAccess, setTabAccess] = useState<Record<string, boolean> | null>(null);
 
   useEffect(() => {
     fetch("/api/roles/me")
       .then((res) => res.json())
       .then((data) => {
         if (data.user) setCurrentUser(data.user as CurrentUser);
+        if (data.settingsTabs) setTabAccess(data.settingsTabs as Record<string, boolean>);
       })
       .finally(() => setUserLoading(false));
   }, []);
 
-  useEffect(() => {
-    fetch("/api/settings-permissions")
-      .then((res) => res.json())
-      .then((data) => setTabConfig(data.permissions ?? null))
-      .catch(() => {});
-  }, []);
 
-  const effectiveTabConfig = tabConfig ?? DEFAULT_SETTINGS_TAB_ROLES;
 
+  // Null while in flight: render nothing rather than guess. Guessing is what
+  // produced the bug — a wrong answer that looked authoritative.
   const visibleTabs = useMemo(
-    () => (currentUser ? TABS.filter((t) => canAccessSettingsTab(currentUser, t.key, effectiveTabConfig)) : []),
-    [currentUser, effectiveTabConfig],
+    () => (tabAccess ? TABS.filter((t) => tabAccess[t.key]) : []),
+    [tabAccess],
   );
 
   // Resolve the active tab once we know who's asking: honor ?tab= from the
@@ -143,21 +144,23 @@ function SettingsClientInner() {
   useEffect(() => {
     if (!currentUser) return;
     const requested = searchParams.get("tab") as Tab | null;
-    const requestedIsValid = !!requested && canAccessSettingsTab(currentUser, requested, effectiveTabConfig);
-    const resolved = requestedIsValid ? (requested as Tab) : firstAccessibleSettingsTab(currentUser, effectiveTabConfig);
+    // Resolved from the SAME map the tab bar renders, so a deep link can never
+    // land on a tab the bar does not show.
+    const requestedIsValid = !!requested && !!tabAccess?.[requested];
+    const resolved = requestedIsValid ? (requested as Tab) : (visibleTabs[0]?.key ?? null);
     setTabState(resolved);
     if (resolved && resolved !== requested) {
       window.history.replaceState(null, "", `/settings?tab=${resolved}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, effectiveTabConfig]);
+  }, [currentUser, tabAccess, visibleTabs]);
 
   const selectTab = (key: Tab) => {
     setTabState(key);
     window.history.replaceState(null, "", `/settings?tab=${key}`);
   };
 
-  if (userLoading) {
+  if (userLoading || !tabAccess) {
     return <p className="text-sm text-brand-muted">Loading...</p>;
   }
 
