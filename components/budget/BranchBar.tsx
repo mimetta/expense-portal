@@ -2,6 +2,7 @@
 
 import {
   ALL_BRANCHES, ALL_BRANCHES_LABEL, NO_BRANCH, NO_BRANCH_LABEL,
+  SHARED_BRANCH, SHARED_COLOUR,
   BRANCH_GROUP_ORDER, BRANCH_STATUS_ORDER, branchColour, type Branch,
 } from "@/lib/branches-shared";
 
@@ -79,6 +80,7 @@ export default function BranchBar({
   }
 
   const current = branches.find((b) => b.name === selected);
+  const isShared = selected === SHARED_BRANCH;
   const dirtyHere = dirtyBranches.has(selected);
   const dirtyElsewhere = Array.from(dirtyBranches).filter((d) => d !== selected);
 
@@ -93,12 +95,12 @@ export default function BranchBar({
             Branch
           </span>
           {/* The colour a <select> cannot show, for the current value. */}
-          {current && (
+          {(current || isShared) && (
             <span
               aria-hidden
               style={{
                 width: 9, height: 9, borderRadius: 2, flex: "none",
-                background: branchColour(current.name),
+                background: isShared ? SHARED_COLOUR : branchColour(current!.name),
               }}
             />
           )}
@@ -111,6 +113,16 @@ export default function BranchBar({
             <option value={ALL_BRANCHES}>
               {ALL_BRANCHES_LABEL}
               {dirtyBranches.size > 0 ? "  •" : ""}
+            </option>
+
+            {/* SHARED sits at the top, beside All branches rather than among
+                the stores, because it is not one. Costs that genuinely span
+                every branch need somewhere to be budgeted; without this they
+                land in (no branch) and become indistinguishable from the ones
+                nobody got round to recording. */}
+            <option value={SHARED_BRANCH}>
+              {SHARED_BRANCH}
+              {dirtyBranches.has(SHARED_BRANCH) ? "  •" : ""}
             </option>
 
             {groups.map((g) => (
@@ -163,6 +175,14 @@ export default function BranchBar({
           </span>
         )}
       </div>
+
+      {isShared && (
+        <p className="mt-1.5 text-[11.5px] text-brand-muted">
+          Costs that belong to <strong>every</strong> branch — travel between stores, bulk
+          consumables, uniforms. A deliberate answer, unlike <em>(no branch)</em>, which means
+          nobody recorded one.
+        </p>
+      )}
 
       {selected === ALL_BRANCHES && (
         <p className="mt-1.5 text-[11.5px] text-brand-muted">

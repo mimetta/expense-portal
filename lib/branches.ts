@@ -68,9 +68,9 @@ export async function listBranches(fiscalYear?: number): Promise<Branch[]> {
       sortOrder: c.sort_order,
       tradedThisYear: traded.has(c.channel),
     }))
-    // Retired rows nobody will budget: inactive AND carrying no status.
-    // "LOFT EYES - Tong lor" is also a misspelling of a live branch, so
-    // offering it would invite budgeting the wrong one.
+    // Retired rows nobody will budget. isOfferableBranch now also keeps
+    // PENDING channels — a signed, unopened site is budgetable (that is what
+    // New Store Investment spends on) even though it is inactive.
     .filter(isOfferableBranch)
     // Ordered ONCE, here, so the dropdown can walk the list rather than
     // re-deriving an order the server already knows.

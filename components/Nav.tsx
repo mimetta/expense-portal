@@ -32,6 +32,7 @@ const LINKS: { page: Page; href: string; label: string; badgeHref?: string }[] =
   { page: "accounting", href: "/accounting", label: "Accounting" },
   { page: "budget", href: "/budget", label: "Budget", badgeHref: "/budget/history?tab=pending" },
   { page: "spend-report", href: "/reports/spend", label: "Spend report" },
+  { page: "branch-review", href: "/reports/branch-review", label: "Branch review" },
   { page: "settings", href: "/settings", label: "Settings" },
 ];
 

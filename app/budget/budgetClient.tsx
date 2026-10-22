@@ -7,7 +7,7 @@ import BudgetGrid from "@/components/budget/BudgetGrid";
 import RevenueSyncBar from "@/components/budget/RevenueSyncBar";
 import BranchBar from "@/components/budget/BranchBar";
 import {
-  ALL_BRANCHES, NO_BRANCH, isBranchSplit, branchColumnValue, type Branch,
+  ALL_BRANCHES, NO_BRANCH, SHARED_BRANCH, isBranchSplit, branchColumnValue, type Branch,
 } from "@/lib/branches-shared";
 import { thb, EM_DASH } from "@/components/spend/format";
 import type { BudgetOwnerOption, EditorData, EditorRow } from "@/lib/budget-editor";
@@ -590,9 +590,11 @@ export default function BudgetEditorClient({
       for (const [coord, t] of Array.from(templates.entries())) {
         if (present.has(coord)) continue;
         // Branches are ONEST Physical store channels, so a named branch only
-        // projects onto ONEST coordinates. The (no branch) bucket takes every
-        // company, which is where SV Retail legitimately sits.
-        if (want !== null && t.bu !== "ONEST") continue;
+        // projects onto ONEST coordinates. Two exceptions take every company:
+        // (no branch), where SV Retail legitimately sits, and SHARED — which
+        // is not a channel at all, so the ONEST restriction has no basis for
+        // it, and an SV shared cost needs somewhere to go just as much.
+        if (want !== null && want !== SHARED_BRANCH && t.bu !== "ONEST") continue;
         additions.push({
           ...t,
           key: makeRowKey({ ...t, branch: want }),
@@ -614,7 +616,10 @@ export default function BudgetEditorClient({
   // (assertBranchesAreBudgetable), but silently editing a grid whose save will
   // be rejected is worse than being put back where you started.
   useEffect(() => {
-    if (branch === ALL_BRANCHES || branch === NO_BRANCH || branches.length === 0) return;
+    // Shared is never in `branches` — it is not a channel — so the
+    // not-budgetable check below must not treat it as an unknown branch.
+    if (branch === ALL_BRANCHES || branch === NO_BRANCH || branch === SHARED_BRANCH
+        || branches.length === 0) return;
     const b = branches.find((x) => x.name === branch);
     if (!b) return;
     const ok = !(b.closed || !b.active) || branchesWithLines.has(b.name) || b.tradedThisYear;

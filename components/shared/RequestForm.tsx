@@ -20,7 +20,10 @@ import {
 } from "@/lib/constants";
 import { computeTotals } from "@/lib/totals";
 import { formatCurrency } from "@/lib/format";
-import { canBudgetBranch, type Branch as BranchOption } from "@/lib/branches-shared";
+import {
+  canBudgetBranch, branchesForDepartment, isBranchSplit, SHARED_BRANCH,
+  type Branch as BranchOption,
+} from "@/lib/branches-shared";
 import type {
   CategoryRow,
   CompanyRow,
@@ -449,7 +452,8 @@ export default function RequestForm({
   // perItemFieldMode to a per-row check now that Segment lives per item.
   const perItemFieldModeFor = (segment: string | undefined): "branch" | "product" | null => {
     if (!usesPerItemSegment) return null;
-    if (segment === "Retail") return "branch";
+    // Branch-split departments, not just Retail — the rule is a list now.
+    if (segment && isBranchSplit(segment)) return "branch";
     if (segment === "R&D") return "product";
     return null;
   };
@@ -685,11 +689,22 @@ export default function RequestForm({
    * year at all rather than for the years it traded. The signal has to be
    * passed in, not assumed away.
    */
-  const retailBranchOptions = (): string[] => {
-    if (!branches) return productOptionsFor("Retail");
-    return branches
-      .filter((b) => b.active && canBudgetBranch(b as never, !!b.tradedThisYear))
+  const branchOptionsFor = (department: string): string[] => {
+    // Fallback only: the old products list, if /api/budget/branches failed.
+    if (!branches) return [SHARED_BRANCH, ...productOptionsFor("Retail")];
+    const forDept = branchesForDepartment(branches as never, department);
+    const names = forDept
+      // A pending channel has never traded, so canBudgetBranch's
+      // traded-this-year test does not apply to it — that test exists for
+      // CLOSED doors. branchesForDepartment has already decided pending is
+      // allowed here; this filter only governs closed ones.
+      .filter((b) => (b.active ? true : b.closed ? canBudgetBranch(b as never, !!b.tradedThisYear) : true))
       .map((b) => b.name);
+    // SHARED FIRST, and on both departments. A cost that genuinely spans every
+    // branch needs an answer at the point of filing, or it becomes a blank for
+    // somebody else to resolve later — which is the queue this work exists to
+    // drain.
+    return [SHARED_BRANCH, ...names];
   };
 
   const productOptionsFor = (dept: string) =>
@@ -846,6 +861,9 @@ export default function RequestForm({
     }
     if (items.some((it) => !it.segment || !it.cat_l1 || !it.description.trim())) {
       return "Every item needs a Segment, Category L1, and a Description";
+    }
+    if (!usesPerItemSegment && isBranchSplit(primarySegment ?? "") && !product.trim()) {
+      return "Branch is required — pick a store, or Shared if the cost belongs to every branch";
     }
     if (items.some((it) => perItemFieldModeFor(it.segment) === "branch" && !it.product)) {
       return "Every item needs a Branch";
@@ -1332,16 +1350,20 @@ export default function RequestForm({
             )}
           </div>
         )}
-        {!usesPerItemSegment && primarySegment === "Retail" && (
+        {!usesPerItemSegment && isBranchSplit(primarySegment ?? "") && (
           <div className="mb-3 max-w-xs">
-            <label className={labelClass}>Branch (optional)</label>
+            <label className={labelClass}>Branch<RequiredMark /></label>
             <select className={inputClass} value={product} onChange={(e) => setProduct(e.target.value)}>
               <option value="">-</option>
-              {retailBranchOptions().map((name) => (
+              {branchOptionsFor(primarySegment ?? "").map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-            {retailBranchOptions().length === 0 && (
+            <p className="mt-1 text-xs text-brand-subtle">
+              <strong>Shared</strong> means the cost belongs to every branch — travel between
+              stores, bulk consumables, uniforms. Pick a store if it belongs to one.
+            </p>
+            {branchOptionsFor(primarySegment ?? "").length === 0 && (
               <p className="mt-1 text-xs text-brand-subtle">
                 No branches yet — add them on the Budget page (a branch is a revenue channel).
               </p>
@@ -1524,7 +1546,7 @@ export default function RequestForm({
                           >
                             <option value="">Select...</option>
                             {(rowFieldMode === "branch"
-                              ? retailBranchOptions()
+                              ? branchOptionsFor(item.segment ?? "")
                               : productOptionsFor(item.segment ?? "")
                             ).map((name) => (
                               <option key={name} value={name}>{name}</option>
