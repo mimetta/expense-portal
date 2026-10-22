@@ -25,6 +25,7 @@ import {
 import { computeTotals } from "@/lib/totals";
 import { getExpenseTypeConfig, PETTY_CASH_LABEL } from "@/lib/constants";
 import type { DeptConfigRow, ExpenseRequest, RequestItem } from "@/types/database";
+import { isBranchSplit } from "@/lib/branches-shared";
 
 // Postgrest's "column does not exist" code — see the insertPayload/
 // UNDEFINED_COLUMN handling in POST below for why this route needs it.
@@ -165,6 +166,28 @@ export async function POST(request: Request) {
 
     if (!body.bu || !body.department || !body.expense_type || !body.budget_period) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+    // BRANCH IS REQUIRED IN A BRANCH-SPLIT DEPARTMENT, ENFORCED HERE.
+    //
+    // The form asks for it, but a form is a courtesy: an optional field in
+    // practice means the review queue never drains, because every unanswered
+    // one becomes somebody else's correction later. Accepted values are a
+    // branch name or the reserved "Shared" — this checks only that an answer
+    // was given, since which branches are valid depends on the department and
+    // the year and is settled in the picker.
+    //
+    // Per-item branches (Retail/NSI petty cash) satisfy it too: the branch
+    // lives on the items in that mode, and requiring the header as well would
+    // demand one answer for a request that deliberately spans several.
+    if (isBranchSplit(body.department)) {
+      const headerBranch = String((body as { product?: string }).product ?? "").trim();
+      const everyItemHasOne = Array.isArray(body.items) && body.items.length > 0
+        && body.items.every((i) => String((i as { product?: string }).product ?? "").trim());
+      if (!headerBranch && !everyItemHasOne) {
+        return NextResponse.json({
+          error: `${body.department} requires a Branch. Choose a store, or "Shared" if the cost belongs to every branch.`,
+        }, { status: 400 });
+      }
     }
     if (!body.items || body.items.length === 0) {
       return NextResponse.json({ error: "At least one item is required" }, { status: 400 });

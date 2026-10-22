@@ -36,6 +36,7 @@ export type Page =
   | "dashboard"
   | "budget"
   | "spend-report"
+  | "branch-review"
   | "settings";
 
 // Every Page, exhaustively. Declared as Record<Page, true> so that adding a
@@ -60,6 +61,7 @@ const ALL_PAGES: Record<Page, true> = {
   dashboard: true,
   budget: true,
   "spend-report": true,
+  "branch-review": true,
   settings: true,
 };
 
@@ -116,6 +118,15 @@ export function canAccessPage(user: CurrentUser, page: Page): boolean {
     // to their own bu_scope/dept_scope/cat_l1_scope rows inside
     // lib/spend.ts#getSpendReport (via the same boScopeMatchesRequest helper
     // /bo-approvals uses), so granting the page does not grant the data.
+    case "branch-review":
+      // "Owns at least one branch-split department". The real computation is
+      // async (it reads bo_scopes), and canAccessPage is sync, so the nav and
+      // page guard agree on a cheap superset here — SUPERADMIN or any BO —
+      // while lib/branch-review.ts#reviewableDepartments decides which
+      // departments, and the API enforces it per row. A BO with no
+      // branch-split department is redirected by the page guard rather than
+      // shown an empty screen.
+      return isSuperadmin(user) || hasRole(user, "BO");
     case "spend-report":
       // Open to anyone who holds a roles row at all. What they SEE is decided
       // by lib/spend.ts#scopeFilter: CEO/ACCOUNTING/SUPERADMIN see everything,
