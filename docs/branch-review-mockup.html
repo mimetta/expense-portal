@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Branch review & Shared — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--forest:#1F3A2B;--terracotta:#BD5A2E;--cream:#FAF8F4;--sand:#D8CBB0;--ink:#1B1B18;--muted:#6B6B60;
+        --ok:#2E7D52;--warn:#C99A2E;--over:#B23A2F;--radius:8px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums}
+  .wrap{max-width:1340px;margin:0 auto;padding:20px 20px 60px}
+  h1{font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .screens{display:flex;margin-bottom:18px;border:1px dashed var(--sand);border-radius:var(--radius);overflow:hidden;background:#FFFDF7}
+  .screens button{flex:1;border:0;background:transparent;font:inherit;font-weight:500;color:var(--muted);padding:11px 14px;cursor:pointer;border-left:1px dashed var(--sand)}
+  .screens button:first-child{border-left:0}
+  .screens button[aria-pressed="true"]{background:var(--forest);color:#fff}
+  .screens-hint{font-size:11px;color:var(--muted);padding:6px 12px 0;letter-spacing:.04em;text-transform:uppercase}
+  .btn{border:1px solid var(--sand);background:#fff;color:var(--ink);padding:7px 13px;border-radius:var(--radius);font:inherit;font-weight:500;cursor:pointer;font-size:13px}
+  .btn:hover{border-color:var(--forest)}
+  .btn-primary{background:var(--forest);border-color:var(--forest);color:#fff}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  select,input[type=text]{font:inherit;padding:6px 9px;border:1px solid var(--sand);border-radius:6px;background:#fff;color:var(--ink);font-size:13px}
+  .bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .spacer{flex:1}
+  .prog{background:#fff;border:1px solid var(--sand);border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .prog .big{font-size:20px;font-weight:500}
+  .prog .lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+  .meter{flex:1;min-width:160px;height:7px;background:#EDE7DA;border-radius:99px;overflow:hidden}
+  .meter i{display:block;height:100%;background:var(--forest)}
+  .banner{display:flex;gap:10px;padding:11px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;line-height:1.5}
+  .banner.info{background:#F6F3EC;border:1px solid var(--sand)}
+  .banner.warn{background:#FBF2EC;border:1px solid #EBD3C4;color:#7A3A18}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--sand);border-radius:var(--radius);overflow:hidden}
+  th{text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:9px 12px;background:#FDFCFA;border-bottom:1px solid var(--sand);white-space:nowrap}
+  th.r,td.r{text-align:right}
+  td{padding:9px 12px;border-bottom:1px solid #EFEAE0;vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  tr.done td{background:#F7FAF7}
+  tr.sel td{background:#FBF9F5}
+  .rid{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .desc{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cat{font-size:11.5px;color:var(--muted)}
+  .pill{font-size:10.5px;font-weight:500;padding:2px 8px;border-radius:99px;white-space:nowrap}
+  .pill.paid{background:#F1F7F2;color:#1E5537}
+  .pill.sub{background:#FBF2EC;color:var(--terracotta)}
+  .sugg{font-size:11px;color:var(--terracotta);cursor:pointer;text-decoration:underline;margin-left:7px}
+  .tick{color:var(--ok);font-weight:700}
+  .note{margin-top:26px;padding:16px 18px;background:#FFFDF7;border:1px dashed var(--sand);border-radius:var(--radius);font-size:13px;color:var(--muted)}
+  .note b{color:var(--ink)} .note ol{margin:8px 0 0;padding-left:20px} .note li{margin:6px 0}
+  .new{color:var(--terracotta);font-weight:500}
+  .screen{display:none} .screen.on{display:block}
+  .form{background:#fff;border:1px solid var(--sand);border-radius:var(--radius);padding:18px 20px;max-width:620px}
+  .form label{display:block;font-size:11.5px;font-weight:500;color:var(--muted);margin:0 0 5px}
+  .form .row{margin-bottom:14px}
+  .form select{width:100%;padding:8px 11px}
+  .hintline{font-size:12px;color:var(--muted);margin-top:5px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .chip{border:1px solid var(--sand);background:#fff;border-radius:99px;padding:4px 11px;font-size:12.5px}
+  .chip.on{background:var(--forest);border-color:var(--forest);color:#fff}
+  .chip.shared{border-color:#C6D8CB;background:#F1F7F2;color:#1E5537}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="screens-hint">Mockup only</div>
+    <div class="screens" role="group">
+      <button data-s="review" aria-pressed="true">Branch review screen</button>
+      <button data-s="submit" aria-pressed="false">Submit · branch field</button>
+      <button data-s="budget" aria-pressed="false">Budget · Shared</button>
+    </div>
+  </div>
+
+  <!-- REVIEW -->
+  <div class="screen on" id="s-review">
+    <h1>Branch review</h1>
+    <p class="sub">Requests in branch-split departments with no branch recorded. Setting one corrects attribution — it does not change any amount, and does not reopen the request.</p>
+
+    <div class="prog">
+      <div><div class="lbl">Reviewed</div><div class="big num" id="pCount">0 of 12</div></div>
+      <div class="meter"><i id="pBar" style="width:0%"></i></div>
+      <div><div class="lbl">Unattributed</div><div class="big num" id="pAmt">฿107,057</div></div>
+    </div>
+
+    <div class="bar">
+      <select><option>All branch-split departments</option><option>Retail</option><option>New Store Investment</option></select>
+      <select><option>FY2026</option><option>FY2025</option><option>All years</option></select>
+      <select><option>Not yet reviewed</option><option>All</option></select>
+      <div class="spacer"></div>
+      <select id="bulkPick"><option value="">Set selected to…</option></select>
+      <button class="btn" id="bulkApply" disabled>Apply to selected</button>
+    </div>
+
+    <div class="banner info">Suggestions come from the description only, and are never applied automatically — a store named in the text is a hint, not a fact.</div>
+
+    <table id="tbl"></table>
+    <div class="bar" style="margin-top:14px">
+      <div class="spacer"></div>
+      <button class="btn">Discard changes</button>
+      <button class="btn btn-primary" id="saveBtn" disabled>Save 0 changes</button>
+    </div>
+  </div>
+
+  <!-- SUBMIT -->
+  <div class="screen" id="s-submit">
+    <h1>Submit · branch field</h1>
+    <p class="sub">Shown when the segment is a branch-split department. Retail and New Store Investment today.</p>
+    <div class="form">
+      <div class="row">
+        <label>Segment</label>
+        <select id="segPick"><option>New Store Investment</option><option>Retail</option><option>Marketing</option></select>
+      </div>
+      <div class="row" id="branchRow">
+        <label>Branch <span style="color:var(--over)">*</span></label>
+        <select id="branchPick"></select>
+        <div class="hintline" id="branchHint"></div>
+      </div>
+      <div class="row">
+        <label>Category L1</label>
+        <select><option>Store Design &amp; Construction</option></select>
+      </div>
+    </div>
+    <div class="banner warn" style="margin-top:14px;max-width:620px">
+      Switch the segment to see the field appear and disappear, and to see how the branch list differs between the two departments.
+    </div>
+  </div>
+
+  <!-- BUDGET -->
+  <div class="screen" id="s-budget">
+    <h1>Budget · the Shared bucket</h1>
+    <p class="sub">Shared needs a place in the branch selector, or costs deliberately shared across branches have nowhere to be budgeted.</p>
+    <div class="form" style="max-width:none">
+      <label>Branch</label>
+      <div class="chips">
+        <span class="chip">All branches</span>
+        <span class="chip shared on">Shared</span>
+        <span class="chip">Song Wat</span>
+        <span class="chip">Talat Noi</span>
+        <span class="chip">Siam Discovery</span>
+        <span class="chip">Gaysorn</span>
+        <span class="chip" style="color:#B9B4A7">(no branch)</span>
+      </div>
+      <div class="hintline" style="margin-top:12px">
+        <b style="color:var(--ink)">Shared</b> — costs that belong to every branch: travel between stores, bulk consumables, uniforms. A deliberate answer.<br>
+        <b style="color:var(--ink)">(no branch)</b> — nobody recorded one. An absence, and it should shrink toward zero as the review screen is worked through.
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>What this adds:</b>
+    <ol>
+      <li class="new"><b>Branch appears for New Store Investment too</b>, not only Retail. The "Retail only" rule becomes a list of branch-split departments — it was deliberately hardcoded, so this is the change that revisits it.</li>
+      <li class="new"><b>New Store Investment offers branches that aren't open yet.</b> Fitting out a store happens before it trades, so the picker must include signed-but-unopened doors — Another Story today. Retail keeps its stricter rule: active, or closed in a year it traded.</li>
+      <li class="new"><b>Shared is a real value, distinct from (no branch).</b> Shared is a decision; no branch is an absence. Collapsing them would lose the difference between an answer and a gap.</li>
+      <li class="new"><b>The review screen corrects attribution, not money.</b> It writes the branch directly with an audit row — it does not reopen a PAID request or route through the edit-request approval flow.</li>
+      <li class="new"><b>Suggestions are hints, never applied.</b> A store named in a description is a clue; a human confirms it.</li>
+    </ol>
+    <b style="display:block;margin-top:14px">Worth deciding:</b>
+    <ol>
+      <li>Should the ex-"All branch" requests — travel between stores, bulk consumables, uniforms, currently in (no branch) — be moved to Shared? They are exactly what Shared is for, and it would be a small migration rather than manual review.</li>
+      <li>Who can use the review screen? Drawn as admin and the department's budget owner. A BO correcting their own department's attribution seems right; a BO correcting another's does not.</li>
+      <li>Should Branch become required for New Store Investment as it is for Retail, or stay optional there?</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+const BRANCHES=['Song Wat','Talat Noi','Siam Discovery','Vanich House','Loft eyes','Ecotopia','Gaysorn','Unusual & Friend','Tudi','Central Chidlom','Emporium','Loopers','LOQA','Momo Tennis','DCP'];
+const NOT_OPEN=['Another Story'];
+const fmt=n=>n.toLocaleString('en-US',{maximumFractionDigits:0});
+
+const ROWS=[
+  {id:'EXP-2026-02-000037',d:'12 Feb',who:'Klao',desc:'ค่าเช่าพื้นที่ — Store rental fee',cat:'Store Fixed cost › Store rental fee',amt:61218,st:'PAID',dep:'Retail',sugg:null},
+  {id:'EXP-2026-03-000102',d:'04 Mar',who:'Pim',desc:'ค่าไฟ Siam Discovery เดือน 2',cat:'Utilities › Electricity',amt:4320,st:'PAID',dep:'Retail',sugg:'Siam Discovery'},
+  {id:'EXP-2026-04-000118',d:'22 Apr',who:'Pim',desc:'ค่าน้ำ Gaysorn',cat:'Utilities › Water',amt:1890,st:'PAID',dep:'Retail',sugg:'Gaysorn'},
+  {id:'EXP-2026-05-000061',d:'09 May',who:'Klao',desc:'ค่าเดินทางไปตรวจร้าน 5 สาขา',cat:'Retail ค่าเดินทาง',amt:2140,st:'PAID',dep:'Retail',sugg:'Shared'},
+  {id:'EXP-2026-05-000144',d:'27 May',who:'Klao',desc:'สติกเกอร์ถุง — ทุกสาขา',cat:'In-Store Consumables & Supplies',amt:8760,st:'PAID',dep:'Retail',sugg:'Shared'},
+  {id:'EXP-2026-06-000090',d:'11 Jun',who:'Pim',desc:'ยูนิฟอร์มพนักงานขาย',cat:'In-Store Consumables & Supplies',amt:12400,st:'PAID',dep:'Retail',sugg:'Shared'},
+  {id:'EXP-2026-06-000177',d:'30 Jun',who:'Pim',desc:'ค่าไฟ Ecotopia',cat:'Utilities › Electricity',amt:1636,st:'PAID',dep:'Retail',sugg:'Ecotopia'},
+  {id:'EXP-2026-07-000055',d:'08 Jul',who:'Klao',desc:'KA Training — in-store staff',cat:'KA Training',amt:4459,st:'PAID',dep:'Retail',sugg:'Shared'},
+  {id:'EXP-2026-08-000121',d:'19 Aug',who:'Pim',desc:'งานตกแต่ง Another Story — phase 1',cat:'Store Design & Construction',amt:84000,st:'PAID',dep:'New Store Investment',sugg:'Another Story'},
+  {id:'EXP-2026-09-000038',d:'05 Sep',who:'Pim',desc:'POS hardware — Central Chidlom',cat:'Store Equipment',amt:34668,st:'PAID',dep:'New Store Investment',sugg:'Central Chidlom'},
+  {id:'EXP-2026-09-000166',d:'24 Sep',who:'Klao',desc:'ค่าโทรศัพท์ร้าน',cat:'Store Fixed cost',amt:1980,st:'SUBMITTED',dep:'Retail',sugg:null},
+  {id:'EXP-2026-10-000012',d:'03 Oct',who:'Pim',desc:'ป้ายหน้าร้าน Loopers',cat:'Media & Materials',amt:6200,st:'PAID',dep:'Retail',sugg:'Loopers'}
+];
+const picked={}; const sel={};
+
+function branchOptions(dep,current){
+  let o='<option value="">— choose —</option><option value="Shared"'+(current==='Shared'?' selected':'')+'>Shared — all branches</option>';
+  BRANCHES.forEach(b=>o+='<option'+(current===b?' selected':'')+'>'+b+'</option>');
+  if(dep==='New Store Investment') NOT_OPEN.forEach(b=>o+='<option'+(current===b?' selected':'')+'>'+b+' — not open yet</option>');
+  return o;
+}
+
+function render(){
+  let h='<thead><tr><th style="width:28px"></th><th>Request</th><th>Description</th><th class="r">Amount</th><th>Status</th><th style="width:230px">Branch</th></tr></thead><tbody>';
+  ROWS.forEach((r,i)=>{
+    const done=!!picked[i];
+    h+='<tr class="'+(done?'done':'')+(sel[i]?' sel':'')+'">'
+     +'<td><input type="checkbox" data-sel="'+i+'"'+(sel[i]?' checked':'')+'></td>'
+     +'<td><div class="rid">'+r.id+'</div><div class="cat">'+r.d+' · '+r.who+' · '+r.dep+'</div></td>'
+     +'<td><div class="desc">'+r.desc+'</div><div class="cat">'+r.cat+'</div></td>'
+     +'<td class="r num">'+fmt(r.amt)+'</td>'
+     +'<td><span class="pill '+(r.st==='PAID'?'paid':'sub')+'">'+r.st+'</span></td>'
+     +'<td><select data-b="'+i+'">'+branchOptions(r.dep,picked[i])+'</select>'
+     +(r.sugg&&!done?'<span class="sugg" data-sg="'+i+'">'+r.sugg+'?</span>':'')
+     +(done?' <span class="tick">✓</span>':'')+'</td></tr>';
+  });
+  h+='</tbody>';
+  document.getElementById('tbl').innerHTML=h;
+
+  const n=Object.keys(picked).length;
+  document.getElementById('pCount').textContent=n+' of '+ROWS.length;
+  document.getElementById('pBar').style.width=(n/ROWS.length*100)+'%';
+  const left=ROWS.reduce((s,r,i)=>s+(picked[i]?0:r.amt),0);
+  document.getElementById('pAmt').textContent='฿'+fmt(left);
+  const sb=document.getElementById('saveBtn');
+  sb.textContent='Save '+n+' change'+(n===1?'':'s'); sb.disabled=n===0;
+  const anySel=Object.values(sel).some(Boolean);
+  document.getElementById('bulkApply').disabled=!anySel||!document.getElementById('bulkPick').value;
+
+  document.querySelectorAll('select[data-b]').forEach(s2=>s2.addEventListener('change',()=>{
+    const i=+s2.dataset.b; const v=s2.value.replace(' — not open yet','');
+    if(v) picked[i]=v; else delete picked[i];
+    render();
+  }));
+  document.querySelectorAll('.sugg').forEach(s2=>s2.addEventListener('click',()=>{
+    picked[+s2.dataset.sg]=ROWS[+s2.dataset.sg].sugg; render();
+  }));
+  document.querySelectorAll('input[data-sel]').forEach(c=>c.addEventListener('change',()=>{
+    sel[+c.dataset.sel]=c.checked; render();
+  }));
+}
+
+function fillBulk(){
+  const el=document.getElementById('bulkPick');
+  el.innerHTML='<option value="">Set selected to…</option><option>Shared</option>'+BRANCHES.map(b=>'<option>'+b+'</option>').join('');
+  el.addEventListener('change',render);
+}
+document.getElementById('bulkApply').addEventListener('click',()=>{
+  const v=document.getElementById('bulkPick').value;
+  Object.keys(sel).forEach(i=>{ if(sel[i]&&v) picked[i]=v; });
+  render();
+});
+
+function renderSubmit(){
+  const dep=document.getElementById('segPick').value;
+  const split = dep==='Retail'||dep==='New Store Investment';
+  document.getElementById('branchRow').style.display=split?'':'none';
+  if(!split) return;
+  document.getElementById('branchPick').innerHTML=branchOptions(dep,'');
+  document.getElementById('branchHint').innerHTML = dep==='New Store Investment'
+    ? 'Includes stores that have not opened yet — fit-out happens before trading. Choose <b>Shared</b> for costs spanning several sites.'
+    : 'Active branches only, plus closed ones for a year they traded. Choose <b>Shared</b> for costs that belong to every branch.';
+}
+document.getElementById('segPick').addEventListener('change',renderSubmit);
+
+document.querySelectorAll('.screens button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.screens button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('s-'+b.dataset.s).classList.add('on');
+}));
+fillBulk(); render(); renderSubmit();
+</script>
+</body>
+</html>
