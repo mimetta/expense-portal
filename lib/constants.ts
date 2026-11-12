@@ -220,9 +220,11 @@ export const BANK_OPTIONS = [
   "กรุงศรีอยุธยา",
   "ทหารไทยธนชาต",
   "ออมสิน",
+  "เกียรตินาคินภัทร",
+  "ทิสโก้",
   "UOB",
   "CIMB",
-  "อื่นๆ",
+  "CITI",
 ] as const;
 
 export const CARD_TYPES = ["Visa", "Mastercard", "AMEX", "JCB"] as const;
