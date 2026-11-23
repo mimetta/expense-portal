@@ -67,7 +67,7 @@ export default function Nav() {
 
   return (
     <>
-      <nav className="h-14 border-b border-brand-border bg-white print:hidden">
+      <nav className="h-14 border-b border-kf-border bg-kf-bg-surface print:hidden">
         {/* Ten nav items + logo + email + Sign out need ~1360px. The wrapper
             was max-w-[1280px] (= 1216px of content after px-8) AND flex-wrap,
             so the right-hand email/Sign out block wrapped onto a second row
@@ -84,16 +84,35 @@ export default function Nav() {
             Deliberately NOT solved by shortening labels. */}
         <div className="mx-auto flex h-full max-w-[1440px] flex-nowrap items-center justify-between gap-2 px-8">
           <div className="mm-nav-links flex h-full min-w-0 items-center overflow-x-auto">
-            <Link href="/" className="mr-3 shrink-0 text-lg font-bold text-brand-brown">
-              Mimetta
+            {/* The Kindfolks lockup: wordmark, slash, module name
+                (brand/wordmark/README.md). It replaces the "Mimetta" text
+                logo and is ~105px wider than it was, which the strip
+                absorbs by scrolling — the sizes are the kit's and are not
+                ours to trim. The SVG carries its own colours: the logo is
+                an identity, not a theme, so it is never recoloured. */}
+            <Link
+              href="/"
+              aria-label="Kindfolks Expenses"
+              className="mr-3 flex shrink-0 items-center gap-1"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/kindfolks-on-light.svg"
+                alt=""
+                className="h-[20px] w-auto sm:h-[23px]"
+              />
+              <span className="mx-0.5 text-kf-text-hint sm:mx-1" aria-hidden="true">
+                /
+              </span>
+              <span className="text-[13px] text-kf-text-muted sm:text-[14px]">Expenses</span>
             </Link>
             {LINKS.filter((link) => data.access?.[link.page]).map((link) => {
               const active = pathname.startsWith(link.href);
               const badge = data.badges?.[link.page] ?? 0;
               const labelClass = `flex h-full shrink-0 items-center whitespace-nowrap border-b-2 text-sm transition ${
                 active
-                  ? "border-brand-brown font-medium text-brand-brown"
-                  : "border-transparent font-normal text-brand-muted hover:text-brand-dark"
+                  ? "border-kf-text-brand font-medium text-kf-text-brand"
+                  : "border-transparent font-normal text-kf-text-muted hover:text-kf-text-primary"
               }`;
               // The badge is a SIBLING link, not nested inside the label's —
               // an <a> inside an <a> is invalid HTML and the inner one would
@@ -111,8 +130,8 @@ export default function Nav() {
                       className={`${labelClass} pr-2.5`}
                     >
                       <span
-                        className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white transition-opacity hover:opacity-80"
-                        style={{ background: "#BD5A2E" }}
+                        className="flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-kf-text-on-brand transition-opacity hover:opacity-80"
+                        style={{ background: "var(--kf-status-at-risk-strong)" }}
                       >
                         {badge > 99 ? "99+" : badge}
                       </span>
@@ -129,10 +148,10 @@ export default function Nav() {
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <NotificationBell />
-            <span className="whitespace-nowrap text-[13px] text-brand-subtle">{data.user.email}</span>
+            <span className="whitespace-nowrap text-[13px] text-kf-text-hint">{data.user.email}</span>
             <button
               onClick={handleSignOut}
-              className="rounded-md border border-brand-border bg-white px-3 py-1 text-sm text-brand-muted transition-colors hover:text-[#DC2626]"
+              className="rounded-md border border-kf-border bg-kf-bg-surface px-3 py-1 text-sm text-kf-text-muted transition-colors hover:text-kf-status-late-strong"
             >
               Sign out
             </button>
@@ -142,7 +161,7 @@ export default function Nav() {
       {needsRoleAssignment && !bannerDismissed && (
         <div
           className="flex items-center justify-between gap-3 px-4 py-2 text-sm font-medium"
-          style={{ background: "#FEF3C7", borderBottom: "1px solid #F59E0B", color: "#92400E" }}
+          style={{ background: "var(--kf-palette-brown-tint)", borderBottom: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
         >
           <span className="mx-auto max-w-6xl flex-1">
             ⚠️ บัญชีของคุณยังไม่ได้รับการกำหนดสิทธิ์ กรุณาติดต่อ Admin เพื่อขอสิทธิ์การใช้งาน

@@ -99,9 +99,9 @@ export function pct(value: number): string {
 
 // --- heatmap ---------------------------------------------------------------
 
-export const HEAT_UNDER = "#2E7D52"; // < 80% of budget
-export const HEAT_NEAR = "#C99A2E";  // 80–100%
-export const HEAT_OVER = "#B23A2F";  // > 100%
+export const HEAT_UNDER = "var(--kf-status-on-track)"; // < 80% of budget
+export const HEAT_NEAR = "var(--kf-status-at-risk)";  // 80–100%
+export const HEAT_OVER = "var(--kf-status-late)";  // > 100%
 
 export interface Heat {
   color: string;
@@ -113,14 +113,14 @@ export interface Heat {
 // docs/spend-report-mockup-v2.html. Earlier this used one uniform alpha with
 // the band colour itself as the text, which left the figure sitting on its
 // own hue at too little contrast to read comfortably — worst for the `ok`
-// band, where #2E7D52 on a green tint is the least legible of the three.
+// band, where var(--kf-status-on-track) on a green tint is the least legible of the three.
 // The text colours below are deliberately NOT the band colours.
 const HEAT_BANDS = {
-  ok: { color: "#1E5537", background: "rgba(46, 125, 82, 0.10)", bold: false },
-  warn: { color: "#7A5A0F", background: "rgba(201, 154, 46, 0.14)", bold: false },
+  ok: { color: "var(--kf-palette-olive-text)", background: "color-mix(in srgb, var(--kf-status-on-track) 10%, transparent)", bold: false },
+  warn: { color: "var(--kf-status-at-risk-strong)", background: "color-mix(in srgb, var(--kf-status-at-risk) 14%, transparent)", bold: false },
   // Only the over-budget band is bolded — bolding all three removes the
   // emphasis that makes an overspent month jump out of a healthy row.
-  over: { color: "#8E2A21", background: "rgba(178, 58, 47, 0.12)", bold: true },
+  over: { color: "var(--kf-status-late-strong)", background: "color-mix(in srgb, var(--kf-status-late) 12%, transparent)", bold: true },
 } as const;
 
 /**

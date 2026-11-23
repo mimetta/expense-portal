@@ -11,18 +11,18 @@ import { EM_DASH, thb, budgetToDate } from "@/components/spend/format";
 // percentage built on it is not shown at all rather than shown as 0% — see
 // migration 040.
 
-const INK = "#1B1B18";
-const MUTED = "#6B6B60";
-const LABEL = "#A9A497";
-const NONE = "#C0BBAE";
-const UP = "#1E5537";
-const DOWN = "#8E2A21";
+const INK = "var(--kf-text-primary)";
+const MUTED = "var(--kf-text-muted)";
+const LABEL = "var(--kf-palette-warm-6)";
+const NONE = "var(--kf-palette-warm-5)";
+const UP = "var(--kf-palette-olive-text)";
+const DOWN = "var(--kf-status-late-strong)";
 
 /** Tint bands, matching the mockup's band(): >100 over, >=80 warn, else ok. */
 export const BANDS = {
-  ok: { background: "rgba(46,125,82,.10)", color: "#1E5537", fontWeight: 400 },
-  warn: { background: "rgba(201,154,46,.14)", color: "#7A5A0F", fontWeight: 400 },
-  over: { background: "rgba(178,58,47,.12)", color: "#8E2A21", fontWeight: 500 },
+  ok: { background: "color-mix(in srgb, var(--kf-status-on-track) 10%, transparent)", color: "var(--kf-palette-olive-text)", fontWeight: 400 },
+  warn: { background: "color-mix(in srgb, var(--kf-status-at-risk) 14%, transparent)", color: "var(--kf-status-at-risk-strong)", fontWeight: 400 },
+  over: { background: "color-mix(in srgb, var(--kf-status-late) 12%, transparent)", color: "var(--kf-status-late-strong)", fontWeight: 500 },
   none: { background: "transparent", color: NONE, fontWeight: 400 },
 } as const;
 
@@ -56,7 +56,7 @@ function PcRow({ k, v, first }: { k: string; v: string; first?: boolean }) {
       style={{
         marginTop: first ? 2 : 0,
         paddingTop: first ? 2 : 0,
-        borderTop: first ? "1px solid rgba(0,0,0,.06)" : "none",
+        borderTop: first ? `1px solid color-mix(in srgb, var(--kf-palette-ink) 6%, transparent)` : "none",
       }}
     >
       <span className="uppercase" style={{ fontSize: 8, letterSpacing: "0.06em", color: LABEL }}>

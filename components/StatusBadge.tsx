@@ -1,24 +1,26 @@
 import { STATUS_LABELS } from "@/lib/status";
 import type { ExpenseRequest } from "@/types/database";
 
-// Exact hex per the Mimetta design system spec (see CLAUDE.md "UI Design
-// System") — inline styles rather than Tailwind classes since these are
-// specific per-status values, not the generic brand tokens in
-// tailwind.config.ts.
+// Every value is an app token (app/tokens.css), which is in turn a
+// Kindfolks kit palette colour — no hex here. Inline styles rather than
+// Tailwind classes because the pair is chosen per status at runtime.
+//
+// The pills are the kit's, but the MAPPING is this app's: the kit's pill
+// colours say on-track / at-risk / late, and this is an eight-stage
+// approval chain, so the forward stages climb the green family by
+// intensity and brown/terracotta stay for the two exceptions. See the
+// comment above --app-status-* for the contrast figures.
 const COLORS: Record<ExpenseRequest["status"], { background: string; color: string; border?: string }> = {
-  SUBMITTED: { background: "#F3F4F6", color: "#374151", border: "#E5E7EB" },
-  PO_UPLOADED: { background: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" },
-  BO_APPROVED: { background: "#F0F4EF", color: "#1F3A2B", border: "#9CAE8C" },
-  CEO_APPROVED: { background: "#1F3A2B", color: "#FFFFFF" },
-  PAID: { background: "#9CAE8C", color: "#1F3A2B" },
-  REJECTED: { background: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
-  EDIT_REQUESTED: { background: "#FEF3C7", color: "#92400E", border: "#FCD34D" },
-  // Historical only (imported legacy rows) — a warm muted neutral on
-  // brand.border (#D8CBB0), rather than the generic Tailwind greys the
-  // other neutral badges use, so it reads as inert history and does not
-  // share SUBMITTED's exact background. Nothing currently produces this
-  // status going forward. See lib/constants.ts#STATUSES.
-  EXPIRED: { background: "#F4F1EC", color: "#6B6B60", border: "#D8CBB0" },
+  SUBMITTED: { background: "var(--app-status-submitted-bg)", color: "var(--app-status-submitted-fg)", border: "var(--app-status-submitted-edge)" },
+  PO_UPLOADED: { background: "var(--app-status-po-bg)", color: "var(--app-status-po-fg)", border: "var(--app-status-po-edge)" },
+  BO_APPROVED: { background: "var(--app-status-bo-bg)", color: "var(--app-status-bo-fg)", border: "var(--app-status-bo-edge)" },
+  CEO_APPROVED: { background: "var(--app-status-ceo-bg)", color: "var(--app-status-ceo-fg)" },
+  PAID: { background: "var(--app-status-paid-bg)", color: "var(--app-status-paid-fg)" },
+  REJECTED: { background: "var(--app-status-rejected-bg)", color: "var(--app-status-rejected-fg)", border: "var(--app-status-rejected-edge)" },
+  EDIT_REQUESTED: { background: "var(--app-status-edit-bg)", color: "var(--app-status-edit-fg)", border: "var(--app-status-edit-edge)" },
+  // Historical only (imported legacy rows). Nothing produces this status
+  // going forward. See lib/constants.ts#STATUSES.
+  EXPIRED: { background: "var(--app-status-expired-bg)", color: "var(--app-status-expired-fg)", border: "var(--app-status-expired-edge)" },
 };
 
 export default function StatusBadge({ status }: { status: ExpenseRequest["status"] }) {

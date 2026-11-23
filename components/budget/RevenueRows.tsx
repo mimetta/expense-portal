@@ -14,8 +14,8 @@ import type { RevenueNode } from "@/lib/revenue-goals";
 // of its parts they could disagree, and nothing in the data would say which
 // was right.
 
-const GOAL_BG = "#F4F7F4";
-const GOAL_ACCENT = "#1F3A2B";
+const GOAL_BG = "var(--kf-palette-olive-tint)";
+const GOAL_ACCENT = "var(--kf-bg-brand)";
 
 // Indent by DEPTH, not by level. The status level is optional, so a channel
 // can sit at depth 4 (Owned store › Song Wat) or depth 5 (Specialty partners ›
@@ -126,7 +126,7 @@ export default function RevenueRows({
           >
             <th
               scope="row"
-              className="sticky left-0 z-10 border-r border-brand-border py-1.5 pr-3 text-left font-normal"
+              className="sticky left-0 z-10 border-r border-kf-border py-1.5 pr-3 text-left font-normal"
               style={{ background: GOAL_BG, paddingLeft: indentFor(depth) }}
             >
               <div className="flex items-center gap-1.5">
@@ -135,7 +135,7 @@ export default function RevenueRows({
                     type="button"
                     onClick={() => toggle(n.key)}
                     aria-expanded={open.has(n.key)}
-                    className="shrink-0 text-[10px] text-brand-muted hover:text-brand-dark"
+                    className="shrink-0 text-[10px] text-kf-text-muted hover:text-kf-text-primary"
                     style={{ width: 12 }}
                   >
                     {open.has(n.key) ? "▾" : "▸"}
@@ -144,13 +144,13 @@ export default function RevenueRows({
                   <span className="shrink-0" style={{ width: 12 }} />
                 )}
                 <span
-                  className={`truncate text-[13px] ${isTotal ? "font-semibold text-brand-dark" : "text-brand-dark"}`}
+                  className={`truncate text-[13px] ${isTotal ? "font-semibold text-kf-text-primary" : "text-kf-text-primary"}`}
                   title={n.label}
                 >
                   {n.label}
                 </span>
                 {isChannel && n.active === false && (
-                  <span className="shrink-0 text-[10px] text-brand-subtle">(closed)</span>
+                  <span className="shrink-0 text-[10px] text-kf-text-hint">(closed)</span>
                 )}
                 {isChannel && canAddChannel && onToggleChannel && (
                   <button
@@ -161,7 +161,7 @@ export default function RevenueRows({
                         ? "Reopen this channel"
                         : "Close this channel — its past goals are kept, never deleted"
                     }
-                    className="ml-auto shrink-0 rounded border border-brand-border px-1 text-[10px] text-brand-muted hover:text-brand-dark"
+                    className="ml-auto shrink-0 rounded border border-kf-border px-1 text-[10px] text-kf-text-muted hover:text-kf-text-primary"
                   >
                     {n.active === false ? "open" : "close"}
                   </button>
@@ -181,12 +181,12 @@ export default function RevenueRows({
                 return (
                   <td key={m} className="py-1" style={{ paddingLeft: 2, paddingRight: 10 }}>
                     <div className="flex items-center gap-1">
-                      <span className="flex-none uppercase" style={{ fontSize: 8, letterSpacing: "0.06em", color: "#A9A497" }}>G</span>
+                      <span className="flex-none uppercase" style={{ fontSize: 8, letterSpacing: "0.06em", color: "var(--kf-palette-warm-6)" }}>G</span>
                       <input
                         data-goal={n.channelId}
                         data-m={m}
                         className="mm-input w-full text-right tabular-nums"
-                        style={{ height: 22, padding: "0 6px", fontSize: 11, background: "#FFFFFF" }}
+                        style={{ height: 22, padding: "0 6px", fontSize: 11, background: "var(--kf-bg-surface)" }}
                         defaultValue={v === null ? "" : Math.round(v).toLocaleString("en-US")}
                         key={`${n.key}-g-${m}-${v ?? "x"}`}
                         placeholder={EM_DASH}
@@ -202,12 +202,12 @@ export default function RevenueRows({
                       />
                     </div>
                     <div className="mt-0.5 flex items-center gap-1">
-                      <span className="flex-none uppercase" style={{ fontSize: 8, letterSpacing: "0.06em", color: "#A9A497" }}>A</span>
+                      <span className="flex-none uppercase" style={{ fontSize: 8, letterSpacing: "0.06em", color: "var(--kf-palette-warm-6)" }}>A</span>
                       <input
                         data-actual={n.channelId}
                         data-m={m}
                         className="mm-input w-full text-right font-bold tabular-nums"
-                        style={{ height: 22, padding: "0 6px", fontSize: 11.5, background: "#FFFFFF" }}
+                        style={{ height: 22, padding: "0 6px", fontSize: 11.5, background: "var(--kf-bg-surface)" }}
                         defaultValue={a === null ? "" : Math.round(a).toLocaleString("en-US")}
                         key={`${n.key}-a-${m}-${a ?? "x"}`}
                         placeholder={EM_DASH}
@@ -270,7 +270,7 @@ export default function RevenueRows({
         <tr style={{ background: GOAL_BG }}>
           <th
             scope="row"
-            className="sticky left-0 z-10 border-r border-brand-border py-1.5 pr-3 text-left font-normal"
+            className="sticky left-0 z-10 border-r border-kf-border py-1.5 pr-3 text-left font-normal"
             style={{ background: GOAL_BG, paddingLeft: indentFor(5) }}
           >
             <button
@@ -283,7 +283,7 @@ export default function RevenueRows({
               // sees it and that person does not, which is correct and has
               // been mistaken for a bug.
               title="Add a revenue channel. Channels are company-wide, not this owner's — you see this because YOU hold the Revenue channels permission."
-              className="rounded-[5px] border border-dashed border-brand-border px-2 py-0.5 text-[11px] text-brand-muted hover:border-brand-accent hover:text-brand-accent"
+              className="rounded-[5px] border border-dashed border-kf-border px-2 py-0.5 text-[11px] text-kf-text-muted hover:border-kf-palette-deep-green-hover hover:text-kf-palette-deep-green-hover"
             >
               + Add channel
             </button>
@@ -297,7 +297,7 @@ export default function RevenueRows({
       <tr>
         <td
           colSpan={monthWidthCols + (showDelta ? 3 : 2)}
-          style={{ height: 6, borderBottom: "1px solid #D8CBB0", background: "#FFFFFF" }}
+          style={{ height: 6, borderBottom: "1px solid var(--kf-border)", background: "var(--kf-bg-surface)" }}
         />
       </tr>
       <tr hidden>

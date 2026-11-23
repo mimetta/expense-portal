@@ -264,7 +264,7 @@ export default function AccountingPage() {
       <div className="mm-card mb-4">
         <h3 className="mm-section-label">Payment Date Summary</h3>
         {paymentDates.length === 0 ? (
-          <p className="text-sm text-brand-muted">
+          <p className="text-sm text-kf-text-muted">
             No &quot;Payment&quot; events on the calendar yet — add them from the homepage Calendar to see totals here.
           </p>
         ) : (
@@ -275,15 +275,15 @@ export default function AccountingPage() {
                 <div key={m.monthKey}>
                   <div
                     onClick={() => toggleMonth(m.monthKey)}
-                    className="flex cursor-pointer items-center justify-between border-b border-[#F5F0E8] px-1 py-3"
+                    className="flex cursor-pointer items-center justify-between border-b border-kf-border-subtle px-1 py-3"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="w-3 text-xs text-brand-subtle">{monthOpen ? "▾" : "▸"}</span>
-                      <span className="text-sm font-medium text-brand-dark">{m.label}</span>
+                      <span className="w-3 text-xs text-kf-text-hint">{monthOpen ? "▾" : "▸"}</span>
+                      <span className="text-sm font-medium text-kf-text-primary">{m.label}</span>
                     </div>
-                    <div className="flex gap-6 text-sm text-brand-muted">
+                    <div className="flex gap-6 text-sm text-kf-text-muted">
                       <span>{m.totalCount} requests</span>
-                      <span className="min-w-[90px] text-right font-medium text-brand-dark">
+                      <span className="min-w-[90px] text-right font-medium text-kf-text-primary">
                         {formatCurrency(m.totalAmount)}
                       </span>
                     </div>
@@ -297,21 +297,21 @@ export default function AccountingPage() {
                           <div key={b.eventDate}>
                             <div
                               onClick={() => toggleDate(b.eventDate)}
-                              className="flex cursor-pointer items-center justify-between border-b border-[#F5F0E8] px-1 py-2.5"
+                              className="flex cursor-pointer items-center justify-between border-b border-kf-border-subtle px-1 py-2.5"
                             >
                               <div className="flex items-center gap-2">
-                                <span className="w-3 text-[11px] text-brand-subtle">{dateOpen ? "▾" : "▸"}</span>
-                                <span className="text-[13px] text-brand-dark">{formatDate(b.eventDate)}</span>
+                                <span className="w-3 text-[11px] text-kf-text-hint">{dateOpen ? "▾" : "▸"}</span>
+                                <span className="text-[13px] text-kf-text-primary">{formatDate(b.eventDate)}</span>
                                 <span
                                   className="rounded-[3px] text-[11px]"
-                                  style={{ background: "#EFF6FF", color: "#1D4ED8", padding: "1px 6px" }}
+                                  style={{ background: "var(--kf-bg-selected)", color: "var(--kf-text-brand)", padding: "1px 6px" }}
                                 >
                                   {b.title}
                                 </span>
                               </div>
-                              <div className="flex gap-6 text-[13px] text-brand-muted">
+                              <div className="flex gap-6 text-[13px] text-kf-text-muted">
                                 <span>{b.count}</span>
-                                <span className="min-w-[90px] text-right font-medium text-brand-dark">
+                                <span className="min-w-[90px] text-right font-medium text-kf-text-primary">
                                   {formatCurrency(b.total)}
                                 </span>
                               </div>
@@ -320,11 +320,11 @@ export default function AccountingPage() {
                             {dateOpen && (
                               <div className="py-1 pb-2 pl-6">
                                 {b.requests.length === 0 ? (
-                                  <p className="py-2 text-xs text-brand-subtle">No requests in this bucket.</p>
+                                  <p className="py-2 text-xs text-kf-text-hint">No requests in this bucket.</p>
                                 ) : (
                                   <table className="w-full text-xs">
                                     <thead>
-                                      <tr className="text-left text-brand-subtle">
+                                      <tr className="text-left text-kf-text-hint">
                                         <th className="py-1 pr-2 font-medium">Request ID</th>
                                         <th className="py-1 pr-2 font-medium">Requester</th>
                                         <th className="py-1 pr-2 font-medium">Segment</th>
@@ -336,12 +336,12 @@ export default function AccountingPage() {
                                         <tr
                                           key={r.request_id}
                                           onClick={() => setSelected(r)}
-                                          className="cursor-pointer hover:bg-[#FAFAF7]"
+                                          className="cursor-pointer hover:bg-kf-palette-warm-1"
                                         >
-                                          <td className="py-1 pr-2 tabular-nums text-brand-dark">{r.request_id}</td>
-                                          <td className="py-1 pr-2 text-brand-dark">{r.requester_name}</td>
-                                          <td className="py-1 pr-2 text-brand-muted">{r.department}</td>
-                                          <td className="py-1 text-right text-brand-dark">
+                                          <td className="py-1 pr-2 tabular-nums text-kf-text-primary">{r.request_id}</td>
+                                          <td className="py-1 pr-2 text-kf-text-primary">{r.requester_name}</td>
+                                          <td className="py-1 pr-2 text-kf-text-muted">{r.department}</td>
+                                          <td className="py-1 text-right text-kf-text-primary">
                                             {formatCurrency(r.total)}
                                           </td>
                                         </tr>
@@ -367,14 +367,14 @@ export default function AccountingPage() {
                   className="flex cursor-pointer items-center justify-between px-1 py-3"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="w-3 text-xs text-brand-subtle">{unscheduledExpanded ? "▾" : "▸"}</span>
-                    <span className="text-sm text-brand-muted">
+                    <span className="w-3 text-xs text-kf-text-hint">{unscheduledExpanded ? "▾" : "▸"}</span>
+                    <span className="text-sm text-kf-text-muted">
                       No due date / beyond the last scheduled payment date
                     </span>
                   </div>
-                  <div className="flex gap-6 text-sm text-brand-muted">
+                  <div className="flex gap-6 text-sm text-kf-text-muted">
                     <span>{unscheduledPayment.count} requests</span>
-                    <span className="min-w-[90px] text-right font-medium text-brand-dark">
+                    <span className="min-w-[90px] text-right font-medium text-kf-text-primary">
                       {formatCurrency(unscheduledPayment.total)}
                     </span>
                   </div>
@@ -383,7 +383,7 @@ export default function AccountingPage() {
                   <div className="pb-2 pl-9">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="text-left text-brand-subtle">
+                        <tr className="text-left text-kf-text-hint">
                           <th className="py-1 pr-2 font-medium">Request ID</th>
                           <th className="py-1 pr-2 font-medium">Requester</th>
                           <th className="py-1 pr-2 font-medium">Segment</th>
@@ -395,12 +395,12 @@ export default function AccountingPage() {
                           <tr
                             key={r.request_id}
                             onClick={() => setSelected(r)}
-                            className="cursor-pointer hover:bg-[#FAFAF7]"
+                            className="cursor-pointer hover:bg-kf-palette-warm-1"
                           >
-                            <td className="py-1 pr-2 tabular-nums text-brand-dark">{r.request_id}</td>
-                            <td className="py-1 pr-2 text-brand-dark">{r.requester_name}</td>
-                            <td className="py-1 pr-2 text-brand-muted">{r.department}</td>
-                            <td className="py-1 text-right text-brand-dark">{formatCurrency(r.total)}</td>
+                            <td className="py-1 pr-2 tabular-nums text-kf-text-primary">{r.request_id}</td>
+                            <td className="py-1 pr-2 text-kf-text-primary">{r.requester_name}</td>
+                            <td className="py-1 pr-2 text-kf-text-muted">{r.department}</td>
+                            <td className="py-1 text-right text-kf-text-primary">{formatCurrency(r.total)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -434,9 +434,9 @@ export default function AccountingPage() {
       <FilterBar requests={requests} onFilteredChange={setFiltered} statuses={RELEVANT_STATUSES} />
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-muted">Nothing here.</p>
+        <p className="text-sm text-kf-text-muted">Nothing here.</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
@@ -470,8 +470,8 @@ export default function AccountingPage() {
                   <td>{r.due_date ? formatDate(r.due_date) : "-"}</td>
                   <td>{formatCurrency(r.total)}</td>
                   <td><StatusBadge status={r.status} /></td>
-                  <td className="text-xs text-brand-muted">{r.slip_receiver_email ?? "-"}</td>
-                  <td className="text-xs text-brand-muted">
+                  <td className="text-xs text-kf-text-muted">{r.slip_receiver_email ?? "-"}</td>
+                  <td className="text-xs text-kf-text-muted">
                     {tab === "edit-requests"
                       ? r.edit_requested_reason ?? "-"
                       : formatDate(
@@ -516,7 +516,7 @@ export default function AccountingPage() {
                         </div>
                       )
                     ) : tab === "bo-approved" ? (
-                      <span className="text-xs text-brand-subtle">Awaiting CEO</span>
+                      <span className="text-xs text-kf-text-hint">Awaiting CEO</span>
                     ) : (
                       <button
                         disabled={busy === r.request_id}

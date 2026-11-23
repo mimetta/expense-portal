@@ -1,22 +1,22 @@
-import type { Metadata } from "next";
-import { DM_Sans, Noto_Sans_Thai } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import Nav from "@/components/Nav";
+import { FONT_VARIABLE_CLASSES } from "./fonts";
+import tokensJson from "@/brand/tokens/tokens.json";
 import "./globals.css";
 
-// next/font self-hosts and optimizes the font at build time (no runtime
-// Google Fonts request, no FOUC) — kept over a manual <link>/@import for
-// that reason; DM Sans replaces Inter as the primary typeface, Noto Sans
-// Thai stays as the fallback for Thai text.
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-dm-sans",
-});
-const notoSansThai = Noto_Sans_Thai({ subsets: ["thai"], variable: "--font-noto-thai" });
+// Fonts are the kit's committed woff2 files, loaded with next/font/local
+// from app/fonts.ts — never next/font/google and never a Google Fonts
+// <link>, so the build never fetches a font (brand/BRAND.md rule 6).
 
 export const metadata: Metadata = {
-  title: "Mimetta Expense Portal",
-  description: "Internal expense request and approval portal for Mimetta",
+  title: "Kindfolks · Expenses",
+  description: "Kindfolks Expenses",
+};
+
+// Metadata can't read a CSS variable, so the browser theme colour is read
+// from the kit's tokens.json by name rather than retyped as a hex.
+export const viewport: Viewport = {
+  themeColor: tokensJson.tokens.find((t) => t.name === "--kf-bg-brand")!.value,
 };
 
 export default function RootLayout({
@@ -25,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${dmSans.variable} ${notoSansThai.variable} font-sans antialiased`}>
+    <html lang="en" className={FONT_VARIABLE_CLASSES}>
+      <body className="font-sans antialiased">
         <Nav />
         <main className="mx-auto max-w-[1280px] px-8 py-6">{children}</main>
       </body>

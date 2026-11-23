@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // Settings > Users & access. Replaces User Management, People & departments
 // and the read-only Permissions tab: one record per person, one Save.
 
-const FOREST = "#1F3A2B";
-const TERRACOTTA = "#BD5A2E";
+const FOREST = "var(--kf-bg-brand)";
+const TERRACOTTA = "var(--kf-status-at-risk-strong)";
 
 // company_scope, not bu_scope: this is the company the EXPENSE is charged to
 // (requests.use_for_company), which is what decides who approves it. The
@@ -57,7 +57,7 @@ const FILTERS = ["All", "No department", "BU defaulted", "BO", "Overrides", "Ina
 const split = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
 
 function Flag({ tone, children }: { tone: "warn" | "bad"; children: React.ReactNode }) {
-  const s = tone === "warn" ? { background: "#FBF2EC", color: TERRACOTTA } : { background: "#FBF0EE", color: "#B23A2F" };
+  const s = tone === "warn" ? { background: "var(--kf-palette-terracotta-tint)", color: TERRACOTTA } : { background: "var(--kf-palette-terracotta-tint)", color: "var(--kf-status-late)" };
   return <span className="rounded-full px-[7px] py-[1px] text-[10px] font-medium" style={s}>{children}</span>;
 }
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -65,8 +65,8 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 );
 const Chip = ({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button onClick={onClick} className="rounded-full px-3 py-1 text-[12.5px]"
-    style={on ? { background: FOREST, color: "#fff", border: `1px solid ${FOREST}` }
-              : { background: "#fff", color: "#1A1A1A", border: "1px solid #D8CBB0" }}>{children}</button>
+    style={on ? { background: FOREST, color: "var(--kf-bg-surface)", border: `1px solid ${FOREST}` }
+              : { background: "var(--kf-bg-surface)", color: "var(--kf-text-primary)", border: "1px solid var(--kf-border)" }}>{children}</button>
 );
 
 export default function UsersAccessTab() {
@@ -225,19 +225,19 @@ export default function UsersAccessTab() {
     });
   }, [data, q, filter]);
 
-  if (!data) return <p className="text-sm text-brand-muted">Loading people…</p>;
+  if (!data) return <p className="text-sm text-kf-text-muted">Loading people…</p>;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[12px] text-brand-muted">
+        <p className="text-[12px] text-kf-text-muted">
           {visible.length} of {data.people.length} people · FY{data.fiscalYear} request counts
         </p>
         <button className="mm-btn-primary mm-btn-sm" onClick={() => setAdding(true)}>+ Add person</button>
       </div>
 
-      {error && <div className="rounded-[10px] px-4 py-3 text-sm" style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", whiteSpace: "pre-wrap" }}>{error}</div>}
-      {notice && <div className="rounded-[10px] px-4 py-2 text-[13px]" style={{ background: "#F0F4EF", border: "1px solid #9CAE8C", color: FOREST }}>{notice}</div>}
+      {error && <div className="rounded-[10px] px-4 py-3 text-sm" style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)", color: "var(--kf-status-late-strong)", whiteSpace: "pre-wrap" }}>{error}</div>}
+      {notice && <div className="rounded-[10px] px-4 py-2 text-[13px]" style={{ background: "var(--kf-bg-selected)", border: "1px solid var(--kf-status-on-track)", color: FOREST }}>{notice}</div>}
 
       {/* Mockup layout: a narrow sticky list beside the card, so the card is
           always next to the person being edited. It previously sat BELOW all
@@ -245,13 +245,13 @@ export default function UsersAccessTab() {
           button to "Close" and appeared to do nothing. */}
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[320px_1fr]">
         <div className="mm-table-wrap md:sticky md:top-3">
-          <div className="space-y-2 border-b border-brand-border p-3" style={{ background: "#FDFCFA" }}>
+          <div className="space-y-2 border-b border-kf-border p-3" style={{ background: "var(--kf-palette-warm-1)" }}>
             <input className="mm-input w-full" placeholder="Search by email" value={q} onChange={(e) => setQ(e.target.value)} />
             <div className="flex flex-wrap gap-1.5">
               {FILTERS.map((f) => (
                 <button key={f} onClick={() => setFilter(f)} className="rounded-full px-2.5 py-1 text-[11.5px]"
-                  style={filter === f ? { background: FOREST, color: "#fff", border: `1px solid ${FOREST}` }
-                                      : { background: "#fff", color: "#6B7280", border: "1px solid #D8CBB0" }}>{f}</button>
+                  style={filter === f ? { background: FOREST, color: "var(--kf-bg-surface)", border: `1px solid ${FOREST}` }
+                                      : { background: "var(--kf-bg-surface)", color: "var(--kf-text-muted)", border: "1px solid var(--kf-border)" }}>{f}</button>
               ))}
             </div>
           </div>
@@ -263,16 +263,16 @@ export default function UsersAccessTab() {
                 <button
                   key={p.email}
                   onClick={() => (on ? (setOpenEmail(null), setDraft(null)) : open(p))}
-                  className="block w-full border-b border-brand-border px-3 py-2 text-left last:border-b-0 hover:bg-[#FAFAF7]"
-                  style={on ? { background: "#FFFBEB", boxShadow: `inset 3px 0 0 ${FOREST}` } : undefined}
+                  className="block w-full border-b border-kf-border px-3 py-2 text-left last:border-b-0 hover:bg-kf-palette-warm-1"
+                  style={on ? { background: "var(--kf-palette-brown-tint)", boxShadow: `inset 3px 0 0 ${FOREST}` } : undefined}
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[13px] text-brand-dark">{p.email}</span>
+                    <span className="truncate text-[13px] text-kf-text-primary">{p.email}</span>
                     {p.overrides.length > 0 && <span title={`${p.overrides.length} menu override(s)`}
                       style={{ width: 6, height: 6, borderRadius: 99, background: TERRACOTTA, flex: "none" }} />}
-                    <span className="ml-auto shrink-0 tabular-nums text-[11px] text-brand-subtle">{p.fy_count}</span>
+                    <span className="ml-auto shrink-0 tabular-nums text-[11px] text-kf-text-hint">{p.fy_count}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-[11px] text-brand-muted">
+                  <div className="mt-0.5 truncate text-[11px] text-kf-text-muted">
                     {p.roles.slice().sort().join(", ") || "no roles"} · {p.bu}
                     {d.length > 0 && ` · ${d.join(", ")}`}
                   </div>
@@ -285,7 +285,7 @@ export default function UsersAccessTab() {
                 </button>
               );
             })}
-            {visible.length === 0 && <p className="px-3 py-6 text-center text-[13px] text-brand-muted">No people match.</p>}
+            {visible.length === 0 && <p className="px-3 py-6 text-center text-[13px] text-kf-text-muted">No people match.</p>}
           </div>
         </div>
 
@@ -302,7 +302,7 @@ export default function UsersAccessTab() {
             />
           ) : (
             <div className="mm-card">
-              <p className="py-16 text-center text-[13px] text-brand-muted">
+              <p className="py-16 text-center text-[13px] text-kf-text-muted">
                 Choose a person on the left to edit their roles, business unit, spending
                 visibility, budget ownership and menu access.
               </p>
@@ -318,7 +318,7 @@ export default function UsersAccessTab() {
               <h2 className="mm-modal-title">Deactivate {lifecycle.person.email}?</h2>
             </div>
             <div className="mm-modal-body space-y-3 text-[13px]">
-              <p className="text-brand-muted">
+              <p className="text-kf-text-muted">
                 They will not be able to sign in, and will disappear from every picker and
                 notification. Their roles, scopes and history are kept, inert.
               </p>
@@ -347,16 +347,16 @@ export default function UsersAccessTab() {
               )}
               {lifecycle.c.unownedBudgetLines.length === 0 && lifecycle.c.openRevisions.length === 0 &&
                lifecycle.c.stalledRequests.length === 0 && lifecycle.c.pettyCashFloats.length === 0 && (
-                <p style={{ color: "#2E7D52" }}>Nothing is currently waiting on them.</p>
+                <p style={{ color: "var(--kf-status-on-track)" }}>Nothing is currently waiting on them.</p>
               )}
 
-              <p className="rounded-[8px] px-3 py-2" style={{ background: "#FEF3C7", color: "#92400E" }}>
+              <p className="rounded-[8px] px-3 py-2" style={{ background: "var(--kf-palette-brown-tint)", color: "var(--kf-status-at-risk-strong)" }}>
                 This blocks the expense portal only. To remove their access to email and
                 everything else, also disable their Google Workspace account.
               </p>
 
               {lifecycle.c.canHardDelete && (
-                <p className="text-[12px] text-brand-subtle">
+                <p className="text-[12px] text-kf-text-hint">
                   This person has no history, so they can also be deleted outright — use that
                   only to undo a mistyped address.
                 </p>
@@ -384,7 +384,7 @@ export default function UsersAccessTab() {
             <div className="mm-modal-body">
               <label className="mm-label mb-1 block">Email</label>
               <input className="mm-input w-full" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@mimetta.co" />
-              <p className="mt-2 text-[12px] text-brand-muted">
+              <p className="mt-2 text-[12px] text-kf-text-muted">
                 Created with no roles — they can submit requests and see their own, like everyone. Business unit ONEST, flagged as defaulted, so it gets confirmed rather than inherited.
               </p>
             </div>
@@ -416,7 +416,7 @@ function PersonCard({
   return (
     <div className="mm-card space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-[15px] font-semibold text-brand-dark">{draft.email}</h3>
+        <h3 className="text-[15px] font-semibold text-kf-text-primary">{draft.email}</h3>
         <div className="flex shrink-0 gap-2">
           {draft.active ? (
             <button className="mm-btn-secondary mm-btn-sm" onClick={onDeactivate} disabled={busy || checking}
@@ -433,7 +433,7 @@ function PersonCard({
 
       {!draft.active && (
         <div className="rounded-[10px] px-4 py-3 text-[13px]"
-          style={{ background: "#FBF0EE", border: "1px solid #F3C4BC", color: "#B23A2F" }}>
+          style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)", color: "var(--kf-status-late)" }}>
           <strong>Deactivated.</strong> Cannot sign in and is hidden from every picker. Roles,
           scopes and history below are kept exactly as they were — inert, not erased.
         </div>
@@ -448,7 +448,7 @@ function PersonCard({
         </div>
         {/* In place of the removed EMPLOYEE chip. The six above are additions
             to this, never alternatives to it. */}
-        <p className="mt-2 text-[12px] text-brand-muted">
+        <p className="mt-2 text-[12px] text-kf-text-muted">
           Everyone can submit requests and see their own. These roles add to that.
         </p>
       </Section>
@@ -461,7 +461,7 @@ function PersonCard({
           {draft.bu_defaulted && <Flag tone="warn">BU defaulted — saving confirms it</Flag>}
         </div>
         {draft.bu === "BOTH" && (
-          <p className="mt-2 text-[12px] text-brand-muted">
+          <p className="mt-2 text-[12px] text-kf-text-muted">
             Chooses ONEST or SV on each request. Changing it clears the categories already picked.
           </p>
         )}
@@ -479,7 +479,7 @@ function PersonCard({
 
       {draft.roles.includes("BO") && (
         <Section title="Budget ownership">
-          <p className="mb-2 text-[12px] text-brand-muted">
+          <p className="mb-2 text-[12px] text-kf-text-muted">
             Scoped by the <strong>company the expense is charged to</strong>, not the company the person works for.
             An SV employee charging to ONEST is approved by the ONEST owner.
           </p>
@@ -491,7 +491,7 @@ function PersonCard({
               const catOptions = data.catTree[s.company_scope]?.[s.dept_scope] ?? [];
               const chosen = s.cat_l1_scope === "*" ? [] : split(s.cat_l1_scope);
               return (
-                <div key={i} className="rounded-[8px] border border-brand-border p-2">
+                <div key={i} className="rounded-[8px] border border-kf-border p-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <select className="mm-input w-[150px]" value={s.company_scope}
                       onChange={(e) => setScope(i, { company_scope: e.target.value, dept_scope: "*", cat_l1_scope: "*" })}>
@@ -514,13 +514,13 @@ function PersonCard({
                       }}>{c}</Chip>
                     ))}
                     {s.dept_scope !== "*" && catOptions.length === 0 && (
-                      <span className="text-[12px] text-brand-subtle">No categories recorded for this department.</span>
+                      <span className="text-[12px] text-kf-text-hint">No categories recorded for this department.</span>
                     )}
                   </div>
                 </div>
               );
             })}
-            <button className="rounded-[5px] border border-dashed border-brand-border px-2 py-1 text-[11px] text-brand-muted hover:border-brand-accent hover:text-brand-accent"
+            <button className="rounded-[5px] border border-dashed border-kf-border px-2 py-1 text-[11px] text-kf-text-muted hover:border-kf-palette-deep-green-hover hover:text-kf-palette-deep-green-hover"
               onClick={() => setDraft({ ...draft, boScopes: [...draft.boScopes, { company_scope: "*", dept_scope: "*", cat_l1_scope: "*" }] })}>+ Add scope row</button>
           </div>
         </Section>
@@ -532,8 +532,8 @@ function PersonCard({
             const on = draft.roles.includes(role) || draft.roles.includes("SUPERADMIN");
             return (
               <div key={menu} className="flex items-center justify-between py-1 text-[13px]">
-                <span className={on ? "text-brand-dark" : "text-brand-subtle"}>{MENU_LABEL[menu] ?? menu}</span>
-                <span className="text-[11px] text-brand-subtle">{on ? `via ${role}` : `needs ${role}`}</span>
+                <span className={on ? "text-kf-text-primary" : "text-kf-text-hint"}>{MENU_LABEL[menu] ?? menu}</span>
+                <span className="text-[11px] text-kf-text-hint">{on ? `via ${role}` : `needs ${role}`}</span>
               </div>
             );
           })}
@@ -553,7 +553,7 @@ function PersonCard({
             );
           })}
         </div>
-        <p className="mt-2 text-[11px] text-brand-subtle">
+        <p className="mt-2 text-[11px] text-kf-text-hint">
           Workflow menus follow the role and cannot be ticked separately. A toggle differing from the
           role default is an override, shown in terracotta; reset removes it.
         </p>
@@ -564,9 +564,9 @@ function PersonCard({
 
 function Consequence({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[8px] px-3 py-2" style={{ background: "#FBF0EE", border: "1px solid #F3C4BC" }}>
-      <div className="font-medium" style={{ color: "#B23A2F" }}>{title}</div>
-      <div className="mt-0.5 text-[12px] text-brand-muted">{children}</div>
+    <div className="rounded-[8px] px-3 py-2" style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)" }}>
+      <div className="font-medium" style={{ color: "var(--kf-status-late)" }}>{title}</div>
+      <div className="mt-0.5 text-[12px] text-kf-text-muted">{children}</div>
     </div>
   );
 }

@@ -28,8 +28,8 @@ interface Row {
 }
 
 const STATUS_TINT: Record<string, string> = {
-  PAID: "#F0F4EF", CEO_APPROVED: "#EFF6FF", BO_APPROVED: "#FDF8EE",
-  REJECTED: "#FEF2F2", EXPIRED: "#F4F1EC",
+  PAID: "var(--kf-bg-selected)", CEO_APPROVED: "var(--kf-bg-selected)", BO_APPROVED: "var(--kf-palette-brown-tint)",
+  REJECTED: "var(--kf-palette-terracotta-tint)", EXPIRED: "var(--kf-palette-warm-2)",
 };
 
 export default function BranchReviewClient({ departments }: { departments: string[] }) {
@@ -150,13 +150,13 @@ export default function BranchReviewClient({ departments }: { departments: strin
 
       {error && (
         <div className="rounded-[10px] px-4 py-2 text-[13px]"
-          style={{ background: "#FEF2F2", border: "1px solid #DC2626", color: "#8E2A21" }}>
+          style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-status-late-strong)", color: "var(--kf-status-late-strong)" }}>
           {error}
         </div>
       )}
       {notice && (
         <div className="rounded-[10px] px-4 py-2 text-[13px]"
-          style={{ background: "#F0F4EF", border: "1px solid #9CAE8C", color: "#1F3A2B" }}>
+          style={{ background: "var(--kf-bg-selected)", border: "1px solid var(--kf-status-on-track)", color: "var(--kf-bg-brand)" }}>
           {notice}
         </div>
       )}
@@ -165,21 +165,21 @@ export default function BranchReviewClient({ departments }: { departments: strin
       <div className="mm-card flex flex-wrap items-center gap-8">
         <div>
           <div className="mm-section-label" style={{ border: "none", margin: 0 }}>Reviewed</div>
-          <div className="text-[22px] font-semibold text-brand-dark">
-            {stats.reviewed} <span className="text-[13px] font-normal text-brand-muted">of {stats.total}</span>
+          <div className="text-[22px] font-semibold text-kf-text-primary">
+            {stats.reviewed} <span className="text-[13px] font-normal text-kf-text-muted">of {stats.total}</span>
           </div>
         </div>
         <div>
           <div className="mm-section-label" style={{ border: "none", margin: 0 }}>Unattributed</div>
-          <div className="text-[22px] font-semibold" style={{ color: stats.unattributed > 0 ? "#BD5A2E" : "#1F3A2B" }}>
+          <div className="text-[22px] font-semibold" style={{ color: stats.unattributed > 0 ? "var(--kf-status-at-risk-strong)" : "var(--kf-bg-brand)" }}>
             {thb(stats.unattributed)}
           </div>
-          <div className="text-[11.5px] text-brand-subtle">
+          <div className="text-[11.5px] text-kf-text-hint">
             across {stats.unattributedCount} request{stats.unattributedCount === 1 ? "" : "s"}
           </div>
         </div>
-        <div className="h-10 w-px" style={{ background: "#E5E0D5" }} />
-        <p className="max-w-md text-[11.5px] text-brand-muted">
+        <div className="h-10 w-px" style={{ background: "var(--kf-border-subtle)" }} />
+        <p className="max-w-md text-[11.5px] text-kf-text-muted">
           <strong>Shared</strong> is a deliberate answer — a cost belonging to every branch.
           <em> (no branch)</em> is an absence. This figure should fall toward zero.
         </p>
@@ -223,7 +223,7 @@ export default function BranchReviewClient({ departments }: { departments: strin
 
       {/* Bulk */}
       <div className="mm-card flex flex-wrap items-center gap-3">
-        <span className="text-[12.5px] text-brand-muted">
+        <span className="text-[12.5px] text-kf-text-muted">
           {selected.size} selected
         </span>
         <select className="mm-input w-[220px]" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
@@ -246,15 +246,15 @@ export default function BranchReviewClient({ departments }: { departments: strin
         </span>
       </div>
 
-      <p className="text-[11.5px] text-brand-subtle">
+      <p className="text-[11.5px] text-kf-text-hint">
         Suggestions come from the description only, and are <strong>never applied
         automatically</strong> — a store named in the text is a hint, not a fact.
       </p>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading…</p>
+        <p className="text-sm text-kf-text-muted">Loading…</p>
       ) : rows.length === 0 ? (
-        <div className="mm-card text-center text-[13px] text-brand-muted">
+        <div className="mm-card text-center text-[13px] text-kf-text-muted">
           Nothing to review for this filter. {reviewed === "unreviewed" && (
             <>Switch to <strong>All</strong> to correct a branch that is already set.</>
           )}
@@ -279,24 +279,24 @@ export default function BranchReviewClient({ departments }: { departments: strin
                 const changed = pending[r.request_id] !== undefined;
                 const opts = options[r.department] ?? [];
                 return (
-                  <tr key={r.request_id} style={changed ? { background: "#FDF8EE" } : undefined}>
+                  <tr key={r.request_id} style={changed ? { background: "var(--kf-palette-brown-tint)" } : undefined}>
                     <td>
                       <input type="checkbox" checked={selected.has(r.request_id)}
                         onChange={() => toggle(r.request_id)} />
                     </td>
                     <td className="whitespace-nowrap">
                       <span className="text-[12.5px]">{r.request_id}</span>
-                      <div className="text-[11px] text-brand-subtle">
+                      <div className="text-[11px] text-kf-text-hint">
                         {r.budget_period ?? `FY${r.fiscal_year}`} · {r.requester_email.replace("@mimetta.co", "")}
                       </div>
                     </td>
-                    <td className="text-[12px] text-brand-muted">{r.department}</td>
+                    <td className="text-[12px] text-kf-text-muted">{r.department}</td>
                     <td className="max-w-[320px]">
                       <div className="truncate text-[12.5px]" title={r.description ?? ""}>
                         {r.description || "—"}
                       </div>
                       {r.suggestion && !r.branch && (
-                        <div className="mt-0.5 text-[11px]" style={{ color: "#BD5A2E" }}>
+                        <div className="mt-0.5 text-[11px]" style={{ color: "var(--kf-status-at-risk-strong)" }}>
                           Suggestion: <strong>{r.suggestion}</strong>
                           {r.suggestionReason ? ` — ${r.suggestionReason}` : ""}
                           {" "}
@@ -307,7 +307,7 @@ export default function BranchReviewClient({ departments }: { departments: strin
                         </div>
                       )}
                       {r.itemBranches.length > 0 && (
-                        <div className="mt-0.5 text-[11px] text-brand-subtle">
+                        <div className="mt-0.5 text-[11px] text-kf-text-hint">
                           per-item: {r.itemBranches.join(", ")}
                         </div>
                       )}
@@ -316,7 +316,7 @@ export default function BranchReviewClient({ departments }: { departments: strin
                     <td className="whitespace-nowrap text-right tabular-nums">{thb(r.total)}</td>
                     <td>
                       <span className="rounded-full px-2 py-0.5 text-[11px]"
-                        style={{ background: STATUS_TINT[r.status] ?? "#F3F4F6", color: "#374151" }}>
+                        style={{ background: STATUS_TINT[r.status] ?? "var(--kf-bg-muted)", color: "var(--kf-text-muted)" }}>
                         {r.status}
                       </span>
                     </td>

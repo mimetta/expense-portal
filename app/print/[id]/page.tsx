@@ -30,23 +30,23 @@ function SignatureBoxView({
   const signature = findSignature(files, boxKey);
 
   return (
-    <div className="flex-1 rounded-md border border-brand-border p-3 text-xs">
-      <p className="mb-2 font-semibold text-brand-dark">{label}</p>
-      <p className="mb-1 text-brand-dark">{name ?? "-"}</p>
-      <p className="mb-2 text-brand-subtle">Date: _______________</p>
+    <div className="flex-1 rounded-md border border-kf-border p-3 text-xs">
+      <p className="mb-2 font-semibold text-kf-text-primary">{label}</p>
+      <p className="mb-1 text-kf-text-primary">{name ?? "-"}</p>
+      <p className="mb-2 text-kf-text-hint">Date: _______________</p>
       {signature ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={signature.url} alt={`${label} signature`} style={{ height: 60, width: 120, objectFit: "contain" }} />
       ) : (
         <div
-          className="flex items-center justify-center text-brand-subtle"
-          style={{ height: 60, width: 120, border: "1px dashed #D8CBB0" }}
+          className="flex items-center justify-center text-kf-text-hint"
+          style={{ height: 60, width: 120, border: "1px dashed var(--kf-border)" }}
         >
           sign here
         </div>
       )}
       {!signature && !signing && (
-        <button type="button" onClick={() => setSigning(true)} className="mt-1.5 text-brand-brown print:hidden">
+        <button type="button" onClick={() => setSigning(true)} className="mt-1.5 text-kf-text-brand print:hidden">
           ✍️ Sign document
         </button>
       )}
@@ -111,8 +111,8 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
     setRequest({ ...request, files_json: nextFiles });
   };
 
-  if (loading) return <p className="p-6 text-sm text-brand-muted">Loading...</p>;
-  if (error || !request) return <p className="p-6 text-sm text-red-600">{error ?? "Request not found"}</p>;
+  if (loading) return <p className="p-6 text-sm text-kf-text-muted">Loading...</p>;
+  if (error || !request) return <p className="p-6 text-sm text-kf-status-late-strong">{error ?? "Request not found"}</p>;
 
   const items = request.items_json;
   const totals = computeTotals(items.length > 0 ? items : request.items_json);
@@ -121,7 +121,7 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
   const approverName = isPettyCash ? request.petty_cash_holder_email : request.bo_approver;
 
   return (
-    <div className="mx-auto max-w-3xl bg-white p-8 text-sm text-brand-dark print:p-0">
+    <div className="mx-auto max-w-3xl bg-kf-bg-surface p-8 text-sm text-kf-text-primary print:p-0">
       <div className="mb-4 flex justify-end print:hidden">
         <button type="button" onClick={() => window.print()} className="mm-btn-primary mm-btn-sm">
           🖨️ Print / Save PDF
@@ -129,24 +129,24 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
       </div>
 
       {/* Header */}
-      <div className="mb-4 border-b border-brand-border pb-4 text-center">
+      <div className="mb-4 border-b border-kf-border pb-4 text-center">
         {company ? (
           <>
             <p className="text-base font-bold">{company.name_en}</p>
             {company.name_th && <p className="text-sm">{company.name_th}</p>}
-            <p className="mt-1 text-xs text-brand-muted">{company.address}</p>
+            <p className="mt-1 text-xs text-kf-text-muted">{company.address}</p>
           </>
         ) : (
           <p className="text-base font-bold">{request.use_for_company ?? "-"}</p>
         )}
         <p className="mt-3 text-lg font-bold uppercase tracking-wide">Expense Request Form</p>
-        <p className="mt-1 text-xs text-brand-muted">
+        <p className="mt-1 text-xs text-kf-text-muted">
           {request.request_id} — Submitted {formatDate(request.timestamp)}
         </p>
       </div>
 
       {/* Basic Info */}
-      <div className="mb-4 grid grid-cols-2 gap-x-6 gap-y-1 border-b border-brand-border pb-4">
+      <div className="mb-4 grid grid-cols-2 gap-x-6 gap-y-1 border-b border-kf-border pb-4">
         <div>Requester: {request.requester_name}</div>
         <div>Chapter: {request.chapter ?? "-"}</div>
         <div>Segment: {request.department}</div>
@@ -157,10 +157,10 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
       </div>
 
       {/* Expense Items */}
-      <div className="mb-4 border-b border-brand-border pb-4">
+      <div className="mb-4 border-b border-kf-border pb-4">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-brand-border text-left">
+            <tr className="border-b border-kf-border text-left">
               <th className="py-1">Segment</th>
               <th className="py-1">Cat L1</th>
               <th className="py-1">Cat L2</th>
@@ -177,14 +177,14 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
               const whtAmount = (item.amount_net * item.wht_rate) / 100;
               const lineTotal = item.amount_net + vatAmount - whtAmount;
               return (
-                <tr key={idx} className="border-b border-[#F0EAE0]">
+                <tr key={idx} className="border-b border-kf-border-subtle">
                   <td className="py-1">{item.segment || "-"}</td>
                   <td className="py-1">{item.cat_l1 || "-"}</td>
                   <td className="py-1">{item.cat_l2 || "-"}</td>
                   <td className="py-1">
                     {item.description}
                     {item.travel_by && (
-                      <span className="text-brand-subtle">
+                      <span className="text-kf-text-hint">
                         {" "}
                         ({item.travel_by}
                         {item.distance_km ? `, ${item.distance_km} km` : ""})
@@ -215,7 +215,7 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
 
       {/* Payment Details */}
       {!isPettyCash && (
-        <div className="mb-4 grid grid-cols-2 gap-x-6 gap-y-1 border-b border-brand-border pb-4">
+        <div className="mb-4 grid grid-cols-2 gap-x-6 gap-y-1 border-b border-kf-border pb-4">
           <div>Supplier: {request.supplier_name ?? "-"}</div>
           <div>Payment Method: {request.pay_method ?? "-"}</div>
           <div>Bank: {request.bank_name ?? "-"}</div>
@@ -227,17 +227,17 @@ export default function PrintRequestPage({ params }: { params: { id: string } })
       )}
 
       {/* Attachments */}
-      <div className="mb-4 border-b border-brand-border pb-4">
+      <div className="mb-4 border-b border-kf-border pb-4">
         <p className="mb-1 font-semibold">Attachments</p>
         {request.files_json.filter((f) => f.doc_type !== "Signature").length === 0 ? (
-          <p className="text-brand-subtle">No attachments.</p>
+          <p className="text-kf-text-hint">No attachments.</p>
         ) : (
           <ul className="space-y-0.5">
             {request.files_json
               .filter((f) => f.doc_type !== "Signature")
               .map((f, idx) => (
                 <li key={idx}>
-                  {f.name} — <span className="text-brand-subtle">{f.doc_type || "Other"}</span>
+                  {f.name} — <span className="text-kf-text-hint">{f.doc_type || "Other"}</span>
                 </li>
               ))}
           </ul>

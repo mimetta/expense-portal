@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { FileEntry } from "@/types/database";
+import { kfValue } from "@/lib/brand-colors";
 
 // A small canvas signature pad for the print view's three signature boxes
 // (Requester / Approver / Accounting) — see app/print/[id]/page.tsx.
@@ -52,7 +53,7 @@ export default function PrintSignaturePad({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const { x, y } = pointerPos(canvas, e);
-    ctx.strokeStyle = "#1E1E1E";
+    ctx.strokeStyle = kfValue("--kf-text-primary");
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineTo(x, y);
@@ -112,7 +113,7 @@ export default function PrintSignaturePad({
         ref={canvasRef}
         width={SIG_WIDTH}
         height={SIG_HEIGHT}
-        className="cursor-crosshair rounded border border-dashed border-brand-border bg-white"
+        className="cursor-crosshair rounded border border-dashed border-kf-border bg-kf-bg-surface"
         onMouseDown={start}
         onMouseMove={move}
         onMouseUp={end}
@@ -121,7 +122,7 @@ export default function PrintSignaturePad({
         onTouchMove={move}
         onTouchEnd={end}
       />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-xs text-kf-status-late-strong">{error}</p>}
       <div className="mt-1.5 flex gap-2 print:hidden">
         <button type="button" onClick={clear} className="mm-btn-secondary mm-btn-sm">
           Clear

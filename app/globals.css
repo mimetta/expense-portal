@@ -1,19 +1,23 @@
+/* Kindfolks kit colour variables. Imported once, here, before Tailwind, so
+   every `kf-*` class the preset generates resolves. Never edit brand/. */
+@import "../brand/tokens/tokens.css";
+/* The app's own roles, built on the kit's palette. Must come second. */
+@import "./tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #FAF8F4;
-  --foreground: #1A1A1A;
+html,
+body {
+  background: var(--kf-bg-page);
+  color: var(--kf-text-primary);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  /* Actual font comes from next/font (see app/layout.tsx) via the
-     `font-sans` utility class on <body> — DM Sans, falling back to Noto
-     Sans Thai for Thai text. This is just the pre-font-load fallback. */
-  font-family: "DM Sans", "Noto Sans Thai", sans-serif;
+  /* The real faces come from next/font/local via app/fonts.ts, applied by
+     the `font-sans` utility on <body>. This is only the pre-load fallback. */
+  font-family: Montserrat, "IBM Plex Sans Thai", system-ui, sans-serif;
 }
 
 @layer utilities {
@@ -30,44 +34,48 @@ body {
   }
 }
 
-/* Shared design-system primitives (see CLAUDE.md "UI Design System") — the
-   Mimetta design system: white cards/inputs/nav/modals on a #FAF8F4 page
-   background, sandstone (#D8CBB0) borders everywhere, forest green
-   (#1F3A2B) as the only primary/active color, terracotta (#BD5A2E) as the
-   hover/accent color. Green is never a background on cards, sections, or
-   the nav bar — only on the primary button, active-tab underline, and
-   small badges. Defined once here so every page applies the identical
-   look via one class instead of re-deriving the same Tailwind utility
-   string per component. */
+/* Shared design-system primitives. The structure is the app's own (see
+   CLAUDE.md "UI Design System"); every colour in it is now a Kindfolks kit
+   role, so retheming happens in brand/tokens, never here.
+   - Surfaces are `bg-surface` (white); the page alone is `bg-page` (cream).
+   - Deep green (`bg-brand` / `bg-active`) is the only primary/active fill,
+     and hovers to `deep-green-hover` — never to terracotta, which the kit
+     reserves for late, overdue, errors and delete.
+   - Lines are the kit's three steps: `border-subtle` inside cards and
+     between rows, `border` for card edges, `border-strong` for the heavier
+     hairline. */
 @layer components {
   .mm-card {
-    @apply rounded-[10px] border border-brand-border bg-white px-6 py-5;
+    @apply rounded-[10px] border border-kf-border bg-kf-bg-surface px-6 py-5;
     box-shadow: none;
   }
 
   .mm-section-label {
-    @apply mb-4 border-b border-[#F0EAE0] pb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle;
+    @apply mb-4 border-b border-kf-border-subtle pb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-kf-text-accent;
   }
 
+  /* Page titles are Tinos Italic (brand/BRAND.md "Type"): 24px desktop,
+     18px phone, line-height 30px. The only place Tinos is allowed besides
+     a greeting. */
   .mm-page-title {
-    @apply text-[22px] font-semibold text-brand-dark;
+    @apply font-title text-[18px] italic leading-[30px] text-kf-text-primary sm:text-[24px];
   }
 
   .mm-page-subtitle {
-    @apply mb-5 mt-1 text-[13px] text-brand-muted;
+    @apply mb-5 mt-1 text-[13px] text-kf-text-muted;
   }
 
   .mm-label {
-    @apply mb-1.5 block text-[13px] font-medium text-[#374151];
+    @apply mb-1.5 block text-[13px] font-medium text-kf-text-muted;
   }
 
   .mm-input {
-    @apply h-9 w-full rounded-md border border-brand-border bg-white px-3 text-sm text-brand-dark placeholder:text-brand-subtle focus:border-brand-brown focus:outline-none;
+    @apply h-9 w-full rounded-md border border-kf-border bg-kf-bg-surface px-3 text-sm text-kf-text-primary placeholder:text-kf-text-hint focus:border-kf-border-focus focus:outline-none;
     font-family: inherit;
     box-shadow: none;
   }
   .mm-input:focus {
-    box-shadow: 0 0 0 3px rgba(31, 58, 43, 0.08);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--kf-border-focus) 8%, transparent);
   }
   textarea.mm-input {
     height: auto;
@@ -84,40 +92,43 @@ body {
     @apply h-7 rounded-[5px] px-2.5 text-xs;
   }
   .mm-btn-primary {
-    @apply mm-btn bg-brand-brown text-white hover:bg-brand-accent;
+    @apply mm-btn bg-kf-bg-brand text-kf-text-on-brand hover:bg-kf-palette-deep-green-hover;
   }
   .mm-btn-secondary {
-    @apply mm-btn border border-brand-border bg-white text-brand-dark hover:bg-[#F9F8F6];
+    @apply mm-btn border border-kf-border bg-kf-bg-surface text-kf-text-primary hover:bg-kf-palette-warm-1;
   }
+  /* Destructive only — the kit's one sanctioned use of terracotta. The
+     border is solid (never an alpha on a hairline) and the text is the
+     `-strong` shade, because terracotta itself is under 4.5:1 on a tint. */
   .mm-btn-danger {
-    @apply mm-btn border border-[#FCA5A5] bg-white text-[#DC2626] hover:bg-[#FEF2F2];
+    @apply mm-btn border border-kf-palette-terracotta bg-kf-bg-surface text-kf-status-late-strong hover:bg-kf-palette-terracotta-tint;
   }
 
   .mm-table-wrap {
-    @apply overflow-hidden rounded-[10px] border border-brand-border bg-white;
+    @apply overflow-hidden rounded-[10px] border border-kf-border bg-kf-bg-surface;
   }
   .mm-table {
     @apply w-full text-[13px];
   }
   .mm-table thead {
-    background-color: #f9f8f6;
-    border-bottom: 1px solid #d8cbb0;
+    background-color: var(--kf-bg-muted);
+    border-bottom: 1px solid var(--kf-border);
   }
   .mm-table th {
-    @apply px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-subtle;
+    @apply px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-kf-text-accent;
   }
   .mm-table td {
-    @apply px-4 py-3 text-brand-dark;
+    @apply px-4 py-3 text-kf-text-primary;
   }
   .mm-table tbody tr {
-    background-color: #fff;
-    border-bottom: 1px solid #f5f0e8;
+    background-color: var(--kf-bg-surface);
+    border-bottom: 1px solid var(--kf-border-subtle);
   }
   .mm-table tbody tr:last-child {
     border-bottom: none;
   }
   .mm-table tbody tr:hover {
-    background-color: #fafaf7;
+    background-color: var(--kf-palette-warm-1);
   }
 
   /* The nav's link strip is overflow-x-auto purely as an overflow guard —
@@ -134,38 +145,38 @@ body {
   }
 
   .mm-tabs {
-    @apply flex gap-1 border-b border-brand-border;
+    @apply flex gap-1 border-b border-kf-border;
   }
   .mm-tab {
-    @apply -mb-px flex cursor-pointer items-center border-b-2 border-transparent px-4 py-3 text-[13px] text-brand-muted hover:text-brand-dark;
+    @apply -mb-px flex cursor-pointer items-center border-b-2 border-transparent px-4 py-3 text-[13px] text-kf-text-muted hover:text-kf-text-primary;
   }
   .mm-tab-active {
-    @apply border-brand-brown font-medium text-brand-brown;
+    @apply border-kf-bg-active font-medium text-kf-text-brand;
   }
   .mm-tab-count {
-    @apply ml-1.5 inline-flex items-center rounded-full bg-[#F3F4F6] px-1.5 py-px text-[11px] text-brand-muted;
+    @apply ml-1.5 inline-flex items-center rounded-full bg-kf-bg-muted px-1.5 py-px text-[11px] text-kf-text-muted;
   }
   .mm-tab-active .mm-tab-count {
-    @apply bg-brand-brown text-white;
+    @apply bg-kf-bg-active text-kf-text-on-active;
   }
 
   .mm-modal-overlay {
-    @apply fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-4;
+    @apply fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-kf-palette-ink/45 p-4;
     backdrop-filter: blur(2px);
   }
   .mm-modal {
-    @apply my-8 w-full rounded-xl border border-brand-border bg-white shadow-lg;
+    @apply my-8 w-full rounded-xl border border-kf-border bg-kf-bg-surface shadow-lg;
   }
   .mm-modal-header {
-    @apply flex items-start justify-between border-b border-[#F0EAE0] px-6 pb-4 pt-5;
+    @apply flex items-start justify-between border-b border-kf-border-subtle px-6 pb-4 pt-5;
   }
   .mm-modal-title {
-    @apply text-base font-semibold text-brand-dark;
+    @apply text-base font-semibold text-kf-text-primary;
   }
   .mm-modal-body {
     @apply px-6 py-5;
   }
   .mm-modal-footer {
-    @apply flex justify-end gap-2 border-t border-[#F0EAE0] px-6 py-4;
+    @apply flex justify-end gap-2 border-t border-kf-border-subtle px-6 py-4;
   }
 }

@@ -205,8 +205,8 @@ export async function openStoredFile(f: FileEntry) {
 
 const inputClass = "mm-input";
 const cellClass =
-  "h-9 rounded-md border border-brand-border bg-white px-2 text-sm text-brand-dark focus:border-brand-brown focus:outline-none";
-const labelClass = "mb-1.5 block text-[13px] font-medium text-[#374151]";
+  "h-9 rounded-md border border-kf-border bg-kf-bg-surface px-2 text-sm text-kf-text-primary focus:border-kf-border-focus focus:outline-none";
+const labelClass = "mb-1.5 block text-[13px] font-medium text-kf-text-muted";
 
 // Column widths shared between the header row and every item row so labels
 // stay aligned with their cells while the table scrolls horizontally.
@@ -1094,7 +1094,7 @@ export default function RequestForm({
         <h1 className="mm-page-title">{title}</h1>
         {enableDrafts && (
           <div className="flex items-center gap-2">
-            {draftStatus === "saved" && <span className="text-xs text-brand-muted">Saved</span>}
+            {draftStatus === "saved" && <span className="text-xs text-kf-text-muted">Saved</span>}
             <button
               type="button"
               onClick={saveDraft}
@@ -1135,13 +1135,13 @@ export default function RequestForm({
                 <option value="SV">SV</option>
               </select>
             ) : (
-              <input className={`${inputClass} bg-[#F9F8F6]`} value={bu} disabled readOnly />
+              <input className={`${inputClass} bg-kf-palette-warm-1`} value={bu} disabled readOnly />
             )}
           </div>
           <div>
             <label className={labelClass}>Requester Name</label>
             <input
-              className={`${inputClass} bg-[#F9F8F6]`}
+              className={`${inputClass} bg-kf-palette-warm-1`}
               value={initial?.requesterName ?? currentUser?.name ?? ""}
               disabled
               readOnly
@@ -1150,7 +1150,7 @@ export default function RequestForm({
           <div>
             <label className={labelClass}>Chapter</label>
             <input
-              className={`${inputClass} bg-[#F9F8F6]`}
+              className={`${inputClass} bg-kf-palette-warm-1`}
               value={initial?.chapter ?? currentUser?.chapter ?? ""}
               placeholder="— not assigned —"
               disabled
@@ -1191,7 +1191,7 @@ export default function RequestForm({
           </label>
           {isPettyCash && pettyCashHolderEmail ? (
             <input
-              className={`${inputClass} bg-[#F9F8F6]`}
+              className={`${inputClass} bg-kf-palette-warm-1`}
               value={
                 companies.find((c) => c.bu === useForCompany)
                   ? companyOptionLabel(companies.find((c) => c.bu === useForCompany)!)
@@ -1213,7 +1213,7 @@ export default function RequestForm({
               ))}
             </select>
           )}
-          <p className="mt-1 text-xs text-brand-subtle">
+          <p className="mt-1 text-xs text-kf-text-hint">
             {isPettyCash && pettyCashHolderEmail
               ? "Auto-filled from the selected Petty cash holder's company"
               : "Which company is this expense for"}
@@ -1223,7 +1223,7 @@ export default function RequestForm({
         {isPettyCash && (
           <div
             className="mt-4 rounded-md border p-3"
-            style={{ background: "#EFF6FF", borderColor: "#BFDBFE" }}
+            style={{ background: "var(--kf-bg-selected)", borderColor: "var(--kf-palette-sage)" }}
           >
             <label className={labelClass}>Petty cash holder<RequiredMark /></label>
             <select
@@ -1258,10 +1258,10 @@ export default function RequestForm({
               const pct = limit > 0 ? Math.min(100, (pettyCashUsage / limit) * 100) : 0;
               return (
                 <div className="mt-3">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-white">
-                    <div className="h-full" style={{ width: `${pct}%`, background: "#BD5A2E" }} />
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-kf-bg-surface">
+                    <div className="h-full" style={{ width: `${pct}%`, background: "var(--kf-status-at-risk-strong)" }} />
                   </div>
-                  <p className="mt-1 text-xs text-brand-dark">
+                  <p className="mt-1 text-xs text-kf-text-primary">
                     ฿{formatCurrency(pettyCashUsage)} / ฿{formatCurrency(limit)} used · Remaining: ฿
                     {formatCurrency(remaining)}
                   </p>
@@ -1286,24 +1286,24 @@ export default function RequestForm({
       {/* ===================== PO Required ===================== */}
       {!expenseConfig?.hidePoSection && (
         <div className="mm-card flex items-center gap-4 !py-3">
-          <span className="text-sm font-medium text-brand-dark">Purchase Order Required?</span>
-          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-brand-dark">
+          <span className="text-sm font-medium text-kf-text-primary">Purchase Order Required?</span>
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-kf-text-primary">
             <input
               type="radio"
               name="requires_po"
               checked={requiresPo}
               onChange={() => setRequiresPo(true)}
-              className="h-3.5 w-3.5 accent-brand-brown"
+              className="h-3.5 w-3.5 accent-kf-bg-active"
             />
             Yes
           </label>
-          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-brand-dark">
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm text-kf-text-primary">
             <input
               type="radio"
               name="requires_po"
               checked={!requiresPo}
               onChange={() => setRequiresPo(false)}
-              className="h-3.5 w-3.5 accent-brand-brown"
+              className="h-3.5 w-3.5 accent-kf-bg-active"
             />
             No
           </label>
@@ -1327,12 +1327,12 @@ export default function RequestForm({
                 usesPerItemSegment ? emptyItem() : { ...emptyItem(), segment: prev[0]?.segment || "" },
               ])
             }
-            className="mm-btn-secondary mm-btn-sm normal-case tracking-normal text-brand-brown"
+            className="mm-btn-secondary mm-btn-sm normal-case tracking-normal text-kf-text-brand"
           >
             + Add Expense Item
           </button>
         </div>
-        <div className="mb-4 mt-3 border-b border-[#F0EAE0]" />
+        <div className="mb-4 mt-3 border-b border-kf-border-subtle" />
 
         {!usesPerItemSegment && primarySegment === "R&D" && (
           <div className="mb-3 max-w-xs">
@@ -1344,7 +1344,7 @@ export default function RequestForm({
               ))}
             </select>
             {productOptionsFor("R&D").length === 0 && (
-              <p className="mt-1 text-xs text-brand-subtle">
+              <p className="mt-1 text-xs text-kf-text-hint">
                 No R&amp;D products yet — add them in Settings &gt; Product/SKU Management.
               </p>
             )}
@@ -1359,17 +1359,17 @@ export default function RequestForm({
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-brand-subtle">
+            <p className="mt-1 text-xs text-kf-text-hint">
               <strong>Shared</strong> means the cost belongs to every branch — travel between
               stores, bulk consumables, uniforms. Pick a store if it belongs to one.
             </p>
             {branchOptionsFor(primarySegment ?? "").length === 0 && (
-              <p className="mt-1 text-xs text-brand-subtle">
+              <p className="mt-1 text-xs text-kf-text-hint">
                 No branches yet — add them on the Budget page (a branch is a revenue channel).
               </p>
             )}
             {branchFallback && (
-              <p className="mt-1 text-xs" style={{ color: "#92400E" }}>
+              <p className="mt-1 text-xs" style={{ color: "var(--kf-status-at-risk-strong)" }}>
                 Branch list unavailable — showing the older list. It may be out of date.
               </p>
             )}
@@ -1377,12 +1377,12 @@ export default function RequestForm({
         )}
 
         {!usesPerItemSegment && (
-          <p className="mb-3 text-xs text-brand-subtle">
+          <p className="mb-3 text-xs text-kf-text-hint">
             All items in a request must use the same Segment — submit a separate request for a different Segment.
           </p>
         )}
 
-        <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] px-3 py-2 text-xs text-brand-dark">
+        <div className="mb-3 rounded-md border border-kf-border bg-kf-palette-warm-1 px-3 py-2 text-xs text-kf-text-primary">
           Amount is optional — Procurement จะกรอกเพิ่มตอนอัปโหลด PO | Category L1 และ Description จำเป็นต้องกรอก
         </div>
 
@@ -1392,7 +1392,7 @@ export default function RequestForm({
             aria-label="Scroll items left"
             onClick={() => scrollItems(-200)}
             style={{ left: -16 }}
-            className="absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[rgba(159,131,97,0.4)] bg-[rgba(159,131,97,0.25)] text-lg leading-none text-brand-brown hover:bg-[rgba(159,131,97,0.5)]"
+            className="absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-kf-border bg-kf-bg-muted text-lg leading-none text-kf-text-brand hover:bg-kf-border"
           >
             ‹
           </button>
@@ -1401,13 +1401,13 @@ export default function RequestForm({
             aria-label="Scroll items right"
             onClick={() => scrollItems(200)}
             style={{ right: -16 }}
-            className="absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[rgba(159,131,97,0.4)] bg-[rgba(159,131,97,0.25)] text-lg leading-none text-brand-brown hover:bg-[rgba(159,131,97,0.5)]"
+            className="absolute top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-kf-border bg-kf-bg-muted text-lg leading-none text-kf-text-brand hover:bg-kf-border"
           >
             ›
           </button>
 
           <div ref={itemsScrollRef} className="no-scrollbar overflow-x-auto">
-            <div className="flex min-w-full gap-2 rounded-t-md border-b border-brand-border bg-[#F9F8F6] px-2 py-2 text-xs font-semibold text-brand-dark">
+            <div className="flex min-w-full gap-2 rounded-t-md border-b border-kf-border bg-kf-palette-warm-1 px-2 py-2 text-xs font-semibold text-kf-text-primary">
               <div style={COL.segment}>Segment<RequiredMark /></div>
               {isTravel && <div style={COL.travelBy}>Travel by<RequiredMark /></div>}
               {isTravel && <div style={COL.distanceKm}>Distance (km)</div>}
@@ -1553,7 +1553,7 @@ export default function RequestForm({
                             ))}
                           </select>
                         ) : (
-                          <div className={`${cellClass} flex w-full items-center text-brand-subtle`}>—</div>
+                          <div className={`${cellClass} flex w-full items-center text-kf-text-hint`}>—</div>
                         )}
                       </div>
                     )}
@@ -1566,7 +1566,7 @@ export default function RequestForm({
                         value={item.product_code ?? ""}
                         onChange={(e) => updateItem(idx, { product_code: e.target.value })}
                       />
-                      <label className="mt-1 flex items-center gap-1 text-[11px] text-brand-muted">
+                      <label className="mt-1 flex items-center gap-1 text-[11px] text-kf-text-muted">
                         <input
                           type="checkbox"
                           checked={noCodeYet}
@@ -1588,7 +1588,7 @@ export default function RequestForm({
                     </div>
                     <div style={COL.netAmount}>
                       {isTravel && isPersonalVehicle ? (
-                        <div className={`${cellClass} flex w-full items-center font-medium text-brand-dark`}>
+                        <div className={`${cellClass} flex w-full items-center font-medium text-kf-text-primary`}>
                           {formatCurrency(item.amount_net)} (auto)
                         </div>
                       ) : (
@@ -1613,7 +1613,7 @@ export default function RequestForm({
                         value={item.vat_rate}
                         onChange={(e) => updateItem(idx, { vat_rate: Number(e.target.value) })}
                       />
-                      <span className="text-sm text-brand-dark">%</span>
+                      <span className="text-sm text-kf-text-primary">%</span>
                     </div>
                     <div style={COL.wht} className="flex items-center gap-1">
                       <input
@@ -1625,9 +1625,9 @@ export default function RequestForm({
                         value={item.wht_rate}
                         onChange={(e) => updateItem(idx, { wht_rate: Number(e.target.value) })}
                       />
-                      <span className="text-sm text-brand-dark">%</span>
+                      <span className="text-sm text-kf-text-primary">%</span>
                     </div>
-                    <div style={COL.lineTotal} className="pt-1.5 text-sm font-medium text-brand-dark">
+                    <div style={COL.lineTotal} className="pt-1.5 text-sm font-medium text-kf-text-primary">
                       {formatCurrency(lineTotal)}
                     </div>
                     <div style={COL.remove} className="pt-1.5">
@@ -1635,7 +1635,7 @@ export default function RequestForm({
                         type="button"
                         disabled={items.length === 1}
                         onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
-                        className="text-sm font-medium text-[#DC2626] hover:underline disabled:opacity-30 disabled:hover:no-underline"
+                        className="text-sm font-medium text-kf-status-late-strong hover:underline disabled:opacity-30 disabled:hover:no-underline"
                       >
                         Remove
                       </button>
@@ -1650,22 +1650,22 @@ export default function RequestForm({
           {products.map((p) => p.sku_code && <option key={p.id} value={p.sku_code} />)}
         </datalist>
 
-        <div className="mt-4 grid grid-cols-4 gap-3 border-t border-brand-border pt-3 text-right">
+        <div className="mt-4 grid grid-cols-4 gap-3 border-t border-kf-border pt-3 text-right">
           <div>
-            <div className="text-xs text-brand-muted">TOTAL NET</div>
-            <div className="font-semibold text-brand-dark">{formatCurrency(totals.amount_net)}</div>
+            <div className="text-xs text-kf-text-muted">TOTAL NET</div>
+            <div className="font-semibold text-kf-text-primary">{formatCurrency(totals.amount_net)}</div>
           </div>
           <div>
-            <div className="text-xs text-brand-muted">TOTAL VAT</div>
-            <div className="font-semibold text-brand-dark">{formatCurrency(totals.vat_amount)}</div>
+            <div className="text-xs text-kf-text-muted">TOTAL VAT</div>
+            <div className="font-semibold text-kf-text-primary">{formatCurrency(totals.vat_amount)}</div>
           </div>
           <div>
-            <div className="text-xs text-brand-muted">TOTAL WHT</div>
-            <div className="font-semibold text-brand-dark">{formatCurrency(totals.wht_amount)}</div>
+            <div className="text-xs text-kf-text-muted">TOTAL WHT</div>
+            <div className="font-semibold text-kf-text-primary">{formatCurrency(totals.wht_amount)}</div>
           </div>
           <div>
-            <div className="text-xs text-brand-muted">GRAND TOTAL PAYABLE</div>
-            <div className="text-lg font-bold text-brand-dark">{formatCurrency(totals.total)}</div>
+            <div className="text-xs text-kf-text-muted">GRAND TOTAL PAYABLE</div>
+            <div className="text-lg font-bold text-kf-text-primary">{formatCurrency(totals.total)}</div>
           </div>
         </div>
       </div>
@@ -1674,24 +1674,24 @@ export default function RequestForm({
       {!expenseConfig?.hidePaymentSection && (
         <div className="mm-card">
           <h2 className="mm-section-label !mb-1 !border-b-0 !pb-0">Payment Details</h2>
-          <p className="mb-3 text-xs text-brand-subtle">
+          <p className="mb-3 text-xs text-kf-text-hint">
             {procurementFillsPayment
               ? "Procurement will fill these in later"
               : "Required unless Procurement is filling these in"}
           </p>
 
-          <label className="mb-3 flex cursor-pointer items-start gap-2 rounded-md border border-brand-border bg-[#F9F8F6] p-3">
+          <label className="mb-3 flex cursor-pointer items-start gap-2 rounded-md border border-kf-border bg-kf-palette-warm-1 p-3">
             <input
               type="checkbox"
-              className="mt-0.5 h-3.5 w-3.5 accent-brand-brown"
+              className="mt-0.5 h-3.5 w-3.5 accent-kf-bg-active"
               checked={procurementFillsPayment}
               onChange={(e) => setProcurementFillsPayment(e.target.checked)}
             />
             <span>
-              <span className="block text-sm font-medium text-brand-dark">
+              <span className="block text-sm font-medium text-kf-text-primary">
                 Let Procurement fill payment details
               </span>
-              <span className="block text-xs text-brand-subtle">
+              <span className="block text-xs text-kf-text-hint">
                 Tick this if you don&apos;t have payment info yet — Procurement will complete it
               </span>
             </span>
@@ -1700,26 +1700,26 @@ export default function RequestForm({
           {procurementFillsPayment && (
             <div
               className="mb-3 rounded-md p-2.5 text-sm font-medium"
-              style={{ background: "#DBEAFE", border: "1px solid #93C5FD", color: "#1E3A8A" }}
+              style={{ background: "var(--kf-bg-selected)", border: "1px solid var(--kf-palette-sage)", color: "var(--kf-text-brand)" }}
             >
               ℹ️ Procurement จะกรอกข้อมูลการชำระเงินให้ภายหลัง
             </div>
           )}
 
           {!hideSupplierPaymentMethodAccountFields && !procurementFillsPayment && (
-            <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-2.5">
+            <div className="mb-3 rounded-md border border-kf-border bg-kf-palette-warm-1 p-2.5">
               <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-brand-subtle">⭐ Saved payees</span>
+                <span className="text-xs font-medium text-kf-text-hint">⭐ Saved payees</span>
                 <button
                   type="button"
                   onClick={handleSavePreset}
-                  className="text-xs font-medium text-brand-brown hover:underline"
+                  className="text-xs font-medium text-kf-text-brand hover:underline"
                 >
                   💾 Save current as preset
                 </button>
               </div>
               {presets.length === 0 ? (
-                <p className="text-xs text-brand-subtle">
+                <p className="text-xs text-kf-text-hint">
                   No saved payees yet — fill in the fields below, then save one for next time.
                 </p>
               ) : (
@@ -1727,12 +1727,12 @@ export default function RequestForm({
                   {presets.map((p) => (
                     <span
                       key={p.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-brand-border bg-white px-2 py-1 text-xs"
+                      className="inline-flex items-center gap-1 rounded-full border border-kf-border bg-kf-bg-surface px-2 py-1 text-xs"
                     >
                       <button
                         type="button"
                         onClick={() => handlePresetSelect(p)}
-                        className="font-medium text-brand-dark hover:text-brand-brown"
+                        className="font-medium text-kf-text-primary hover:text-kf-text-brand"
                       >
                         {p.name}
                       </button>
@@ -1740,7 +1740,7 @@ export default function RequestForm({
                         type="button"
                         onClick={() => handleDeletePreset(p.id)}
                         aria-label={`Delete ${p.name}`}
-                        className="text-brand-subtle hover:text-[#DC2626]"
+                        className="text-kf-text-hint hover:text-kf-status-late-strong"
                       >
                         ✕
                       </button>
@@ -1772,7 +1772,7 @@ export default function RequestForm({
                   onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
                 />
                 {supplierOpen && filteredSuppliers.length > 0 && (
-                  <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-brand-border bg-white shadow-lg">
+                  <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-kf-border bg-kf-bg-surface shadow-lg">
                     {filteredSuppliers.map((s) => (
                       <li key={s.id}>
                         <button
@@ -1782,7 +1782,7 @@ export default function RequestForm({
                             handleSupplierChange(s.name);
                             setSupplierOpen(false);
                           }}
-                          className="block w-full px-3 py-2 text-left text-sm hover:bg-[#F9F8F6]"
+                          className="block w-full px-3 py-2 text-left text-sm hover:bg-kf-palette-warm-1"
                         >
                           {s.name}
                         </button>
@@ -1899,15 +1899,15 @@ export default function RequestForm({
         <h2 className="mm-section-label">Attachments</h2>
 
         {expenseConfig?.requiredDocs && (
-          <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
-            <p className="mb-1 font-medium text-brand-dark">
+          <div className="mb-3 rounded-md border border-kf-border bg-kf-palette-warm-1 p-3 text-sm">
+            <p className="mb-1 font-medium text-kf-text-primary">
               Required documents{expenseConfig.requiredDocs.mode === "any" ? " (at least one)" : ""}
             </p>
             <ul className="space-y-0.5">
               {expenseConfig.requiredDocs.docs.map((docLabel) => {
                 const satisfied = isDocTypeAttached(docLabel);
                 return (
-                  <li key={docLabel} className={satisfied ? "text-green-700" : "text-brand-muted"}>
+                  <li key={docLabel} className={satisfied ? "text-kf-text-positive" : "text-kf-text-muted"}>
                     {satisfied ? "✓" : "○"} {docLabel}
                   </li>
                 );
@@ -1922,16 +1922,16 @@ export default function RequestForm({
           );
           if (travelByValues.length === 0) return null;
           return (
-            <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
-              <p className="mb-1 font-medium text-brand-dark">Travel documents (per item, by Travel by)</p>
-              <p className="mb-1 text-brand-subtle">รวมรูปภาพเป็นไฟล์ pdf ก่อน upload</p>
+            <div className="mb-3 rounded-md border border-kf-border bg-kf-palette-warm-1 p-3 text-sm">
+              <p className="mb-1 font-medium text-kf-text-primary">Travel documents (per item, by Travel by)</p>
+              <p className="mb-1 text-kf-text-hint">รวมรูปภาพเป็นไฟล์ pdf ก่อน upload</p>
               <ul className="space-y-0.5">
                 {travelByValues.flatMap((travelBy) =>
                   (TRAVEL_REQUIRED_DOCS[travelBy as keyof typeof TRAVEL_REQUIRED_DOCS] ?? []).map((docLabel) => {
                     const satisfied = isDocTypeAttached(docLabel);
                     return (
-                      <li key={`${travelBy}-${docLabel}`} className={satisfied ? "text-green-700" : "text-brand-muted"}>
-                        {satisfied ? "✓" : "○"} {docLabel} <span className="text-brand-subtle">({travelBy})</span>
+                      <li key={`${travelBy}-${docLabel}`} className={satisfied ? "text-kf-text-positive" : "text-kf-text-muted"}>
+                        {satisfied ? "✓" : "○"} {docLabel} <span className="text-kf-text-hint">({travelBy})</span>
                       </li>
                     );
                   }),
@@ -1944,7 +1944,7 @@ export default function RequestForm({
         {expenseConfig?.showCreditTerm && (
           <div
             className="mb-3 rounded-md p-2.5 text-sm font-medium"
-            style={{ background: "#FFF3CD", border: "1px solid #FFC107", color: "#856404" }}
+            style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
           >
             {creditDeadlineMessage()}
           </div>
@@ -1957,7 +1957,7 @@ export default function RequestForm({
             e.preventDefault();
             if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
           }}
-          className="flex h-11 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-brand-border text-sm text-brand-muted hover:bg-[#F9F8F6]"
+          className="flex h-11 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-kf-border text-sm text-kf-text-muted hover:bg-kf-palette-warm-1"
         >
           📎 Click to attach files or drag &amp; drop — PDF, JPG, PNG, Word, Excel
         </div>
@@ -1984,15 +1984,15 @@ export default function RequestForm({
         </div>
 
         {uploadStatus && (
-          <p className="mt-3 text-sm text-brand-muted">⏳ {uploadStatus}</p>
+          <p className="mt-3 text-sm text-kf-text-muted">⏳ {uploadStatus}</p>
         )}
         {attachmentError && (
-          <p className="mt-3 text-sm text-red-600">{attachmentError}</p>
+          <p className="mt-3 text-sm text-kf-status-late-strong">{attachmentError}</p>
         )}
 
         <div className="mt-3 space-y-2">
           {files.map((file, idx) => (
-            <div key={idx} className="flex items-center gap-2 rounded-md border border-brand-border px-3 py-2 text-sm">
+            <div key={idx} className="flex items-center gap-2 rounded-md border border-kf-border px-3 py-2 text-sm">
               <select
                 className={`${cellClass} w-56`}
                 value={file.doc_type ?? ""}
@@ -2015,15 +2015,15 @@ export default function RequestForm({
                   e.preventDefault();
                   openStoredFile(file);
                 }}
-                className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
+                className="min-w-0 flex-1 truncate text-kf-text-brand hover:underline"
               >
                 {file.name}
               </a>
-              <span className="text-xs text-brand-muted">{formatBytes(file.size)}</span>
+              <span className="text-xs text-kf-text-muted">{formatBytes(file.size)}</span>
               <button
                 type="button"
                 onClick={() => removeFile(idx)}
-                className="font-medium text-[#DC2626] hover:underline"
+                className="font-medium text-kf-status-late-strong hover:underline"
               >
                 Remove
               </button>
@@ -2032,7 +2032,7 @@ export default function RequestForm({
           {pendingFiles.map((pending, idx) => (
             <div
               key={`pending-${idx}`}
-              className="flex items-center gap-2 rounded-md border border-dashed border-brand-border px-3 py-2 text-sm"
+              className="flex items-center gap-2 rounded-md border border-dashed border-kf-border px-3 py-2 text-sm"
             >
               <select
                 className={`${cellClass} w-56`}
@@ -2044,12 +2044,12 @@ export default function RequestForm({
                   <option key={dt} value={dt}>{dt}</option>
                 ))}
               </select>
-              <span className="min-w-0 flex-1 truncate text-brand-dark">{pending.file.name}</span>
-              <span className="text-xs text-brand-subtle">{formatBytes(pending.file.size)} · will upload on submit</span>
+              <span className="min-w-0 flex-1 truncate text-kf-text-primary">{pending.file.name}</span>
+              <span className="text-xs text-kf-text-hint">{formatBytes(pending.file.size)} · will upload on submit</span>
               <button
                 type="button"
                 onClick={() => removePendingFile(idx)}
-                className="font-medium text-[#DC2626] hover:underline"
+                className="font-medium text-kf-status-late-strong hover:underline"
               >
                 Remove
               </button>
@@ -2063,18 +2063,18 @@ export default function RequestForm({
           // submitted (a real gap vs. the old base64-everywhere behavior,
           // where a picked file became part of files_json, and therefore
           // the draft, immediately on pick).
-          <p className="mt-2 text-xs text-brand-subtle">
+          <p className="mt-2 text-xs text-kf-text-hint">
             Note: files above haven&apos;t been uploaded yet — saving this as a draft won&apos;t keep them; submit the
             request to upload them.
           </p>
         )}
       </div>
 
-      <p className="text-xs text-brand-subtle">
-        Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+      <p className="text-xs text-kf-text-hint">
+        Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
       </p>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-kf-status-late-strong">{error}</p>}
 
       <div className="flex gap-2">
         <button
@@ -2089,7 +2089,7 @@ export default function RequestForm({
             type="button"
             onClick={handleSecondary}
             disabled={submitting || secondaryBusy}
-            className="mm-btn-secondary h-11 flex-1 border-brand-brown text-[15px] text-brand-brown hover:bg-[#F9F8F6]"
+            className="mm-btn-secondary h-11 flex-1 border-kf-text-brand text-[15px] text-kf-text-brand hover:bg-kf-palette-warm-1"
           >
             {secondaryBusy ? secondaryAction.busyLabel : secondaryAction.label}
           </button>

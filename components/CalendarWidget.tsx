@@ -8,12 +8,15 @@ import type { CalendarEventRow, CalendarEventType, CurrentUser } from "@/types/d
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// One kit pill pairing per event type (app/tokens.css --app-event-*). The
+// app used blue for "payment"; the kit has no blue, so it takes the
+// sage-light + deep-green pairing instead.
 const TYPE_STYLE: Record<CalendarEventType, { bg: string; color: string; label: string }> = {
-  payment: { bg: "#EFF6FF", color: "#1D4ED8", label: "Payment" },
-  deadline: { bg: "#FEE2E2", color: "#DC2626", label: "Deadline" },
-  reminder: { bg: "#FEF3C7", color: "#92400E", label: "Reminder" },
-  important: { bg: "#F0F4EF", color: "#1F3A2B", label: "Important" },
-  general: { bg: "#F3F4F6", color: "#374151", label: "General" },
+  payment: { bg: "var(--app-event-payment-bg)", color: "var(--app-event-payment-fg)", label: "Payment" },
+  deadline: { bg: "var(--app-event-deadline-bg)", color: "var(--app-event-deadline-fg)", label: "Deadline" },
+  reminder: { bg: "var(--app-event-reminder-bg)", color: "var(--app-event-reminder-fg)", label: "Reminder" },
+  important: { bg: "var(--app-event-important-bg)", color: "var(--app-event-important-fg)", label: "Important" },
+  general: { bg: "var(--app-event-general-bg)", color: "var(--app-event-general-fg)", label: "General" },
 };
 
 function pad2(n: number): string {
@@ -232,16 +235,16 @@ export default function CalendarWidget() {
             <button
               type="button"
               onClick={() => goToMonth(-1)}
-              className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-brand-border text-brand-dark hover:bg-[#F9F8F6]"
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-kf-border text-kf-text-primary hover:bg-kf-palette-warm-1"
               aria-label="Previous month"
             >
               ‹
             </button>
-            <div className="min-w-[88px] text-center text-sm font-semibold text-brand-dark">{monthTitle}</div>
+            <div className="min-w-[88px] text-center text-sm font-semibold text-kf-text-primary">{monthTitle}</div>
             <button
               type="button"
               onClick={() => goToMonth(1)}
-              className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-brand-border text-brand-dark hover:bg-[#F9F8F6]"
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-kf-border text-kf-text-primary hover:bg-kf-palette-warm-1"
               aria-label="Next month"
             >
               ›
@@ -259,7 +262,7 @@ export default function CalendarWidget() {
                   setAddError(null);
                   setShowAddModal(true);
                 }}
-                className="flex h-[30px] items-center rounded-md bg-brand-brown px-2.5 text-xs font-medium text-white hover:bg-brand-accent"
+                className="flex h-[30px] items-center rounded-md bg-kf-bg-brand px-2.5 text-xs font-medium text-kf-text-on-brand hover:bg-kf-palette-deep-green-hover"
               >
                 + Add event
               </button>
@@ -269,11 +272,11 @@ export default function CalendarWidget() {
 
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <thead>
-            <tr style={{ background: "#F9F8F6", borderBottom: "1px solid #F0EAE0" }}>
+            <tr style={{ background: "var(--kf-palette-warm-1)", borderBottom: "1px solid var(--kf-border-subtle)" }}>
               {WEEKDAY_LABELS.map((d) => (
                 <th
                   key={d}
-                  className="font-semibold uppercase text-brand-subtle"
+                  className="font-semibold uppercase text-kf-text-hint"
                   style={{ width: "14.28%", fontSize: 9, padding: "6px 4px" }}
                 >
                   {d}
@@ -288,7 +291,7 @@ export default function CalendarWidget() {
                   const dayEvents = eventsByDate.get(cell.key) ?? [];
                   const isToday = cell.key === todayKey;
                   const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
-                  const dayColor = !cell.isCurrentMonth ? "#D8CBB0" : isWeekend ? "#9CA3AF" : "#1A1A1A";
+                  const dayColor = !cell.isCurrentMonth ? "var(--kf-border)" : isWeekend ? "var(--kf-text-hint)" : "var(--kf-text-primary)";
                   const shown = dayEvents.slice(0, 2);
                   const extra = dayEvents.length - shown.length;
 
@@ -299,16 +302,16 @@ export default function CalendarWidget() {
                       style={{
                         height: 58,
                         padding: "4px 5px",
-                        borderRight: "1px solid #F5F0E8",
-                        borderBottom: "1px solid #F5F0E8",
+                        borderRight: "1px solid var(--kf-border-subtle)",
+                        borderBottom: "1px solid var(--kf-border-subtle)",
                         verticalAlign: "top",
-                        background: isToday ? "#F5FAF2" : undefined,
+                        background: isToday ? "var(--kf-palette-olive-tint)" : undefined,
                         cursor: dayEvents.length > 0 ? "pointer" : "default",
                       }}
                     >
                       {isToday ? (
                         <span
-                          className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-brand-brown font-medium text-white"
+                          className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-kf-bg-brand font-medium text-kf-text-on-brand"
                           style={{ fontSize: 11 }}
                         >
                           {cell.date.getDate()}
@@ -335,7 +338,7 @@ export default function CalendarWidget() {
                           </div>
                         ))}
                         {extra > 0 && (
-                          <div className="text-brand-subtle" style={{ fontSize: 8 }}>
+                          <div className="text-kf-text-hint" style={{ fontSize: 8 }}>
                             +{extra} more
                           </div>
                         )}
@@ -354,13 +357,13 @@ export default function CalendarWidget() {
         <div className="mm-card !px-3.5 !py-3">
           <h3 className="mm-section-label !mb-2 !border-b-0 !pb-0">Today</h3>
           {todayEvents.length === 0 ? (
-            <p className="text-xs text-brand-subtle">No events today.</p>
+            <p className="text-xs text-kf-text-hint">No events today.</p>
           ) : (
             <div className="space-y-2">
               {todayEvents.map((ev) => (
                 <div key={ev.id} className="pl-2" style={{ borderLeft: `2px solid ${TYPE_STYLE[ev.event_type].color}` }}>
-                  <p className="text-[11px] font-medium text-brand-dark">{ev.title}</p>
-                  {ev.description && <p className="text-[10px] text-brand-muted">{ev.description}</p>}
+                  <p className="text-[11px] font-medium text-kf-text-primary">{ev.title}</p>
+                  {ev.description && <p className="text-[10px] text-kf-text-muted">{ev.description}</p>}
                   <div className="mt-0.5">
                     <TypeBadge type={ev.event_type} />
                   </div>
@@ -373,7 +376,7 @@ export default function CalendarWidget() {
         <div className="mm-card !px-3.5 !py-3">
           <h3 className="mm-section-label !mb-2 !border-b-0 !pb-0">Upcoming</h3>
           {upcomingEvents.length === 0 ? (
-            <p className="text-xs text-brand-subtle">No upcoming events.</p>
+            <p className="text-xs text-kf-text-hint">No upcoming events.</p>
           ) : (
             <div className="space-y-2.5">
               {upcomingEvents.map((ev) => {
@@ -381,14 +384,14 @@ export default function CalendarWidget() {
                 return (
                   <div key={ev.id} className="flex items-start gap-2">
                     <div className="w-8 flex-shrink-0 text-center">
-                      <div className="text-[15px] font-bold leading-none text-brand-brown">{d.getDate()}</div>
-                      <div className="mt-0.5 text-[9px] uppercase text-brand-subtle">
+                      <div className="text-[15px] font-bold leading-none text-kf-text-brand">{d.getDate()}</div>
+                      <div className="mt-0.5 text-[9px] uppercase text-kf-text-hint">
                         {d.toLocaleDateString("en-US", { month: "short" })}
                       </div>
                     </div>
                     <div className="flex-1 pl-2" style={{ borderLeft: `2px solid ${TYPE_STYLE[ev.event_type].color}` }}>
-                      <p className="text-[11px] font-medium text-brand-dark">{ev.title}</p>
-                      {ev.description && <p className="text-[10px] text-brand-muted">{ev.description}</p>}
+                      <p className="text-[11px] font-medium text-kf-text-primary">{ev.title}</p>
+                      {ev.description && <p className="text-[10px] text-kf-text-muted">{ev.description}</p>}
                       <div className="mt-0.5">
                         <TypeBadge type={ev.event_type} />
                       </div>
@@ -409,7 +412,7 @@ export default function CalendarWidget() {
                   className="h-2.5 w-2.5 flex-shrink-0 rounded-sm"
                   style={{ background: TYPE_STYLE[t.value].color }}
                 />
-                <span className="text-[10px] text-brand-muted">{t.label}</span>
+                <span className="text-[10px] text-kf-text-muted">{t.label}</span>
               </div>
             ))}
           </div>
@@ -419,19 +422,19 @@ export default function CalendarWidget() {
       {/* ===================== Hover tooltip ===================== */}
       {tooltip && (
         <div
-          className="pointer-events-none fixed rounded-lg border border-brand-border bg-white"
+          className="pointer-events-none fixed rounded-lg border border-kf-border bg-kf-bg-surface"
           style={{
             left: tooltip.x,
             top: tooltip.y,
             padding: "10px 14px",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            boxShadow: "0 4px 16px color-mix(in srgb, var(--kf-palette-ink) 12%, transparent)",
             maxWidth: 220,
             zIndex: 9999,
           }}
         >
-          <p className="text-xs font-semibold text-brand-dark">{tooltip.event.title}</p>
+          <p className="text-xs font-semibold text-kf-text-primary">{tooltip.event.title}</p>
           {tooltip.event.description && (
-            <p className="mt-0.5 text-[11px] text-brand-muted">{tooltip.event.description}</p>
+            <p className="mt-0.5 text-[11px] text-kf-text-muted">{tooltip.event.description}</p>
           )}
           <div className="mt-1">
             <TypeBadge type={tooltip.event.event_type} />
@@ -442,12 +445,12 @@ export default function CalendarWidget() {
       {/* ===================== Day detail modal ===================== */}
       {selectedDay && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-kf-palette-ink/45 p-4"
           style={{ backdropFilter: "blur(2px)" }}
           onClick={() => setSelectedDay(null)}
         >
           <div
-            className="flex max-h-[80vh] w-full flex-col overflow-hidden rounded-[10px] border border-brand-border bg-white"
+            className="flex max-h-[80vh] w-full flex-col overflow-hidden rounded-[10px] border border-kf-border bg-kf-bg-surface"
             style={{ maxWidth: 320 }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -457,14 +460,14 @@ export default function CalendarWidget() {
               </h3>
               <button
                 onClick={() => setSelectedDay(null)}
-                className="rounded-md p-1 text-brand-muted transition-colors hover:bg-[#F5F0E8] hover:text-brand-dark"
+                className="rounded-md p-1 text-kf-text-muted transition-colors hover:bg-kf-border-subtle hover:text-kf-text-primary"
               >
                 ✕
               </button>
             </div>
             <div className="space-y-2 overflow-y-auto p-4">
               {selectedDayEvents.length === 0 ? (
-                <p className="text-sm text-brand-subtle">No events.</p>
+                <p className="text-sm text-kf-text-hint">No events.</p>
               ) : (
                 selectedDayEvents.map((ev) => (
                   <div
@@ -472,13 +475,15 @@ export default function CalendarWidget() {
                     className="flex items-start justify-between gap-2 rounded-md"
                     style={{
                       borderLeft: `3px solid ${TYPE_STYLE[ev.event_type].color}`,
-                      background: `${TYPE_STYLE[ev.event_type].bg}22`,
+                      // color-mix, not a hex alpha suffix: the value is a
+                      // CSS variable now.
+                      background: `color-mix(in srgb, ${TYPE_STYLE[ev.event_type].bg} 13%, transparent)`,
                       padding: "8px 10px",
                     }}
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-brand-dark">{ev.title}</p>
-                      {ev.description && <p className="mt-0.5 text-[11px] text-brand-muted">{ev.description}</p>}
+                      <p className="truncate text-[13px] font-medium text-kf-text-primary">{ev.title}</p>
+                      {ev.description && <p className="mt-0.5 text-[11px] text-kf-text-muted">{ev.description}</p>}
                       <div className="mt-1">
                         <TypeBadge type={ev.event_type} />
                       </div>
@@ -487,7 +492,7 @@ export default function CalendarWidget() {
                       <button
                         onClick={() => deleteEvent(ev.id)}
                         disabled={deleteBusyId === ev.id}
-                        className="flex-shrink-0 text-xs font-medium text-[#DC2626] hover:underline disabled:opacity-50"
+                        className="flex-shrink-0 text-xs font-medium text-kf-status-late-strong hover:underline disabled:opacity-50"
                       >
                         {deleteBusyId === ev.id ? "..." : "Delete"}
                       </button>
@@ -503,12 +508,12 @@ export default function CalendarWidget() {
       {/* ===================== Add event modal ===================== */}
       {showAddModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-kf-palette-ink/45 p-4"
           style={{ backdropFilter: "blur(2px)" }}
           onClick={() => !saving && setShowAddModal(false)}
         >
           <div
-            className="w-full rounded-xl border border-brand-border bg-white shadow-lg"
+            className="w-full rounded-xl border border-kf-border bg-kf-bg-surface shadow-lg"
             style={{ maxWidth: 420 }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -516,7 +521,7 @@ export default function CalendarWidget() {
               <h3 className="mm-modal-title">Add Calendar Event</h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="rounded-md p-1 text-brand-muted transition-colors hover:bg-[#F5F0E8] hover:text-brand-dark"
+                className="rounded-md p-1 text-kf-text-muted transition-colors hover:bg-kf-border-subtle hover:text-kf-text-primary"
               >
                 ✕
               </button>
@@ -564,7 +569,7 @@ export default function CalendarWidget() {
                   ))}
                 </select>
               </div>
-              {addError && <p className="text-sm text-red-600">{addError}</p>}
+              {addError && <p className="text-sm text-kf-status-late-strong">{addError}</p>}
             </div>
             <div className="mm-modal-footer">
               <button onClick={() => setShowAddModal(false)} disabled={saving} className="mm-btn-secondary">

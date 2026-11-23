@@ -18,10 +18,10 @@ import { applyCategoryOrder, type CategoryOrderRow } from "@/lib/budget-order-sh
 //
 // Cells differing from the currently-approved figure are highlighted.
 
-const OVER = "#B23A2F";
-const UNDER = "#2E7D52";
-const CHANGED_BG = "rgba(189, 90, 46, 0.10)";
-const CHANGED_BORDER = "#BD5A2E";
+const OVER = "var(--kf-status-late)";
+const UNDER = "var(--kf-status-on-track)";
+const CHANGED_BG = "color-mix(in srgb, var(--kf-status-at-risk) 10%, transparent)";
+const CHANGED_BORDER = "var(--kf-status-at-risk-strong)";
 
 // Column widths. The number is the thing that must never clip: a realistic
 // figure here is 7 digits with separators ("1,250,000"), ~62px at 13px
@@ -210,7 +210,7 @@ function ShareLine({ value, goal }: { value: number; goal: number | null | undef
   // and this line would otherwise come out bold, which is the one thing it
   // must not be.
   return (
-    <div className="text-[10px] font-normal leading-tight text-brand-subtle">
+    <div className="text-[10px] font-normal leading-tight text-kf-text-hint">
       {share ?? EM_DASH}
     </div>
   );
@@ -231,7 +231,7 @@ function GroupTotal({
       className="py-1 text-right align-top tabular-nums"
       style={{ paddingLeft: 2, paddingRight: GUTTER_W, background: bg }}
     >
-      <span className="text-[11px] font-normal text-brand-muted">
+      <span className="text-[11px] font-normal text-kf-text-muted">
         {value ? thb(value) : EM_DASH}
       </span>
       {goal !== undefined && <ShareLine value={value} goal={goal} />}
@@ -432,7 +432,7 @@ export default function BudgetGrid({
   if (rows.length === 0) {
     return (
       <div className="mm-card">
-        <p className="py-8 text-center text-[13px] text-brand-muted">
+        <p className="py-8 text-center text-[13px] text-kf-text-muted">
           No budget lines match this filter. Widen the Segment or BU filter above.
         </p>
       </div>
@@ -475,8 +475,8 @@ export default function BudgetGrid({
             <th
               className="sticky left-0 top-0 text-left"
               style={{
-                width: STICKY_W, minWidth: STICKY_W, background: "#F9F8F6", zIndex: 40,
-                boxShadow: "inset -1px 0 0 #D8CBB0, inset 0 -1px 0 #D8CBB0",
+                width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-palette-warm-1)", zIndex: 40,
+                boxShadow: "inset -1px 0 0 var(--kf-border), inset 0 -1px 0 var(--kf-border)",
               }}
             >
               Line
@@ -485,21 +485,21 @@ export default function BudgetGrid({
               <th
                 key={m}
                 className="sticky top-0 text-right"
-                style={{ background: "#F9F8F6", zIndex: 30, boxShadow: "inset 0 -1px 0 #D8CBB0" }}
+                style={{ background: "var(--kf-palette-warm-1)", zIndex: 30, boxShadow: "inset 0 -1px 0 var(--kf-border)" }}
               >
                 {m}
               </th>
             ))}
             <th
               className="sticky top-0 text-right"
-              style={{ background: "#F9F8F6", zIndex: 30, boxShadow: "inset 0 -1px 0 #D8CBB0" }}
+              style={{ background: "var(--kf-palette-warm-1)", zIndex: 30, boxShadow: "inset 0 -1px 0 var(--kf-border)" }}
             >
               FY total
             </th>
             {showDelta && (
               <th
                 className="sticky top-0 text-right"
-                style={{ background: "#F9F8F6", zIndex: 30, boxShadow: "inset 0 -1px 0 #D8CBB0" }}
+                style={{ background: "var(--kf-palette-warm-1)", zIndex: 30, boxShadow: "inset 0 -1px 0 var(--kf-border)" }}
               >
                 Change
               </th>
@@ -525,23 +525,23 @@ export default function BudgetGrid({
             const dOpen = !collapsed.has(deptKey(gd.dept));
             const lineCount = gd.cats.reduce((n, c) => n + c.lines.length, 0);
             const out: React.ReactNode[] = [
-              <tr key={`d:${gd.dept}`} style={{ background: "#F5F2EC" }}>
+              <tr key={`d:${gd.dept}`} style={{ background: "var(--kf-palette-warm-2)" }}>
                 <th
                   scope="row"
-                  className="sticky left-0 z-10 border-r border-brand-border px-3 py-1.5 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-brand-dark"
-                  style={{ width: STICKY_W, minWidth: STICKY_W, background: "#F5F2EC" }}
+                  className="sticky left-0 z-10 border-r border-kf-border px-3 py-1.5 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-kf-text-primary"
+                  style={{ width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-palette-warm-2)" }}
                 >
                   <button
                     type="button"
                     onClick={() => toggle(deptKey(gd.dept))}
                     aria-expanded={dOpen}
-                    className="mr-1.5 text-[10px] text-brand-muted hover:text-brand-dark"
+                    className="mr-1.5 text-[10px] text-kf-text-muted hover:text-kf-text-primary"
                     style={{ width: 12 }}
                   >
                     {dOpen ? "▾" : "▸"}
                   </button>
                   {gd.dept}
-                  <span className="ml-2 text-[10.5px] font-normal normal-case tracking-normal text-brand-muted">
+                  <span className="ml-2 text-[10.5px] font-normal normal-case tracking-normal text-kf-text-muted">
                     {gd.cats.length} categor{gd.cats.length === 1 ? "y" : "ies"} · {lineCount} line{lineCount === 1 ? "" : "s"}
                   </span>
                 </th>
@@ -549,20 +549,20 @@ export default function BudgetGrid({
                   <GroupTotal
                     key={m}
                     value={v}
-                    bg="#F5F2EC"
+                    bg="var(--kf-palette-warm-2)"
                     goal={hasGoals ? goalMonths?.[m] ?? null : undefined}
                   />
                 ))}
                 <td
                   className="px-3 py-1.5 text-right align-top tabular-nums"
-                  style={{ background: "#F5F2EC" }}
+                  style={{ background: "var(--kf-palette-warm-2)" }}
                 >
-                  <span className="text-[11px] font-normal text-brand-muted">
+                  <span className="text-[11px] font-normal text-kf-text-muted">
                     {gd.total ? thb(gd.total) : EM_DASH}
                   </span>
                   {hasGoals && <ShareLine value={gd.total} goal={goalYearTotal} />}
                 </td>
-                {showDelta && <td style={{ background: "#F5F2EC" }} />}
+                {showDelta && <td style={{ background: "var(--kf-palette-warm-2)" }} />}
               </tr>,
             ];
             if (!dOpen) return out;
@@ -590,19 +590,19 @@ export default function BudgetGrid({
                   onDragLeave={() => setOver((k) => (k === catKey(gd.dept, gc.l1) ? null : k))}
                   onDrop={(e) => { e.preventDefault(); dropOn(gd.dept, gc.l1); }}
                   style={{
-                    background: "#FCFBF9",
+                    background: "var(--kf-palette-warm-1)",
                     opacity: drag?.dept === gd.dept && drag.l1 === gc.l1 ? 0.4 : 1,
-                    boxShadow: isOver ? "inset 0 2px 0 #BD5A2E" : undefined,
+                    boxShadow: isOver ? "inset 0 2px 0 var(--kf-status-at-risk-strong)" : undefined,
                   }}
                 >
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 border-r border-brand-border px-3 py-1 pl-6 text-left text-[12px] font-medium text-brand-muted"
-                    style={{ width: STICKY_W, minWidth: STICKY_W, background: "#FCFBF9" }}
+                    className="sticky left-0 z-10 border-r border-kf-border px-3 py-1 pl-6 text-left text-[12px] font-medium text-kf-text-muted"
+                    style={{ width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-palette-warm-1)" }}
                   >
                     {!readOnly && onReorderCategories && (
                       <span
-                        className="mr-1.5 cursor-grab select-none text-[13px] text-brand-subtle hover:text-brand-brown"
+                        className="mr-1.5 cursor-grab select-none text-[13px] text-kf-text-hint hover:text-kf-text-brand"
                         title={`Drag to reorder within ${gd.dept}. Your order only — nobody else sees it, and the spend report is unaffected.`}
                       >
                         ⠿
@@ -612,13 +612,13 @@ export default function BudgetGrid({
                       type="button"
                       onClick={() => toggle(catKey(gd.dept, gc.l1))}
                       aria-expanded={cOpen}
-                      className="mr-1.5 text-[10px] text-brand-muted hover:text-brand-dark"
+                      className="mr-1.5 text-[10px] text-kf-text-muted hover:text-kf-text-primary"
                       style={{ width: 12 }}
                     >
                       {cOpen ? "▾" : "▸"}
                     </button>
                     {gc.l1}
-                    <span className="ml-2 text-[10.5px] font-normal text-brand-subtle">
+                    <span className="ml-2 text-[10.5px] font-normal text-kf-text-hint">
                       {gc.lines.length}
                     </span>
                   </th>
@@ -626,20 +626,20 @@ export default function BudgetGrid({
                     <GroupTotal
                       key={m}
                       value={v}
-                      bg="#FCFBF9"
+                      bg="var(--kf-palette-warm-1)"
                       goal={hasGoals ? goalMonths?.[m] ?? null : undefined}
                     />
                   ))}
                   <td
                     className="px-3 py-1 text-right align-top tabular-nums"
-                    style={{ background: "#FCFBF9" }}
+                    style={{ background: "var(--kf-palette-warm-1)" }}
                   >
-                    <span className="text-[11px] font-normal text-brand-muted">
+                    <span className="text-[11px] font-normal text-kf-text-muted">
                       {gc.total ? thb(gc.total) : EM_DASH}
                     </span>
                     {hasGoals && <ShareLine value={gc.total} goal={goalYearTotal} />}
                   </td>
-                  {showDelta && <td style={{ background: "#FCFBF9" }} />}
+                  {showDelta && <td style={{ background: "var(--kf-palette-warm-1)" }} />}
                 </tr>,
               );
               if (!cOpen) continue;
@@ -650,13 +650,13 @@ export default function BudgetGrid({
               <tr key={r.key}>
                 <th
                   scope="row"
-                  className="sticky left-0 z-10 border-r border-brand-border px-3 py-1.5 text-left font-normal"
-                  style={{ width: STICKY_W, minWidth: STICKY_W, background: "#FFFFFF", paddingLeft: 34 }}
+                  className="sticky left-0 z-10 border-r border-kf-border px-3 py-1.5 text-left font-normal"
+                  style={{ width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-bg-surface)", paddingLeft: 34 }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[13px] text-brand-dark" title={lineTitle(r)}>
+                    <span className="truncate text-[13px] text-kf-text-primary" title={lineTitle(r)}>
                       {lineLabel(r)}
-                      <span className="ml-1.5 text-[11px] text-brand-subtle">{r.bu}</span>
+                      <span className="ml-1.5 text-[11px] text-kf-text-hint">{r.bu}</span>
                     </span>
                     {!readOnly && (
                       <span className="flex shrink-0 gap-1">
@@ -664,7 +664,7 @@ export default function BudgetGrid({
                           type="button"
                           onClick={() => onCopyPriorYear?.(r.key)}
                           title={`Copy FY${priorFiscalYear ?? ""} actual into this row`}
-                          className="rounded border border-brand-border px-1.5 text-[11px] text-brand-muted hover:text-brand-dark"
+                          className="rounded border border-kf-border px-1.5 text-[11px] text-kf-text-muted hover:text-kf-text-primary"
                         >
                           C
                         </button>
@@ -672,7 +672,7 @@ export default function BudgetGrid({
                           type="button"
                           onClick={() => onClearRow?.(r.key)}
                           title="Clear this row"
-                          className="rounded border border-brand-border px-1.5 text-[11px] text-brand-muted hover:text-[#DC2626]"
+                          className="rounded border border-kf-border px-1.5 text-[11px] text-kf-text-muted hover:text-kf-status-late-strong"
                         >
                           ×
                         </button>
@@ -705,7 +705,7 @@ export default function BudgetGrid({
                             </div>
                           )}
                           {v > 0 && shareOfGoal(v, goalMonths?.[m]) && (
-                            <div className="text-[10px] text-brand-subtle">
+                            <div className="text-[10px] text-kf-text-hint">
                               {shareOfGoal(v, goalMonths?.[m])}
                             </div>
                           )}
@@ -750,7 +750,7 @@ export default function BudgetGrid({
                           tabIndex={-1}
                           onClick={() => onFillRight?.(r.key, m)}
                           title="Fill this value rightward to December"
-                          className="absolute inset-y-0.5 right-0 flex items-center justify-center text-[11px] leading-none text-brand-subtle opacity-0 transition-opacity hover:text-brand-accent group-hover:opacity-100 group-focus-within:opacity-100"
+                          className="absolute inset-y-0.5 right-0 flex items-center justify-center text-[11px] leading-none text-kf-text-hint opacity-0 transition-opacity hover:text-kf-palette-deep-green-hover group-hover:opacity-100 group-focus-within:opacity-100"
                           style={{ width: GUTTER_W }}
                         >
                           →
@@ -760,7 +760,7 @@ export default function BudgetGrid({
                             the spend report. Absent when the month has no
                             goal, rather than shown as 0%. */}
                         {v > 0 && shareOfGoal(v, goalMonths?.[m]) && (
-                          <div className="pr-2 text-right text-[10px] leading-tight text-brand-subtle">
+                          <div className="pr-2 text-right text-[10px] leading-tight text-kf-text-hint">
                             {shareOfGoal(v, goalMonths?.[m])}
                           </div>
                         )}
@@ -769,7 +769,7 @@ export default function BudgetGrid({
                   );
                 })}
 
-                <td className="px-3 py-1.5 text-right font-medium tabular-nums text-brand-dark">
+                <td className="px-3 py-1.5 text-right font-medium tabular-nums text-kf-text-primary">
                   {thb(sum(r.proposed))}
                 </td>
                 {showDelta && (
@@ -795,10 +795,10 @@ export default function BudgetGrid({
                 one rank above the month totals for the same reason. */}
             <th
               scope="row"
-              className="sticky bottom-0 left-0 px-3 py-2 text-left font-semibold text-brand-dark"
+              className="sticky bottom-0 left-0 px-3 py-2 text-left font-semibold text-kf-text-primary"
               style={{
-                width: STICKY_W, minWidth: STICKY_W, background: "#F9F8F6", zIndex: 40,
-                boxShadow: "inset -1px 0 0 #D8CBB0, inset 0 1px 0 #D8CBB0",
+                width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-palette-warm-1)", zIndex: 40,
+                boxShadow: "inset -1px 0 0 var(--kf-border), inset 0 1px 0 var(--kf-border)",
               }}
             >
               Total — my lines
@@ -813,8 +813,8 @@ export default function BudgetGrid({
                   paddingLeft: 2,
                   paddingRight: GUTTER_W,
                   zIndex: 30,
-                  background: Math.round(t) !== Math.round(approvedMonthTotals[m]) ? CHANGED_BG : "#F9F8F6",
-                  boxShadow: "inset 0 1px 0 #D8CBB0",
+                  background: Math.round(t) !== Math.round(approvedMonthTotals[m]) ? CHANGED_BG : "var(--kf-palette-warm-1)",
+                  boxShadow: "inset 0 1px 0 var(--kf-border)",
                 }}
               >
                 {t ? thb(t) : EM_DASH}
@@ -822,8 +822,8 @@ export default function BudgetGrid({
               </td>
             ))}
             <td
-              className="sticky bottom-0 px-3 py-2 text-right align-top font-semibold tabular-nums text-brand-dark"
-              style={{ zIndex: 30, background: "#F9F8F6", boxShadow: "inset 0 1px 0 #D8CBB0" }}
+              className="sticky bottom-0 px-3 py-2 text-right align-top font-semibold tabular-nums text-kf-text-primary"
+              style={{ zIndex: 30, background: "var(--kf-palette-warm-1)", boxShadow: "inset 0 1px 0 var(--kf-border)" }}
             >
               {thb(sum(monthTotals))}
               {hasGoals && <ShareLine value={sum(monthTotals)} goal={goalYearTotal} />}
@@ -832,7 +832,7 @@ export default function BudgetGrid({
               <td
                 className="sticky bottom-0 px-3 py-2 text-right font-semibold tabular-nums"
                 style={{
-                  zIndex: 30, background: "#F9F8F6", boxShadow: "inset 0 1px 0 #D8CBB0",
+                  zIndex: 30, background: "var(--kf-palette-warm-1)", boxShadow: "inset 0 1px 0 var(--kf-border)",
                   color:
                     sum(monthTotals) - sum(approvedMonthTotals) > 0
                       ? OVER

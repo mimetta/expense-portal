@@ -34,7 +34,7 @@ export default function HomeClient() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="mm-page-title">Welcome to Mimetta Expense Portal</h1>
+        <h1 className="mm-page-title">Welcome to Kindfolks Expenses</h1>
         <p className="mm-page-subtitle !mb-0">Here&apos;s what&apos;s happening today.</p>
       </div>
 
@@ -42,35 +42,35 @@ export default function HomeClient() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Link
           href="/my"
-          className="mm-card block transition hover:bg-[#FAFAF7]"
-          style={{ borderLeft: "3px solid #1F3A2B" }}
+          className="mm-card block transition hover:bg-kf-palette-warm-1"
+          style={{ borderLeft: "3px solid var(--kf-bg-brand)" }}
         >
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-kf-text-hint">
             My Pending Requests
           </div>
-          <div className="text-[26px] font-semibold text-brand-dark">{stats ? stats.myPending : "-"}</div>
+          <div className="text-[26px] font-semibold text-kf-text-primary">{stats ? stats.myPending : "-"}</div>
         </Link>
         {stats?.pendingMyApprovalRelevant && (
           <Link
             href={stats.approvalLink}
-            className="mm-card block transition hover:bg-[#FAFAF7]"
-            style={{ borderLeft: "3px solid #BD5A2E" }}
+            className="mm-card block transition hover:bg-kf-palette-warm-1"
+            style={{ borderLeft: "3px solid var(--kf-status-at-risk-strong)" }}
           >
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-kf-text-hint">
               Pending My Approval
             </div>
-            <div className="text-[26px] font-semibold text-brand-dark">{stats.pendingMyApproval}</div>
+            <div className="text-[26px] font-semibold text-kf-text-primary">{stats.pendingMyApproval}</div>
           </Link>
         )}
         <Link
           href="/accounting"
-          className="mm-card block transition hover:bg-[#FAFAF7]"
-          style={{ borderLeft: "3px solid #9CAE8C" }}
+          className="mm-card block transition hover:bg-kf-palette-warm-1"
+          style={{ borderLeft: "3px solid var(--kf-status-on-track)" }}
         >
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-subtle">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-kf-text-hint">
             Paid This Month
           </div>
-          <div className="text-[26px] font-semibold text-brand-dark">
+          <div className="text-[26px] font-semibold text-kf-text-primary">
             {stats ? formatCurrency(stats.paidThisMonth) : "-"}
           </div>
         </Link>
@@ -83,22 +83,22 @@ export default function HomeClient() {
       <div className="mm-card">
         <h2 className="mm-section-label">📢 Announcements</h2>
         {loading ? (
-          <p className="text-sm text-brand-muted">Loading...</p>
+          <p className="text-sm text-kf-text-muted">Loading...</p>
         ) : announcements.length === 0 ? (
-          <p className="text-sm text-brand-muted">No announcements.</p>
+          <p className="text-sm text-kf-text-muted">No announcements.</p>
         ) : (
           <div className="space-y-4">
             {announcements.map((a) => (
-              <div key={a.id} className="border-l-[3px] border-[#BD5A2E] pl-3">
+              <div key={a.id} className="border-l-[3px] border-kf-status-at-risk-strong pl-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-brand-dark">{a.title}</span>
+                  <span className="text-sm font-medium text-kf-text-primary">{a.title}</span>
                   {a.is_pinned && (
-                    <span className="rounded-full border border-[#F5C4A3] bg-[#FDF2EE] px-2 py-0.5 text-xs text-[#BD5A2E]">
+                    <span className="rounded-full border border-kf-status-at-risk bg-kf-palette-brown-tint px-2 py-0.5 text-xs text-kf-status-at-risk-strong">
                       📌 Pinned
                     </span>
                   )}
                 </div>
-                {a.message && <p className="mt-1 text-[13px] text-brand-muted">{a.message}</p>}
+                {a.message && <p className="mt-1 text-[13px] text-kf-text-muted">{a.message}</p>}
                 {a.attachment_url && (
                   a.attachment_type?.startsWith("image/") ? (
                     // Inline base64 data URL (see CLAUDE.md "File Storage"), not a remote asset
@@ -107,20 +107,20 @@ export default function HomeClient() {
                     <img
                       src={a.attachment_url}
                       alt={a.title}
-                      className="mt-2 max-h-64 rounded-md border border-brand-border object-contain"
+                      className="mt-2 max-h-64 rounded-md border border-kf-border object-contain"
                     />
                   ) : (
                     <a
                       href={a.attachment_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 inline-block text-sm text-brand-brown hover:underline"
+                      className="mt-2 inline-block text-sm text-kf-text-brand hover:underline"
                     >
                       📄 View attached document
                     </a>
                   )
                 )}
-                <p className="mt-1 text-[11px] text-brand-subtle">{formatDate(a.created_at)}</p>
+                <p className="mt-1 text-[11px] text-kf-text-hint">{formatDate(a.created_at)}</p>
               </div>
             ))}
           </div>

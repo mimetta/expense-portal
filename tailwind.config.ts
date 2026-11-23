@@ -1,6 +1,19 @@
 import type { Config } from "tailwindcss";
 
+// Colours and font families come from the Kindfolks kit preset
+// (brand/tokens/tailwind-preset.cjs, pinned in brand/KIT_VERSION). It
+// defines every `kf-*` colour as `var(--kf-*)` — the variables themselves
+// live in brand/tokens/tokens.css, imported once at the top of
+// app/globals.css — plus `font-sans` / `font-thai` / `font-title`.
+//
+// There is deliberately no `colors.brand` block any more. The old
+// brown/cream/border/dark/accent/sage/muted/subtle keys held raw hex and
+// were the app's own palette; every call site now uses a kit role name
+// instead, so a second vocabulary pointing at the same colours would just
+// be a way to bypass the kit. Never add a hex here — a colour the kit
+// lacks goes in an app token file with a palette value (brand/BRAND.md).
 const config: Config = {
+  presets: [require("./brand/tokens/tailwind-preset.cjs")],
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,29 +21,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      fontFamily: {
-        sans: ["var(--font-dm-sans)", "var(--font-noto-thai)", "sans-serif"],
-      },
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        // Mimetta brand palette (see CLAUDE.md "Brand"). Token keys kept as
-        // the original brown/cream/border/dark names even though the
-        // values no longer literally match (e.g. `brown` is now forest
-        // green) — renaming the keys would mean touching every
-        // bg-brand-brown/text-brand-brown/border-brand-border usage
-        // app-wide for no functional benefit; only the values needed to
-        // change for the rebrand.
-        brand: {
-          brown: "#1F3A2B", // forest green — primary actions, active nav, buttons
-          cream: "#FAF8F4", // warm off-white — page backgrounds ONLY (never cards/inputs)
-          border: "#D8CBB0", // sandstone beige — borders, cards, dividers
-          dark: "#1A1A1A", // near-black — body text
-          accent: "#BD5A2E", // burnt terracotta — hover states, badges, highlights
-          sage: "#9CAE8C", // muted sage — success/approved/positive indicators
-          muted: "#6B7280", // secondary text, inactive nav/tabs, labels
-          subtle: "#9CA3AF", // placeholder text, uppercase section labels, counts
-        },
+        background: "var(--kf-bg-page)",
+        foreground: "var(--kf-text-primary)",
       },
     },
   },

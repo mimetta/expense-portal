@@ -1,0 +1,68 @@
+/*
+ * Kindfolks kit 1.0.1 — colour tokens. Hex only; same names and values as tokens.json.
+ * Components use the ROLE names (second block). A palette name only where no role fits. Never a hex.
+ * An alpha goes on at the use site: color-mix(in srgb, var(--kf-x) 40%, transparent), or a Tailwind /40.
+ */
+:root {
+  /* Palette: onest's 8 */
+  --kf-palette-deep-green: #2C4A44;
+  --kf-palette-cream: #FEFFE9;
+  --kf-palette-lime: #CDF765;
+  --kf-palette-sage: #C7DBD4;
+  --kf-palette-olive: #C1CC7C;
+  --kf-palette-beige: #DFD5BC;
+  --kf-palette-brown: #9F8361;
+  --kf-palette-ink: #1E1E1E;
+  /* Palette: functional 4 (added in Figma) */
+  --kf-palette-white: #FFFFFF;
+  --kf-palette-terracotta: #B4533A;
+  --kf-palette-brown-text: #776146;
+  --kf-palette-olive-strong: #6E7A35;
+  /* Palette: 20 shades */
+  --kf-palette-deep-green-hover: #3D5A54;
+  --kf-palette-sage-light: #E0EBE7;
+  --kf-palette-olive-tint: #E9EDD1;
+  --kf-palette-olive-text: #5E6830;
+  --kf-palette-brown-tint: #F0EBE6;
+  --kf-palette-terracotta-text: #964834;
+  --kf-palette-terracotta-deep: #7E3C2B;
+  --kf-palette-terracotta-tint: #F7ECE9;
+  --kf-palette-warm-1: #FAF8F3;
+  --kf-palette-warm-2: #F5F2EB;
+  --kf-palette-warm-3: #EDE8DA;
+  --kf-palette-warm-4: #D3C7B0;
+  --kf-palette-warm-5: #C5B5A0;
+  --kf-palette-warm-6: #9A9282;
+  --kf-palette-warm-7: #8E887A;
+  --kf-palette-warm-8: #7A7465;
+  --kf-palette-warm-9: #6B6659;
+  --kf-palette-warm-10: #5C574C;
+  --kf-palette-on-green-muted: #BFC9B8;
+  --kf-palette-on-green-faint: #A6B8AD;
+
+  /* Roles: the 24 names both apps share */
+  --kf-bg-page: #FEFFE9;
+  --kf-bg-surface: #FFFFFF;
+  --kf-bg-muted: #F5F2EB;
+  --kf-bg-brand: #2C4A44;
+  --kf-bg-selected: #E0EBE7;
+  --kf-bg-active: #2C4A44;
+  --kf-text-primary: #1E1E1E;
+  --kf-text-muted: #6B6659;
+  --kf-text-hint: #7A7465;
+  --kf-text-accent: #776146;
+  --kf-text-brand: #2C4A44;
+  --kf-text-on-brand: #FEFFE9;
+  --kf-text-on-active: #FEFFE9;
+  --kf-text-positive: #5E6830;
+  --kf-border: #DFD5BC;
+  --kf-border-strong: #D3C7B0;
+  --kf-border-subtle: #EDE8DA;
+  --kf-border-focus: #2C4A44;
+  --kf-status-on-track: #6E7A35;
+  --kf-status-on-track-strong: #5E6830;
+  --kf-status-at-risk: #9F8361;
+  --kf-status-at-risk-strong: #776146;
+  --kf-status-late: #B4533A;
+  --kf-status-late-strong: #964834;
+}

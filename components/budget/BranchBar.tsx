@@ -87,11 +87,11 @@ export default function BranchBar({
   return (
     <div
       className="rounded-[10px] px-3 py-2"
-      style={{ background: "#FDFCFB", border: "1px solid #F0EAE0" }}
+      style={{ background: "var(--kf-palette-warm-1)", border: "1px solid var(--kf-border-subtle)" }}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <label className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.05em] text-brand-subtle">
+          <span className="text-[10px] uppercase tracking-[0.05em] text-kf-text-hint">
             Branch
           </span>
           {/* The colour a <select> cannot show, for the current value. */}
@@ -152,8 +152,8 @@ export default function BranchBar({
 
         {/* The dot, for the value on screen. */}
         {dirtyHere && (
-          <span className="flex items-center gap-1.5 text-[11.5px] text-brand-accent">
-            <span style={{ width: 6, height: 6, borderRadius: 99, background: "#BD5A2E" }} />
+          <span className="flex items-center gap-1.5 text-[11.5px] text-kf-status-at-risk-strong">
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: "var(--kf-status-at-risk-strong)" }} />
             unsaved changes here
           </span>
         )}
@@ -161,14 +161,14 @@ export default function BranchBar({
         {/* And for branches NOT on screen — the case the chips' dots existed
             for. Switching away from unsaved work must not be silent. */}
         {dirtyElsewhere.length > 0 && (
-          <span className="text-[11.5px] text-brand-accent">
+          <span className="text-[11.5px] text-kf-status-at-risk-strong">
             • unsaved on{" "}
             {dirtyElsewhere.map((d) => (d === NO_BRANCH ? NO_BRANCH_LABEL : d)).join(", ")}
           </span>
         )}
 
         {current?.closed && (
-          <span className="text-[11.5px] text-brand-muted">
+          <span className="text-[11.5px] text-kf-text-muted">
             {branchesWithLines.has(current.name) || current.tradedThisYear
               ? `Closed — FY${fiscalYear} stays editable because it traded this year.`
               : `Closed — no FY${fiscalYear} activity.`}
@@ -177,7 +177,7 @@ export default function BranchBar({
       </div>
 
       {isShared && (
-        <p className="mt-1.5 text-[11.5px] text-brand-muted">
+        <p className="mt-1.5 text-[11.5px] text-kf-text-muted">
           Costs that belong to <strong>every</strong> branch — travel between stores, bulk
           consumables, uniforms. A deliberate answer, unlike <em>(no branch)</em>, which means
           nobody recorded one.
@@ -185,7 +185,7 @@ export default function BranchBar({
       )}
 
       {selected === ALL_BRANCHES && (
-        <p className="mt-1.5 text-[11.5px] text-brand-muted">
+        <p className="mt-1.5 text-[11.5px] text-kf-text-muted">
           Showing every branch summed. <strong>Read-only</strong> — pick one branch to edit.
         </p>
       )}

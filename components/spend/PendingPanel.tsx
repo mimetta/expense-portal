@@ -15,7 +15,7 @@ export default function PendingPanel({ requests }: Props) {
     <div className="mm-card">
       <div className="mm-section-label">Pending approval</div>
       {requests.length === 0 ? (
-        <p className="py-6 text-center text-[13px] text-brand-muted">
+        <p className="py-6 text-center text-[13px] text-kf-text-muted">
           Nothing awaiting approval in this selection.
         </p>
       ) : (
@@ -40,18 +40,18 @@ export default function PendingPanel({ requests }: Props) {
                           its own. */}
                       <Link
                         href={`/print/${r.request_id}`}
-                        className="tabular-nums text-[13px] text-brand-brown hover:text-brand-accent hover:underline"
+                        className="tabular-nums text-[13px] text-kf-text-brand hover:text-kf-palette-deep-green-hover hover:underline"
                       >
                         {r.request_id}
                       </Link>
                     </td>
-                    <td className="max-w-[420px] truncate px-3 py-2 text-brand-muted" title={r.description}>
+                    <td className="max-w-[420px] truncate px-3 py-2 text-kf-text-muted" title={r.description}>
                       {r.description}
                     </td>
                     <td className="px-3 py-2">
                       <StatusBadge status={r.status as Status} />
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-brand-dark">
+                    <td className="px-3 py-2 text-right tabular-nums text-kf-text-primary">
                       {thb(r.amount)}
                     </td>
                   </tr>
@@ -59,7 +59,7 @@ export default function PendingPanel({ requests }: Props) {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-[11px] text-brand-subtle">
+          <p className="mt-2 text-[11px] text-kf-text-hint">
             Top {requests.length} by amount.
           </p>
         </>

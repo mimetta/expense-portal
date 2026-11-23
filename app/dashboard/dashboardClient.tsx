@@ -76,9 +76,9 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-brand-dark">Dashboard — 2026</h1>
+        <h1 className="text-2xl font-semibold text-kf-text-primary">Dashboard — 2026</h1>
         <select
-          className="rounded-md border border-brand-border px-3 py-1.5 text-sm"
+          className="rounded-md border border-kf-border px-3 py-1.5 text-sm"
           value={bu}
           onChange={(e) => setBu(e.target.value)}
         >
@@ -90,57 +90,57 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-dark/60">Loading...</p>
+        <p className="text-sm text-kf-text-primary/60">Loading...</p>
       ) : (
         <>
           <div className="mb-6 grid grid-cols-3 gap-4">
-            <div className="rounded-md border border-brand-border p-4">
-              <p className="text-xs text-brand-dark/60">Budget (2026)</p>
-              <p className="text-xl font-semibold text-brand-dark">{formatCurrency(totalBudget)}</p>
+            <div className="rounded-md border border-kf-border p-4">
+              <p className="text-xs text-kf-text-primary/60">Budget (2026)</p>
+              <p className="text-xl font-semibold text-kf-text-primary">{formatCurrency(totalBudget)}</p>
             </div>
-            <div className="rounded-md border border-brand-border p-4">
-              <p className="text-xs text-brand-dark/60">Actual Spend (Paid)</p>
-              <p className="text-xl font-semibold text-brand-dark">{formatCurrency(totalActual)}</p>
+            <div className="rounded-md border border-kf-border p-4">
+              <p className="text-xs text-kf-text-primary/60">Actual Spend (Paid)</p>
+              <p className="text-xl font-semibold text-kf-text-primary">{formatCurrency(totalActual)}</p>
             </div>
-            <div className="rounded-md border border-brand-border p-4">
-              <p className="text-xs text-brand-dark/60">Revenue</p>
-              <p className="text-xl font-semibold text-brand-dark">{formatCurrency(totalRevenue)}</p>
+            <div className="rounded-md border border-kf-border p-4">
+              <p className="text-xs text-kf-text-primary/60">Revenue</p>
+              <p className="text-xl font-semibold text-kf-text-primary">{formatCurrency(totalRevenue)}</p>
             </div>
           </div>
 
-          <div className="mb-6 rounded-md border border-brand-border p-4">
-            <h2 className="mb-3 font-semibold text-brand-dark">Monthly Trend</h2>
-            <div className="mb-2 flex gap-4 text-xs text-brand-dark/70">
-              <span><span className="inline-block h-2 w-2 rounded-full bg-brand-brown" /> Budget</span>
-              <span><span className="inline-block h-2 w-2 rounded-full bg-teal-500" /> Actual</span>
-              <span><span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> Revenue</span>
+          <div className="mb-6 rounded-md border border-kf-border p-4">
+            <h2 className="mb-3 font-semibold text-kf-text-primary">Monthly Trend</h2>
+            <div className="mb-2 flex gap-4 text-xs text-kf-text-primary/70">
+              <span><span className="inline-block h-2 w-2 rounded-full bg-kf-bg-brand" /> Budget</span>
+              <span><span className="inline-block h-2 w-2 rounded-full bg-kf-bg-brand" /> Actual</span>
+              <span><span className="inline-block h-2 w-2 rounded-full bg-kf-status-at-risk" /> Revenue</span>
             </div>
             <div className="flex items-end gap-2" style={{ height: 160 }}>
               {MONTH_LABELS.map((label, i) => (
                 <div key={label} className="flex flex-1 flex-col items-center gap-1">
                   <div className="flex h-32 w-full items-end gap-0.5">
                     <div
-                      className="flex-1 rounded-t bg-brand-brown"
+                      className="flex-1 rounded-t bg-kf-bg-brand"
                       style={{ height: `${(monthlyBudget[i] / maxValue) * 100}%` }}
                     />
                     <div
-                      className="flex-1 rounded-t bg-teal-500"
+                      className="flex-1 rounded-t bg-kf-bg-brand"
                       style={{ height: `${(monthlyActual[i] / maxValue) * 100}%` }}
                     />
                     <div
-                      className="flex-1 rounded-t bg-amber-500"
+                      className="flex-1 rounded-t bg-kf-status-at-risk"
                       style={{ height: `${(monthlyRevenue[i] / maxValue) * 100}%` }}
                     />
                   </div>
-                  <span className="text-[10px] text-brand-dark/60">{label}</span>
+                  <span className="text-[10px] text-kf-text-primary/60">{label}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-md border border-brand-border">
+          <div className="overflow-hidden rounded-md border border-kf-border">
             <table className="w-full text-sm">
-              <thead className="bg-brand-cream text-left text-brand-dark">
+              <thead className="bg-kf-bg-page text-left text-kf-text-primary">
                 <tr>
                   <th className="px-3 py-2">BU</th>
                   <th className="px-3 py-2">Segment</th>
@@ -156,14 +156,14 @@ export default function DashboardPage() {
                   const rowActual = row.actual.reduce((a, b) => a + b, 0);
                   const pct = rowBudget > 0 ? Math.round((rowActual / rowBudget) * 100) : 0;
                   return (
-                    <tr key={i} className="border-t border-brand-border">
+                    <tr key={i} className="border-t border-kf-border">
                       <td className="px-3 py-2">{row.bu}</td>
                       <td className="px-3 py-2">{row.department}</td>
                       <td className="px-3 py-2">{row.cat_l1 ?? "-"}</td>
                       <td className="px-3 py-2">{formatCurrency(rowBudget)}</td>
                       <td className="px-3 py-2">{formatCurrency(rowActual)}</td>
                       <td className="px-3 py-2">
-                        <span className={pct > 100 ? "text-red-600" : "text-brand-dark"}>{pct}%</span>
+                        <span className={pct > 100 ? "text-kf-status-late-strong" : "text-kf-text-primary"}>{pct}%</span>
                       </td>
                     </tr>
                   );

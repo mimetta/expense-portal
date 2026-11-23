@@ -186,7 +186,7 @@ export const branchLabel = (selection: string): string =>
       : selection;
 
 /** Shared gets a colour too, so it reads as a bucket rather than a gap. */
-export const SHARED_COLOUR = "#6B7280";
+export const SHARED_COLOUR = "var(--app-series-shared)";
 
 // ---------------------------------------------------------------------------
 // COLOUR
@@ -196,11 +196,14 @@ export const SHARED_COLOUR = "#6B7280";
 // it. Assigned from a fixed palette rather than stored, so adding a branch
 // cannot leave it colourless — and derived from the NAME, not the list index,
 // so a branch keeps its colour when another is added or closed above it.
-const PALETTE = [
-  "#1F3A2B", "#BD5A2E", "#3B6EA5", "#8E5A9E", "#2E7D52",
-  "#A5673B", "#4C6B8A", "#8E2A21", "#6B7280", "#7A5A0F",
-  "#5B7B5A", "#9C5B7B", "#3F7C7C", "#8A6D3B", "#55606E", "#7B5EA7",
-];
+// The sixteen hues are app tokens (app/tokens.css, --app-series-*), not kit
+// roles: a categorical series needs sixteen MUTUALLY DISTINGUISHABLE
+// colours, and the Kindfolks palette is twelve brand colours plus twenty
+// warm neutrals derived from them, which cannot separate sixteen series.
+// brand/BRAND.md says chart colours stay in each app for now. Keep them
+// distinct — collapsing two onto one kit role gives two branches the same
+// swatch.
+const PALETTE = Array.from({ length: 16 }, (_, i) => `var(--app-series-${i + 1})`);
 
 /** Stable hash, so a branch's colour does not move when the list changes. */
 export function branchColour(name: string): string {
@@ -210,11 +213,23 @@ export function branchColour(name: string): string {
 }
 
 /**
+ * The branch colour as a faint row wash (the old `${colour}12` hex-alpha
+ * suffix). Same reason as branchEdge: the colour is a CSS variable, so the
+ * alpha has to go on with color-mix at the use site.
+ */
+export const branchTint = (name: string): string =>
+  `color-mix(in srgb, ${branchColour(name)} 7%, transparent)`;
+
+/**
  * The branch colour at a given drill depth. Depth 0 is the branch header
  * itself; deeper levels fade toward the page so the edge reads as "still
  * inside this branch" without competing with the figures.
  */
 export const branchEdge = (name: string, depth: number): string => {
   const alpha = [1, 0.55, 0.3, 0.18][Math.min(depth, 3)];
-  return `${branchColour(name)}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
+  if (alpha === 1) return branchColour(name);
+  // color-mix, not a hex alpha suffix: the colour is a CSS variable now, and
+  // `var(--x)` + "8c" is not a colour. Mixing toward transparent is the same
+  // result and is what the kit's own Tailwind preset does for an alpha.
+  return `color-mix(in srgb, ${branchColour(name)} ${alpha * 100}%, transparent)`;
 };

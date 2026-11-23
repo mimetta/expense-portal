@@ -45,7 +45,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
   return (
     <div className="mm-card">
       <div className="mm-section-label">12-month trend</div>
-      <p className="-mt-2 mb-3 text-[13px] text-brand-muted">
+      <p className="-mt-2 mb-3 text-[13px] text-kf-text-muted">
         Always the full year, whatever period is selected above — the table is for finding a
         number, this is for seeing the shape.
       </p>
@@ -64,7 +64,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
                 x2={W - PAD_R}
                 y1={y(t)}
                 y2={y(t)}
-                stroke="#F0EAE0"
+                stroke="var(--kf-border-subtle)"
                 strokeWidth={1}
               />
               <text
@@ -73,7 +73,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
                 textAnchor="end"
                 className="tabular-nums"
                 fontSize={10}
-                fill="#9CA3AF"
+                fill="var(--kf-text-hint)"
               >
                 {compact(t)}
               </text>
@@ -93,7 +93,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
                     y={PAD_T}
                     width={slot}
                     height={plotH}
-                    fill="#F5F2EC"
+                    fill="var(--kf-palette-warm-2)"
                   />
                 )}
                 {/* Stacked: actual at the base, pending on top of it. */}
@@ -102,7 +102,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
                   y={y(d.actual)}
                   width={barW}
                   height={Math.max(0, actualH)}
-                  fill="#1F3A2B"
+                  fill="var(--kf-bg-brand)"
                   rx={2}
                 >
                   <title>{`${MONTH_NAMES[d.month - 1]} actual: ${thb(d.actual)}`}</title>
@@ -112,7 +112,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
                   y={y(d.actual + d.pending)}
                   width={barW}
                   height={Math.max(0, pendingH)}
-                  fill="#9CAE8C"
+                  fill="var(--kf-status-on-track)"
                   rx={2}
                 >
                   <title>{`${MONTH_NAMES[d.month - 1]} pending: ${thb(d.pending)}`}</title>
@@ -122,7 +122,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
                   y={H - 10}
                   textAnchor="middle"
                   fontSize={10}
-                  fill={current ? "#1A1A1A" : "#9CA3AF"}
+                  fill={current ? "var(--kf-text-primary)" : "var(--kf-text-hint)"}
                   fontWeight={current ? 600 : 400}
                 >
                   {MONTH_NAMES[d.month - 1]}
@@ -135,7 +135,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
             <path
               d={budgetPath}
               fill="none"
-              stroke="#BD5A2E"
+              stroke="var(--kf-status-at-risk-strong)"
               strokeWidth={1.5}
               strokeDasharray="5 4"
             />
@@ -143,13 +143,13 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
         </svg>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-brand-muted">
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-kf-text-muted">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#1F3A2B" }} />
+          <span className="inline-block h-3 w-3 rounded-sm" style={{ background: "var(--kf-bg-brand)" }} />
           Actual
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded-sm" style={{ background: "#9CAE8C" }} />
+          <span className="inline-block h-3 w-3 rounded-sm" style={{ background: "var(--kf-status-on-track)" }} />
           Pending
         </span>
         <span className="flex items-center gap-1.5">
@@ -159,7 +159,7 @@ export default function SpendTrend({ report, fiscalYear }: Props) {
               y1={2}
               x2={22}
               y2={2}
-              stroke="#BD5A2E"
+              stroke="var(--kf-status-at-risk-strong)"
               strokeWidth={1.5}
               strokeDasharray="5 4"
             />

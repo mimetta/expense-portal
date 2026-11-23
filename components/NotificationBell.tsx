@@ -80,7 +80,7 @@ export default function NotificationBell() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Notifications"
-        className="relative flex h-8 w-8 items-center justify-center rounded-md text-brand-muted transition-colors hover:bg-[#F3F4F6] hover:text-brand-dark"
+        className="relative flex h-8 w-8 items-center justify-center rounded-md text-kf-text-muted transition-colors hover:bg-kf-bg-muted hover:text-kf-text-primary"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path
@@ -93,8 +93,8 @@ export default function NotificationBell() {
         </svg>
         {unreadCount > 0 && (
           <span
-            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white"
-            style={{ background: "#DC2626" }}
+            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-kf-text-on-brand"
+            style={{ background: "var(--kf-status-late-strong)" }}
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
@@ -102,14 +102,14 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-80 rounded-md border border-brand-border bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b border-brand-border px-3 py-2">
-            <span className="text-sm font-medium text-brand-dark">Notifications</span>
+        <div className="absolute right-0 top-10 z-50 w-80 rounded-md border border-kf-border bg-kf-bg-surface shadow-lg">
+          <div className="flex items-center justify-between border-b border-kf-border px-3 py-2">
+            <span className="text-sm font-medium text-kf-text-primary">Notifications</span>
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
                 disabled={loading}
-                className="text-xs font-medium text-brand-brown hover:underline disabled:opacity-50"
+                className="text-xs font-medium text-kf-text-brand hover:underline disabled:opacity-50"
               >
                 Mark all read
               </button>
@@ -117,23 +117,23 @@ export default function NotificationBell() {
           </div>
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-brand-muted">No notifications yet.</p>
+              <p className="px-3 py-6 text-center text-sm text-kf-text-muted">No notifications yet.</p>
             ) : (
               notifications.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => openNotification(n)}
-                  className="flex w-full flex-col items-start gap-0.5 border-b border-brand-border px-3 py-2.5 text-left last:border-b-0 hover:bg-[#FAFAF7]"
+                  className="flex w-full flex-col items-start gap-0.5 border-b border-kf-border px-3 py-2.5 text-left last:border-b-0 hover:bg-kf-palette-warm-1"
                 >
                   <div className="flex w-full items-start gap-2">
                     {!n.is_read && (
-                      <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: "#BD5A2E" }} />
+                      <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: "var(--kf-status-at-risk-strong)" }} />
                     )}
-                    <span className={`flex-1 text-[13px] ${n.is_read ? "text-brand-muted" : "font-medium text-brand-dark"}`}>
+                    <span className={`flex-1 text-[13px] ${n.is_read ? "text-kf-text-muted" : "font-medium text-kf-text-primary"}`}>
                       {n.message}
                     </span>
                   </div>
-                  <span className="pl-3.5 text-[11px] text-brand-subtle">{formatDate(n.created_at)}</span>
+                  <span className="pl-3.5 text-[11px] text-kf-text-hint">{formatDate(n.created_at)}</span>
                 </button>
               ))
             )}

@@ -17,7 +17,7 @@ import {
   varianceLabel,
 } from "./format";
 import { FullSpendCell, SimpleSpendCell, GoalActualCell } from "@/components/spend/cells";
-import { branchColour, branchEdge } from "@/lib/branches-shared";
+import { branchColour, branchEdge, branchTint } from "@/lib/branches-shared";
 import type { SpendCell, SpendGranularity, SpendNode, SpendReport } from "@/lib/spend";
 
 interface Props {
@@ -33,7 +33,7 @@ interface Props {
   groupBy?: "category" | "branch";
 }
 
-const CURRENT_MONTH_BG = "#F5F2EC";
+const CURRENT_MONTH_BG = "var(--kf-palette-warm-2)";
 const STICKY_W = 260;
 
 function usedPct(actual: number, budget: number): number | null {
@@ -69,7 +69,7 @@ function MonthCell({
   // month reads as good news when it is actually no news.
   if (!cell || cell.actual === 0 || isFutureMonth(fiscalYear, month)) {
     return (
-      <td className="px-2 py-2 text-right text-brand-subtle tabular-nums" style={base}>
+      <td className="px-2 py-2 text-right text-kf-text-hint tabular-nums" style={base}>
         {EM_DASH}
       </td>
     );
@@ -142,11 +142,11 @@ function RevenueRow({
   metricCount: number;
 }) {
   return (
-    <tr style={{ background: "#F1F7F2" }}>
+    <tr style={{ background: "var(--kf-palette-olive-tint)" }}>
       <th
         scope="row"
-        className="sticky left-0 z-10 border-r border-brand-border px-3 py-2 text-left font-medium"
-        style={{ width: STICKY_W, minWidth: STICKY_W, background: "#F1F7F2" }}
+        className="sticky left-0 z-10 border-r border-kf-border px-3 py-2 text-left font-medium"
+        style={{ width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-palette-olive-tint)" }}
       >
         Revenue actual
       </th>
@@ -157,7 +157,7 @@ function RevenueRow({
             className="px-2 py-1.5 align-top"
             style={{
               textAlign: "right",
-              background: isCurrentMonth(fiscalYear, m) ? "#E7F0E9" : undefined,
+              background: isCurrentMonth(fiscalYear, m) ? "var(--kf-palette-olive-tint)" : undefined,
             }}
             title={revenue.actual[m] === null ? "No actual revenue known for this month" : undefined}
           >
@@ -171,12 +171,12 @@ function RevenueRow({
       {/* Budget has no meaning for revenue; actual is the period total; and
           revenue as a share of itself would be 100% — all three are em
           dashes rather than invented figures. */}
-      <td className="px-3 py-2 text-right align-top text-brand-subtle tabular-nums">{EM_DASH}</td>
+      <td className="px-3 py-2 text-right align-top text-kf-text-hint tabular-nums">{EM_DASH}</td>
       <td className="px-3 py-2 text-right align-top tabular-nums font-semibold">
         {revenue.actualTotal === null ? EM_DASH : thb(revenue.actualTotal)}
       </td>
       {Array.from({ length: Math.max(0, metricCount - 2) }).map((_, i) => (
-        <td key={i} className="px-3 py-2 text-right align-top text-brand-subtle tabular-nums">
+        <td key={i} className="px-3 py-2 text-right align-top text-kf-text-hint tabular-nums">
           {EM_DASH}
         </td>
       ))}
@@ -236,7 +236,7 @@ function Money({
   tone?: "dark" | "muted" | "accent";
 }) {
   const toneClass =
-    tone === "accent" ? "text-brand-accent" : tone === "muted" ? "text-brand-muted" : "text-brand-dark";
+    tone === "accent" ? "text-kf-status-at-risk-strong" : tone === "muted" ? "text-kf-text-muted" : "text-kf-text-primary";
   return (
     <span className={`tabular-nums ${emphasis ? "font-semibold " : ""}${toneClass}`}>
       {value > 0 ? thb(value) : EM_DASH}
@@ -273,7 +273,7 @@ function ActualMetric({
   return (
     <div className="flex flex-col items-end gap-0.5">
       <span
-        className={`tabular-nums text-brand-dark ${emphasis ? "font-semibold" : ""}`}
+        className={`tabular-nums text-kf-text-primary ${emphasis ? "font-semibold" : ""}`}
       >
         {total.actual > 0 ? thb(total.actual) : EM_DASH}
       </span>
@@ -281,7 +281,7 @@ function ActualMetric({
         // No budget to measure against. A literal "+0 · 0%" here would read
         // as a real measurement of a perfectly-on-budget segment, which is
         // the opposite of the truth — one em dash says "not applicable".
-        <span className="text-[11px] leading-none text-brand-subtle">{EM_DASH}</span>
+        <span className="text-[11px] leading-none text-kf-text-hint">{EM_DASH}</span>
       ) : (
         <span className="flex items-center gap-1 text-[11px] leading-none">
           <span
@@ -293,8 +293,8 @@ function ActualMetric({
           >
             {varianceLabel(variance)}
           </span>
-          <span className="text-brand-subtle">·</span>
-          <span className="h-1 w-8 overflow-hidden rounded-full bg-[#F0EAE0]">
+          <span className="text-kf-text-hint">·</span>
+          <span className="h-1 w-8 overflow-hidden rounded-full bg-kf-border-subtle">
             <span
               className="block h-full rounded-full"
               style={{ width: `${Math.min(100, used)}%`, background: utilisationColor(used) }}
@@ -395,24 +395,24 @@ function Row({
   return (
     <>
       <tr
-        className={depth > 0 ? "bg-[#FCFBF9]" : undefined}
+        className={depth > 0 ? "bg-kf-palette-warm-1" : undefined}
         style={
           // Depth 0 is the branch header: tinted, so the eye finds the branch
           // boundary without reading labels.
           branchName && depth === 0
-            ? { background: `${branchColour(branchName)}12` }
+            ? { background: branchTint(branchName) }
             : undefined
         }
       >
         <th
           scope="row"
-          className="sticky left-0 z-10 border-r border-brand-border px-3 py-2 text-left font-normal"
+          className="sticky left-0 z-10 border-r border-kf-border px-3 py-2 text-left font-normal"
           style={{
             width: STICKY_W,
             minWidth: STICKY_W,
             background: branchName && depth === 0
-              ? `${branchColour(branchName)}12`
-              : depth > 0 ? "#FCFBF9" : "#FFFFFF",
+              ? branchTint(branchName)
+              : depth > 0 ? "var(--kf-palette-warm-1)" : "var(--kf-bg-surface)",
             paddingLeft: 12 + depth * 18,
             // The coloured left edge, fading with depth — one branch's rows
             // read as one block however deep the drill goes.
@@ -434,7 +434,7 @@ function Row({
                 type="button"
                 onClick={() => toggle(node.key)}
                 aria-expanded={isOpen}
-                className="w-3.5 shrink-0 text-brand-subtle hover:text-brand-dark"
+                className="w-3.5 shrink-0 text-kf-text-hint hover:text-kf-text-primary"
               >
                 {isOpen ? "▾" : "▸"}
               </button>
@@ -442,7 +442,7 @@ function Row({
               <span className="w-3.5 shrink-0" />
             )}
             <span
-              className={`truncate ${depth === 0 ? "font-medium text-brand-dark" : "text-brand-muted"}`}
+              className={`truncate ${depth === 0 ? "font-medium text-kf-text-primary" : "text-kf-text-muted"}`}
               title={node.name}
             >
               {node.name}
@@ -450,7 +450,7 @@ function Row({
             {node.unbudgeted && (
               <span
                 className="ml-1 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
-                style={{ background: "#FDF2EE", color: "#BD5A2E", border: "1px solid #F5C4A3" }}
+                style={{ background: "var(--kf-palette-brown-tint)", color: "var(--kf-status-at-risk-strong)", border: "1px solid var(--kf-status-at-risk)" }}
               >
                 no budget set
               </span>
@@ -505,8 +505,8 @@ function HeatLegend() {
     { color: HEAT_OVER, label: "Over budget" },
   ];
   return (
-    <div className="flex flex-wrap items-center gap-4 text-[11px] text-brand-muted">
-      <span className="uppercase tracking-[0.05em] text-brand-subtle">Month shading</span>
+    <div className="flex flex-wrap items-center gap-4 text-[11px] text-kf-text-muted">
+      <span className="uppercase tracking-[0.05em] text-kf-text-hint">Month shading</span>
       {items.map((item) => (
         <span key={item.label} className="flex items-center gap-1.5">
           <span
@@ -519,7 +519,7 @@ function HeatLegend() {
       <span className="flex items-center gap-1.5">
         <span
           className="inline-block h-3 w-5 rounded-sm"
-          style={{ background: CURRENT_MONTH_BG, border: "1px solid #D8CBB0" }}
+          style={{ background: CURRENT_MONTH_BG, border: "1px solid var(--kf-border)" }}
         />
         Current month
       </span>
@@ -539,7 +539,7 @@ function ProRataNote({ fiscalYear, months }: { fiscalYear: number; months: numbe
   if (current === undefined) return null;
   const share = pct(monthElapsedFraction(fiscalYear, current) * 100);
   return (
-    <p className="mb-3 text-[11px] text-brand-subtle">
+    <p className="mb-3 text-[11px] text-kf-text-hint">
       <span aria-hidden>* </span>
       <strong className="font-medium">Budget pro-rated to date.</strong> {MONTH_NAMES[current - 1]}{" "}
       is {share} elapsed, so its shading and the Used % compare spend against {share} of its
@@ -608,8 +608,8 @@ export default function SpendTable({
       <div className="mm-card">
         <div className="mm-section-label">Spend by segment</div>
         <div className="py-10 text-center">
-          <p className="text-sm font-medium text-brand-dark">No spend in this selection</p>
-          <p className="mt-1 text-[13px] text-brand-muted">
+          <p className="text-sm font-medium text-kf-text-primary">No spend in this selection</p>
+          <p className="mt-1 text-[13px] text-kf-text-muted">
             Try widening the <strong>period</strong> or setting <strong>Segment</strong> back to
             &ldquo;All segments&rdquo;. If you are filtered to one business unit, switching to{" "}
             <strong>All</strong> may also help.
@@ -639,8 +639,8 @@ export default function SpendTable({
           <thead>
             <tr>
               <th
-                className="sticky left-0 z-20 border-r border-brand-border text-left"
-                style={{ width: STICKY_W, minWidth: STICKY_W, background: "#F9F8F6" }}
+                className="sticky left-0 z-20 border-r border-kf-border text-left"
+                style={{ width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-palette-warm-1)" }}
               >
                 Segment
               </th>
@@ -660,7 +660,7 @@ export default function SpendTable({
                     >
                       {MONTH_NAMES[m - 1]}
                       {current && (
-                        <span className="ml-0.5 font-normal text-brand-subtle" aria-hidden>
+                        <span className="ml-0.5 font-normal text-kf-text-hint" aria-hidden>
                           *
                         </span>
                       )}
@@ -701,11 +701,11 @@ export default function SpendTable({
             ))}
           </tbody>
           <tfoot className="sticky bottom-0 z-10">
-            <tr style={{ background: "#F9F8F6", borderTop: "1px solid #D8CBB0" }}>
+            <tr style={{ background: "var(--kf-palette-warm-1)", borderTop: "1px solid var(--kf-border)" }}>
               <th
                 scope="row"
-                className="sticky left-0 z-20 border-r border-brand-border px-3 py-2 text-left font-semibold text-brand-dark"
-                style={{ width: STICKY_W, minWidth: STICKY_W, background: "#F9F8F6" }}
+                className="sticky left-0 z-20 border-r border-kf-border px-3 py-2 text-left font-semibold text-kf-text-primary"
+                style={{ width: STICKY_W, minWidth: STICKY_W, background: "var(--kf-palette-warm-1)" }}
               >
                 Total
               </th>

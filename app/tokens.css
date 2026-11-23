@@ -1,0 +1,103 @@
+/*
+ * The app's OWN colour roles. Everything here is either a Kindfolks kit
+ * palette colour under an app-specific name, or — for the one case the kit
+ * has no answer to — an app value, declared once, here.
+ *
+ * brand/BRAND.md: "If your app needs a role the kit doesn't have, add it to
+ * the app's own token file with a palette value, and propose it for the kit
+ * if another app would use it." This is that file. Never put a hex in a
+ * component; add the role here instead.
+ *
+ * Imported by app/globals.css straight after the kit's tokens.css, so these
+ * can be defined in terms of --kf-* variables.
+ */
+:root {
+  /* --- Status badges -------------------------------------------------
+   * Eight request statuses need eight distinguishable pills, and the kit's
+   * pill vocabulary is status-semantic (on-track / at-risk / late) rather
+   * than stage-semantic, so it does not map onto an approval CHAIN on its
+   * own. The resolution: the forward stages climb the kit's green family
+   * by intensity (neutral -> sage-light -> olive-tint -> solid olive ->
+   * solid deep green), and brown and terracotta are kept for the two
+   * exception statuses, which is what the kit reserves them for.
+   *
+   * Every pair is >= 4.5:1, measured against brand/tokens/tokens.json:
+   * 6.43 / 7.93 / 5.00 / 4.60 / 9.54 / 5.54 / 4.95 / 5.12. */
+  --app-status-submitted-bg: var(--kf-bg-muted);
+  --app-status-submitted-fg: var(--kf-palette-warm-10);
+  --app-status-submitted-edge: var(--kf-border-strong);
+
+  --app-status-po-bg: var(--kf-bg-selected);
+  --app-status-po-fg: var(--kf-text-brand);
+  --app-status-po-edge: var(--kf-palette-sage);
+
+  --app-status-bo-bg: var(--kf-palette-olive-tint);
+  --app-status-bo-fg: var(--kf-palette-olive-text);
+  --app-status-bo-edge: var(--kf-palette-olive);
+
+  --app-status-ceo-bg: var(--kf-palette-olive-strong);
+  --app-status-ceo-fg: var(--kf-palette-cream);
+  --app-status-ceo-edge: var(--kf-palette-olive-strong);
+
+  --app-status-paid-bg: var(--kf-bg-brand);
+  --app-status-paid-fg: var(--kf-text-on-brand);
+  --app-status-paid-edge: var(--kf-bg-brand);
+
+  --app-status-rejected-bg: var(--kf-palette-terracotta-tint);
+  --app-status-rejected-fg: var(--kf-status-late-strong);
+  --app-status-rejected-edge: var(--kf-palette-terracotta);
+
+  --app-status-edit-bg: var(--kf-palette-brown-tint);
+  --app-status-edit-fg: var(--kf-status-at-risk-strong);
+  --app-status-edit-edge: var(--kf-status-at-risk);
+
+  /* Historical only (imported legacy rows); inert, so a warm neutral that
+     is not SUBMITTED's. */
+  --app-status-expired-bg: var(--kf-palette-warm-2);
+  --app-status-expired-fg: var(--kf-text-muted);
+  --app-status-expired-edge: var(--kf-border);
+
+  /* --- Calendar event types --------------------------------------------
+   * Five types, five of the kit's pill pairings. The app had these as
+   * blue / red / amber / green / grey; blue has no kit equivalent, so
+   * "payment" takes the sage-light + deep-green pairing. */
+  --app-event-payment-bg: var(--kf-bg-selected);
+  --app-event-payment-fg: var(--kf-text-brand);
+  --app-event-deadline-bg: var(--kf-palette-terracotta-tint);
+  --app-event-deadline-fg: var(--kf-status-late-strong);
+  --app-event-reminder-bg: var(--kf-palette-brown-tint);
+  --app-event-reminder-fg: var(--kf-status-at-risk-strong);
+  --app-event-important-bg: var(--kf-palette-olive-tint);
+  --app-event-important-fg: var(--kf-palette-olive-text);
+  --app-event-general-bg: var(--kf-bg-muted);
+  --app-event-general-fg: var(--kf-palette-warm-10);
+
+  /* --- Branch / channel chart series -----------------------------------
+   * THE ONE THING THE KIT CANNOT SUPPLY. A categorical series needs ~16
+   * mutually distinguishable hues; the kit palette is 12 brand colours and
+   * 20 warm neutral shades derived from them, which cannot separate 16
+   * series. BRAND.md says chart colours stay in each app for now, so these
+   * live here and nowhere else.
+   *
+   * The first five are kit colours; the rest are app hues chosen to sit
+   * beside them without clashing. If a shared chart palette is ever added
+   * to the kit, this block is the only thing to delete. */
+  --app-series-1: var(--kf-palette-deep-green);
+  --app-series-2: var(--kf-palette-brown);
+  --app-series-3: var(--kf-palette-terracotta);
+  --app-series-4: var(--kf-palette-olive-strong);
+  --app-series-5: var(--kf-palette-warm-9);
+  --app-series-6: #3B6EA5;
+  --app-series-7: #8E5A9E;
+  --app-series-8: var(--kf-status-on-track);
+  --app-series-9: var(--kf-status-at-risk-strong);
+  --app-series-10: #4C6B8A;
+  --app-series-11: #5B7B5A;
+  --app-series-12: #9C5B7B;
+  --app-series-13: #3F7C7C;
+  --app-series-14: var(--kf-status-at-risk-strong);
+  --app-series-15: #55606E;
+  --app-series-16: #7B5EA7;
+  /* "Shared" is a bucket, not a branch, so it takes a neutral. */
+  --app-series-shared: var(--kf-palette-warm-7);
+}

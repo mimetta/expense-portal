@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { resolveFileUrl } from "@/components/shared/RequestForm";
 import type { FileEntry } from "@/types/database";
+import { kfValue } from "@/lib/brand-colors";
 
 type Corner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
@@ -263,9 +264,9 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
     const canvas = padCanvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = kfValue("--kf-bg-surface");
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#1A1A1A";
+    ctx.strokeStyle = kfValue("--kf-text-primary");
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -307,7 +308,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
     const canvas = padCanvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = kfValue("--kf-bg-surface");
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     setHasDrawnSig(false);
   };
@@ -558,7 +559,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
 
   if (loading) {
     return (
-      <div className="rounded-md border border-brand-border bg-white p-3 text-sm text-brand-muted">
+      <div className="rounded-md border border-kf-border bg-kf-bg-surface p-3 text-sm text-kf-text-muted">
         Loading PDF...
       </div>
     );
@@ -566,20 +567,20 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
 
   if (loadError) {
     return (
-      <div className="rounded-md border border-brand-border bg-white p-3">
-        <p className="text-sm text-red-600">{loadError}</p>
+      <div className="rounded-md border border-kf-border bg-kf-bg-surface p-3">
+        <p className="text-sm text-kf-status-late-strong">{loadError}</p>
         <div className="mt-2 flex gap-2">
           <a
             href={resolvedUrl}
             download={file.name}
-            className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
+            className="rounded-md border border-kf-border px-3 py-1.5 text-sm hover:bg-kf-palette-warm-1"
           >
             ดาวน์โหลด
           </a>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
+            className="rounded-md border border-kf-border px-3 py-1.5 text-sm hover:bg-kf-palette-warm-1"
           >
             Cancel
           </button>
@@ -589,8 +590,8 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
   }
 
   return (
-    <div className="rounded-md border border-brand-border bg-white p-3">
-      <div className="mb-2 flex items-center justify-center gap-3 text-sm text-brand-dark">
+    <div className="rounded-md border border-kf-border bg-kf-bg-surface p-3">
+      <div className="mb-2 flex items-center justify-center gap-3 text-sm text-kf-text-primary">
         <button
           type="button"
           disabled={pageNum <= 1}
@@ -612,7 +613,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         </button>
       </div>
 
-      <div className="flex justify-center overflow-auto rounded-md border border-brand-border bg-[#F9F8F6] p-2">
+      <div className="flex justify-center overflow-auto rounded-md border border-kf-border bg-kf-palette-warm-1 p-2">
         <canvas
           ref={pageCanvasRef}
           className={`max-w-full touch-none ${canDragOnCurrentPage ? "cursor-move" : ""}`}
@@ -626,33 +627,33 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         />
       </div>
       {canDragOnCurrentPage && (
-        <p className="mt-1 text-center text-[11px] text-brand-subtle">
+        <p className="mt-1 text-center text-[11px] text-kf-text-hint">
           Drag the signature on the page to fine-tune its position
         </p>
       )}
 
       {savedSignatureUrl && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-brand-border bg-[#F9F8F6] p-2">
-          <span className="text-xs text-brand-muted">You have a saved signature:</span>
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-kf-border bg-kf-palette-warm-1 p-2">
+          <span className="text-xs text-kf-text-muted">You have a saved signature:</span>
           <button
             type="button"
             disabled={loadingSavedSig}
             onClick={handleUseSavedSignature}
-            className="rounded-md border border-brand-brown px-3 py-1.5 text-xs font-medium text-brand-brown hover:bg-white disabled:opacity-40"
+            className="rounded-md border border-kf-text-brand px-3 py-1.5 text-xs font-medium text-kf-text-brand hover:bg-kf-bg-surface disabled:opacity-40"
           >
             {loadingSavedSig ? "Loading..." : "✓ Use my saved signature"}
           </button>
           <button
             type="button"
             onClick={handleRemoveSavedSignature}
-            className="text-xs text-brand-muted underline hover:text-red-600"
+            className="text-xs text-kf-text-muted underline hover:text-kf-status-late-strong"
           >
             Remove
           </button>
         </div>
       )}
 
-      <p className="mt-3 mb-1.5 text-xs font-medium text-brand-muted">
+      <p className="mt-3 mb-1.5 text-xs font-medium text-kf-text-muted">
         Or draw a new signature below, or upload an image of one:
       </p>
       <div className="relative">
@@ -660,7 +661,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           ref={padCanvasRef}
           width={PAD_WIDTH}
           height={PAD_HEIGHT}
-          className="w-full max-w-[400px] touch-none rounded-md border border-brand-border bg-white"
+          className="w-full max-w-[400px] touch-none rounded-md border border-kf-border bg-kf-bg-surface"
           onMouseDown={startPadDraw}
           onMouseMove={padDraw}
           onMouseUp={stopPadDraw}
@@ -670,7 +671,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           onTouchEnd={stopPadDraw}
         />
         <div
-          className={`pointer-events-none absolute inset-0 flex max-w-[400px] items-center justify-center text-xs text-brand-subtle transition-opacity duration-300 ${
+          className={`pointer-events-none absolute inset-0 flex max-w-[400px] items-center justify-center text-xs text-kf-text-hint transition-opacity duration-300 ${
             hasDrawnSig ? "opacity-0" : "opacity-100"
           }`}
         >
@@ -681,18 +682,18 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
         <button
           type="button"
           onClick={clearPad}
-          className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
+          className="rounded-md border border-kf-border px-3 py-1.5 text-sm hover:bg-kf-palette-warm-1"
         >
           Clear
         </button>
-        <label className="cursor-pointer rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]">
+        <label className="cursor-pointer rounded-md border border-kf-border px-3 py-1.5 text-sm hover:bg-kf-palette-warm-1">
           Upload signature image
           <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleUploadSignatureFile} />
         </label>
       </div>
 
       <div className="mt-3">
-        <p className="mb-1.5 text-xs font-medium text-brand-muted">
+        <p className="mb-1.5 text-xs font-medium text-kf-text-muted">
           Signature position — pick a corner, or drag it on the page above once placed
         </p>
         <div className="flex flex-wrap gap-2">
@@ -703,8 +704,8 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
               onClick={() => selectCorner(c.key)}
               className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
                 selectedCorner === c.key
-                  ? "border-brand-brown bg-brand-brown text-white"
-                  : "border-brand-border text-brand-dark hover:bg-[#F9F8F6]"
+                  ? "border-kf-bg-active bg-kf-bg-active text-kf-text-on-brand"
+                  : "border-kf-border text-kf-text-primary hover:bg-kf-palette-warm-1"
               }`}
             >
               {c.label}
@@ -718,7 +719,7 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           type="button"
           disabled={!hasDrawnSig}
           onClick={placeSignature}
-          className="rounded-md border border-brand-brown px-3 py-1.5 text-sm font-medium text-brand-brown hover:bg-[#F9F8F6] disabled:opacity-40"
+          className="rounded-md border border-kf-text-brand px-3 py-1.5 text-sm font-medium text-kf-text-brand hover:bg-kf-palette-warm-1 disabled:opacity-40"
         >
           Place Signature
         </button>
@@ -726,14 +727,14 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
           type="button"
           disabled={Object.keys(placedSignatures).length === 0 || saving}
           onClick={handleSaveSignedPdf}
-          className="rounded-md bg-brand-brown px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-accent disabled:opacity-40"
+          className="rounded-md bg-kf-bg-brand px-3 py-1.5 text-sm font-medium text-kf-text-on-brand hover:bg-kf-palette-deep-green-hover disabled:opacity-40"
         >
           {saving ? "Saving..." : "Save Signed PDF"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-brand-border px-3 py-1.5 text-sm hover:bg-[#F9F8F6]"
+          className="rounded-md border border-kf-border px-3 py-1.5 text-sm hover:bg-kf-palette-warm-1"
         >
           Cancel
         </button>
@@ -742,14 +743,14 @@ export default function PDFSigner({ file, onSaved, onCancel }: PDFSignerProps) {
             type="button"
             disabled={savingSignature}
             onClick={handleSaveSignatureForNextTime}
-            className="rounded-md border border-brand-border px-3 py-1.5 text-sm font-medium text-brand-dark hover:bg-[#F9F8F6] disabled:opacity-40"
+            className="rounded-md border border-kf-border px-3 py-1.5 text-sm font-medium text-kf-text-primary hover:bg-kf-palette-warm-1 disabled:opacity-40"
           >
             {savingSignature ? "Saving..." : "💾 Save this signature for next time"}
           </button>
         )}
       </div>
-      {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
-      {signatureSavedMsg && <p className="mt-2 text-sm text-brand-sage">{signatureSavedMsg}</p>}
+      {saveError && <p className="mt-2 text-sm text-kf-status-late-strong">{saveError}</p>}
+      {signatureSavedMsg && <p className="mt-2 text-sm text-kf-text-positive">{signatureSavedMsg}</p>}
     </div>
   );
 }

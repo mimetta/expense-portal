@@ -44,7 +44,7 @@ function Countdown({ request }: { request: ExpenseRequest }) {
   const msLeft = deadline.getTime() - Date.now();
   if (msLeft <= 0) {
     return (
-      <span className="text-xs text-brand-subtle">
+      <span className="text-xs text-kf-text-hint">
         ระยะเวลาส่งคำขอกลับ ({windowLabel(hours)}) ได้สิ้นสุดลงแล้วเมื่อวันที่{" "}
         {formatDate(deadline.toISOString())} — คำขอนี้จะถูกปฏิเสธถาวร คุณยังสามารถแก้ไขรายละเอียดได้
         (เช่น แนบเอกสารที่ขาด) แต่สถานะจะไม่สามารถเปลี่ยนแปลงได้อีก
@@ -55,7 +55,7 @@ function Countdown({ request }: { request: ExpenseRequest }) {
   const hoursLeft = Math.floor(msLeft / 3_600_000);
   const minutesLeft = Math.floor((msLeft % 3_600_000) / 60_000);
   return (
-    <span className="text-xs font-medium text-red-700">
+    <span className="text-xs font-medium text-kf-status-late-strong">
       เหลือเวลา {hoursLeft} ชม. {minutesLeft} นาที ในการส่งคำขอกลับ (ภายในวันที่{" "}
       {formatDate(deadline.toISOString())}) — หากเกินกำหนดนี้ คำขอจะถูกปฏิเสธถาวร
     </span>
@@ -107,16 +107,16 @@ function EditRequestModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4"
+      className="fixed inset-0 z-50 overflow-y-auto bg-kf-palette-ink/45 p-4"
       style={{ backdropFilter: "blur(2px)" }}
       onClick={onClose}
     >
       <div
-        className="mx-auto my-8 max-w-4xl rounded-xl border border-brand-border bg-white p-6 shadow-lg"
+        className="mx-auto my-8 max-w-4xl rounded-xl border border-kf-border bg-kf-bg-surface p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex justify-end">
-          <button onClick={onClose} className="text-sm text-brand-muted hover:text-brand-dark">
+          <button onClick={onClose} className="text-sm text-kf-text-muted hover:text-kf-text-primary">
             ✕ Close
           </button>
         </div>
@@ -132,24 +132,24 @@ function EditRequestModal({
           }
           banner={
             isRejected ? (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
-                <p className="font-medium text-red-800">
+              <div className="rounded-md border border-kf-palette-terracotta bg-kf-palette-terracotta-tint p-3 text-sm">
+                <p className="font-medium text-kf-status-late-strong">
                   Rejected at {request.rejected_stage ?? "-"} by {request.rejected_by ?? "-"} —{" "}
                   {formatDate(request.rejected_at)}
                 </p>
-                <p className="text-red-700">Reason: {request.reject_reason ?? "-"}</p>
+                <p className="text-kf-status-late-strong">Reason: {request.reject_reason ?? "-"}</p>
                 <div className="mt-1">
                   <Countdown request={request} />
                 </div>
               </div>
             ) : isEditApprovedRequest ? (
-              <div className="rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
+              <div className="rounded-md border border-kf-border bg-kf-palette-warm-1 p-3 text-sm text-kf-text-primary">
                 <span className="font-medium">{request.edit_approved_by}</span> granted your edit request. Make
                 your changes and resubmit — the request will return to{" "}
                 <span className="font-medium">{request.status_before_edit ?? "its prior stage"}</span>.
               </div>
             ) : (
-              <div className="rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
+              <div className="rounded-md border border-kf-border bg-kf-palette-warm-1 p-3 text-sm text-kf-text-primary">
                 You can edit this request freely until Procurement takes action on it.
               </div>
             )
@@ -229,16 +229,16 @@ function DuplicateRequestModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-4"
+      className="fixed inset-0 z-50 overflow-y-auto bg-kf-palette-ink/45 p-4"
       style={{ backdropFilter: "blur(2px)" }}
       onClick={onClose}
     >
       <div
-        className="mx-auto my-8 max-w-4xl rounded-xl border border-brand-border bg-white p-6 shadow-lg"
+        className="mx-auto my-8 max-w-4xl rounded-xl border border-kf-border bg-kf-bg-surface p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex justify-end">
-          <button onClick={onClose} className="text-sm text-brand-muted hover:text-brand-dark">
+          <button onClick={onClose} className="text-sm text-kf-text-muted hover:text-kf-text-primary">
             ✕ Close
           </button>
         </div>
@@ -246,7 +246,7 @@ function DuplicateRequestModal({
           initial={requestToDuplicateInitial(request)}
           title={`Duplicate ${request.request_id}`}
           banner={
-            <div className="rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
+            <div className="rounded-md border border-kf-border bg-kf-palette-warm-1 p-3 text-sm text-kf-text-primary">
               Creating a new request pre-filled from the rejected {request.request_id}. This does not change or
               resubmit the original — review every field (especially payment details and attachments) before
               submitting.
@@ -309,16 +309,16 @@ function RequestEditReasonModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-kf-palette-ink/45 p-4"
       style={{ backdropFilter: "blur(2px)" }}
       onClick={() => !busy && onClose()}
     >
       <div
-        className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
+        className="w-full max-w-sm rounded-xl border border-kf-border bg-kf-bg-surface p-5 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-2 text-base font-semibold text-brand-dark">Request Edit</h3>
-        <p className="mb-3 text-sm text-brand-muted">
+        <h3 className="mb-2 text-base font-semibold text-kf-text-primary">Request Edit</h3>
+        <p className="mb-3 text-sm text-kf-text-muted">
           Ask the current approver for permission to edit <span className="tabular-nums">{request.request_id}</span>.
         </p>
         <textarea
@@ -326,9 +326,9 @@ function RequestEditReasonModal({
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           placeholder="Why do you need to edit this request?"
-          className="mb-2 w-full rounded-md border border-brand-border px-3 py-2 text-sm focus:border-brand-brown focus:outline-none"
+          className="mb-2 w-full rounded-md border border-kf-border px-3 py-2 text-sm focus:border-kf-border-focus focus:outline-none"
         />
-        {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="mb-2 text-sm text-kf-status-late-strong">{error}</p>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} disabled={busy} className="mm-btn-secondary">
             Cancel
@@ -392,14 +392,14 @@ function DraftsTab({
   return (
     <div>
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : drafts.length === 0 ? (
-        <p className="text-sm text-brand-muted">No drafts yet.</p>
+        <p className="text-sm text-kf-text-muted">No drafts yet.</p>
       ) : (
         <>
           {selectedIds.size > 0 && (
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm text-brand-muted">{selectedIds.size} selected</span>
+              <span className="text-sm text-kf-text-muted">{selectedIds.size} selected</span>
               <button
                 onClick={() => setBulkDeleting(true)}
                 className="mm-btn-danger mm-btn-sm"
@@ -440,13 +440,13 @@ function DraftsTab({
                       <td>
                         <button
                           onClick={() => onContinue(d.id)}
-                          className="text-sm font-medium text-brand-brown hover:underline"
+                          className="text-sm font-medium text-kf-text-brand hover:underline"
                         >
                           Continue
                         </button>
                         <button
                           onClick={() => setDeletingId(d.id)}
-                          className="ml-3 text-sm font-medium text-[#DC2626] hover:underline"
+                          className="ml-3 text-sm font-medium text-kf-status-late-strong hover:underline"
                         >
                           Delete
                         </button>
@@ -462,16 +462,16 @@ function DraftsTab({
 
       {deletingId !== null && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-kf-palette-ink/45 p-4"
           style={{ backdropFilter: "blur(2px)" }}
           onClick={() => setDeletingId(null)}
         >
           <div
-            className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
+            className="w-full max-w-sm rounded-xl border border-kf-border bg-kf-bg-surface p-5 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-2 text-base font-semibold text-brand-dark">Delete draft?</h3>
-            <p className="mb-4 text-sm text-brand-muted">This cannot be undone.</p>
+            <h3 className="mb-2 text-base font-semibold text-kf-text-primary">Delete draft?</h3>
+            <p className="mb-4 text-sm text-kf-text-muted">This cannot be undone.</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setDeletingId(null)} className="mm-btn-secondary">
                 Cancel
@@ -492,18 +492,18 @@ function DraftsTab({
 
       {bulkDeleting && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-kf-palette-ink/45 p-4"
           style={{ backdropFilter: "blur(2px)" }}
           onClick={() => setBulkDeleting(false)}
         >
           <div
-            className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
+            className="w-full max-w-sm rounded-xl border border-kf-border bg-kf-bg-surface p-5 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-2 text-base font-semibold text-brand-dark">
+            <h3 className="mb-2 text-base font-semibold text-kf-text-primary">
               Delete {selectedIds.size} draft{selectedIds.size === 1 ? "" : "s"}?
             </h3>
-            <p className="mb-4 text-sm text-brand-muted">This cannot be undone.</p>
+            <p className="mb-4 text-sm text-kf-text-muted">This cannot be undone.</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setBulkDeleting(false)} className="mm-btn-secondary">
                 Cancel
@@ -639,9 +639,9 @@ export default function MyRequestsPage() {
         <>
       <FilterBar requests={requests} onFilteredChange={setFiltered} />
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-muted">No requests yet.</p>
+        <p className="text-sm text-kf-text-muted">No requests yet.</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
@@ -667,25 +667,25 @@ export default function MyRequestsPage() {
                   <td>
                     <StatusBadge status={r.status} />
                     {isOwnerEditable(r) && (
-                      <div className="mt-0.5 text-[11px] text-brand-subtle">Editable</div>
+                      <div className="mt-0.5 text-[11px] text-kf-text-hint">Editable</div>
                     )}
                     {r.status === "SUBMITTED" && !isOwnerEditable(r) && (
-                      <div className="mt-0.5 text-[11px] text-brand-subtle">Pending Procurement</div>
+                      <div className="mt-0.5 text-[11px] text-kf-text-hint">Pending Procurement</div>
                     )}
                     {isEditRequestPending(r) && (
-                      <div className="mt-0.5 text-[11px] font-medium text-amber-700">
+                      <div className="mt-0.5 text-[11px] font-medium text-kf-status-at-risk-strong">
                         Edit requested — awaiting approval
                       </div>
                     )}
                     {isEditApproved(r) && (
-                      <div className="mt-0.5 text-[11px] font-medium text-amber-700">Edit approved — resubmit</div>
+                      <div className="mt-0.5 text-[11px] font-medium text-kf-status-at-risk-strong">Edit approved — resubmit</div>
                     )}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     {isOwnerEditable(r) && (
                       <button
                         onClick={() => setEditing(r)}
-                        className="text-sm font-medium text-brand-brown hover:underline"
+                        className="text-sm font-medium text-kf-text-brand hover:underline"
                       >
                         ✏️ Edit
                       </button>
@@ -693,7 +693,7 @@ export default function MyRequestsPage() {
                     {r.status === "REJECTED" && (
                       <button
                         onClick={() => setEditing(r)}
-                        className="text-sm font-medium text-brand-brown hover:underline"
+                        className="text-sm font-medium text-kf-text-brand hover:underline"
                       >
                         ↩ Edit &amp; Resubmit
                       </button>
@@ -701,7 +701,7 @@ export default function MyRequestsPage() {
                     {r.status === "REJECTED" && (
                       <button
                         onClick={() => setDuplicating(r)}
-                        className="ml-3 text-sm font-medium text-brand-brown hover:underline"
+                        className="ml-3 text-sm font-medium text-kf-text-brand hover:underline"
                       >
                         ⎘ Duplicate
                       </button>
@@ -709,7 +709,7 @@ export default function MyRequestsPage() {
                     {canRequestEdit(r) && (
                       <button
                         onClick={() => setRequestingEdit(r)}
-                        className="text-sm font-medium text-brand-brown hover:underline"
+                        className="text-sm font-medium text-kf-text-brand hover:underline"
                       >
                         ✏️ Request Edit
                       </button>
@@ -717,7 +717,7 @@ export default function MyRequestsPage() {
                     {isEditApproved(r) && (
                       <button
                         onClick={() => setEditing(r)}
-                        className="text-sm font-medium text-brand-brown hover:underline"
+                        className="text-sm font-medium text-kf-text-brand hover:underline"
                       >
                         ↩ Edit &amp; Resubmit
                       </button>
@@ -725,7 +725,7 @@ export default function MyRequestsPage() {
                     {isOwnerEditable(r) && (
                       <button
                         onClick={() => setDeleting(r)}
-                        className="ml-3 text-sm font-medium text-[#DC2626] hover:underline"
+                        className="ml-3 text-sm font-medium text-kf-status-late-strong hover:underline"
                       >
                         🗑️ Delete
                       </button>
@@ -811,16 +811,16 @@ export default function MyRequestsPage() {
 
       {deleting && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-kf-palette-ink/45 p-4"
           style={{ backdropFilter: "blur(2px)" }}
           onClick={() => !deleteBusy && setDeleting(null)}
         >
           <div
-            className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-5 shadow-lg"
+            className="w-full max-w-sm rounded-xl border border-kf-border bg-kf-bg-surface p-5 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-2 text-base font-semibold text-brand-dark">Delete request?</h3>
-            <p className="mb-4 text-sm text-brand-muted">
+            <h3 className="mb-2 text-base font-semibold text-kf-text-primary">Delete request?</h3>
+            <p className="mb-4 text-sm text-kf-text-muted">
               Are you sure you want to delete <span className="tabular-nums">{deleting.request_id}</span>? This
               cannot be undone.
             </p>

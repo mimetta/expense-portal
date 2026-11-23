@@ -1772,7 +1772,77 @@ trusting `url` past its issuance.
   `EXPIRED` status (see "Approval Status Flow") — this is an unrelated, newer cron job.
 - Discord webhooks for notifications
 
+### Kindfolks kit 1.0.1 — the look now comes from a shared kit
+
+**This supersedes both "Brand" and "UI Design System" below for every colour and
+every font.** The app is a **Kindfolks module**; its look is copied in from
+`mimetta/kindfolks-kit` at commit `c1367f0` and lives at `brand/`, pinned in
+`brand/KIT_VERSION`. **Never edit anything under `brand/`** — a change to the look is
+a new kit version, copied in (kit README › "Updating an app to a new kit version").
+`brand/BRAND.md` is the guide, `brand/CHECKLIST.md` the module checklist,
+`.claude/rules/kindfolks-ui.md` the rules file.
+
+What changed mechanically:
+- `tailwind.config.ts` takes `presets: [require("./brand/tokens/tailwind-preset.cjs")]`,
+  which defines every `kf-*` colour as `var(--kf-*)` plus `font-sans`/`font-thai`/`font-title`.
+  **`theme.extend.colors.brand` is gone** — the old brown/cream/border/dark/accent/sage/
+  muted/subtle keys held raw hex, and all 665 usages were rewritten to kit role names. A
+  second vocabulary pointing at the same colours would only be a way to bypass the kit.
+- `app/globals.css` imports `brand/tokens/tokens.css` then `app/tokens.css`, before Tailwind.
+- Fonts are **Montserrat / IBM Plex Sans Thai / Tinos Italic** via `next/font/local` from
+  `app/fonts.ts`, reading the kit's committed woff2 files. DM Sans and Noto Sans Thai are
+  gone, and so is `next/font/google` — the kit forbids a build-time font fetch outright.
+  Page titles (`.mm-page-title`) are now **Tinos Italic 24px/18px, line-height 30px**.
+- The name is **"Kindfolks · Expenses"** in the tab and the **"kindfolks / Expenses"** lockup
+  top left in `components/Nav.tsx` and on `/login` (Nav is hidden there). The ripple icon is
+  `app/favicon.ico` / `app/icon.svg` / `app/apple-icon.png`, excluded by name from the
+  middleware matcher so it loads without a session. **No web manifest** — only Kindfolks
+  installs as an app.
+
+The `.mm-*` primitives in `app/globals.css` survive unchanged in STRUCTURE; only their
+colours moved onto kit roles. Keep using them.
+
+**Zero hex outside one file.** `app/tokens.css` is the app's own token file, which
+`brand/BRAND.md` explicitly provides for ("add it to the app's own token file with a palette
+value"). It holds three groups, all built on kit palette variables except where noted:
+- **Status badges** (`--app-status-*`). The kit's pill colours are status-semantic
+  (on-track / at-risk / late) and this is an eight-stage approval chain, so the mapping is the
+  app's: the forward stages climb the green family by intensity (neutral → sage-light →
+  olive-tint → solid olive → solid deep green) and brown/terracotta stay for EDIT_REQUESTED
+  and REJECTED, which is what the kit reserves them for. Every pair was measured ≥ 4.5:1.
+- **Calendar event types** (`--app-event-*`), one kit pill pairing each.
+- **`--app-series-1..16`**, the branch/channel chart series — **the one thing the kit cannot
+  supply**, see "What did not fit" below.
+
+`lib/brand-colors.ts#kfValue` is the single place a kit colour is read as a *value* rather
+than used as a variable, per `BRAND.md` rule 1. It exists for canvas only (`PDFSigner`,
+`PrintSignaturePad`): a 2D context silently ignores `var(--x)`, so a sweep that put CSS
+variables into `ctx.strokeStyle` would have broken signature drawing with no error anywhere.
+
+**Alphas go on with `color-mix`, never a hex suffix.** `${colour}12`-style string
+concatenation was used in `lib/branches-shared.ts#branchEdge`, `branchTint` and
+`CalendarWidget` — valid against a hex, meaningless against a `var()`. All three now
+`color-mix(in srgb, <token> N%, transparent)`, which is what the kit's own preset emits.
+
+**What did not fit, and is worth taking back to the kit:**
+1. **No categorical chart palette.** 16 branches need 16 mutually distinguishable hues; the
+   kit is 12 brand colours plus 20 warm neutrals derived from them. `BRAND.md` says chart
+   colours stay in each app for now, so `--app-series-6..16` are app hues. They are the only
+   hex left in this codebase.
+2. **No blue, and no informational role.** The CEO-signature banner, the `payment` calendar
+   type and `PO_UPLOADED` were blue. They are now the kit's deep-green-on-sage-light pairing,
+   which reads as "informational" well enough but is the same pairing as "selected".
+3. **`import { tokens } from ".../tokens.json"`, as the kit README shows it, warns under
+   Next's webpack** ("'tokens'.'map' is not exported"). Import the default and read `.tokens`
+   off it — see `lib/brand-colors.ts`.
+4. `.gitignore` had a blanket `.claude/`, which would have silently dropped the required
+   rules file. Now `.claude/*` + `!.claude/rules/`.
+
 ### Brand
+
+**Stale as of the Kindfolks kit adoption above — kept for the history of how the palette got
+here, not as a description of the current colours.** The values below are no longer in
+`tailwind.config.ts`.
 
 Rebranded to Mimetta's new palette/typeface (was: brown `#9F8361`, cream `#FEFEE9`, border
 `#DFD5BC`, dark `#1E1E1E`, Inter). Current palette (`tailwind.config.ts` →
@@ -1802,7 +1872,8 @@ drifted** (e.g. `brand.border` is used for literally every border in the app now
 renaming would touch dozens of files for no functional difference, since Tailwind only cares
 about the resolved value.
 
-### UI Design System ("Mimetta design system" — supersedes the earlier Supabase-inspired pass)
+### UI Design System ("Mimetta design system" — superseded for colour and type by the
+Kindfolks kit above; the layout, spacing and `.mm-*` structure it describes still hold)
 
 Two design passes have shipped in this app's history:
 1. An earlier Supabase-dashboard-inspired pass (white cards, muted badges, underline tabs,

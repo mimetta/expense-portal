@@ -157,45 +157,45 @@ export default function CeoApprovalsPage() {
       <FilterBar requests={requests} onFilteredChange={setFiltered} statuses={RELEVANT_STATUSES} />
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-muted">Nothing here.</p>
+        <p className="text-sm text-kf-text-muted">Nothing here.</p>
       ) : (
         <div className="space-y-3">
           {filtered.map((r) => (
             <div
               key={r.request_id}
               onClick={() => setSelected(r)}
-              className="mm-card cursor-pointer hover:bg-[#FAFAF7]"
+              className="mm-card cursor-pointer hover:bg-kf-palette-warm-1"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="tabular-nums text-xs text-brand-muted">{r.request_id}</span>
-                  <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
+                  <span className="tabular-nums text-xs text-kf-text-muted">{r.request_id}</span>
+                  <span className="rounded-full bg-kf-bg-muted px-2 py-0.5 text-xs text-kf-text-primary">
                     {r.use_for_company || r.bu}
                   </span>
                   {r.skip_bo && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                    <span className="rounded-full bg-kf-palette-brown-tint px-2 py-0.5 text-xs text-kf-status-at-risk-strong">
                       Skip BO
                     </span>
                   )}
                   {r.ceo_signature_required && (
-                    <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-800">
+                    <span className="rounded-full bg-kf-bg-selected px-2 py-0.5 text-xs text-kf-text-brand">
                       Needs Signature
                     </span>
                   )}
                 </div>
                 <StatusBadge status={r.status} />
               </div>
-              <div className="mt-2 text-sm text-brand-dark">
+              <div className="mt-2 text-sm text-kf-text-primary">
                 {r.requester_name} — {r.department} — {r.expense_type}
               </div>
-              <div className="mt-1 text-sm font-medium text-brand-dark">{formatCurrency(r.total)}</div>
-              <div className="mt-1 text-xs text-brand-muted">
+              <div className="mt-1 text-sm font-medium text-kf-text-primary">{formatCurrency(r.total)}</div>
+              <div className="mt-1 text-xs text-kf-text-muted">
                 {r.bo_approved_at ? `BO approved ${formatDate(r.bo_approved_at)} by ${r.bo_approver}` : "No BO approval (skipped or not required)"}
               </div>
               {r.status === "CEO_APPROVED" && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-brand-muted">
+                <div className="mt-2 flex items-center gap-2 text-xs text-kf-text-muted">
                   <span>Approved by {r.ceo_approver ?? "-"} at {formatDate(r.ceo_approved_at)}</span>
                   {canUnapprove() && (
                     <button
@@ -204,7 +204,7 @@ export default function CeoApprovalsPage() {
                         unapprove(r.request_id);
                       }}
                       disabled={busy === r.request_id}
-                      className="font-medium text-[#DC2626] hover:underline disabled:opacity-50"
+                      className="font-medium text-kf-status-late-strong hover:underline disabled:opacity-50"
                     >
                       Unapprove
                     </button>
@@ -212,7 +212,7 @@ export default function CeoApprovalsPage() {
                 </div>
               )}
               {tab === "edit-requests" && isEditRequestPending(r) && (
-                <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                <div className="mt-2 rounded-md border border-kf-status-at-risk bg-kf-palette-brown-tint p-2 text-xs text-kf-status-at-risk-strong">
                   <p className="font-medium">Edit requested by {r.requester_name}</p>
                   <p>Reason: {r.edit_requested_reason ?? "-"}</p>
                   <div className="mt-2 flex gap-2">
@@ -239,9 +239,9 @@ export default function CeoApprovalsPage() {
                   </div>
                 </div>
               )}
-              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-brand-muted">
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-kf-text-muted">
                 <span>{r.due_date ? `Due ${formatDate(r.due_date)}` : ""}</span>
-                <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-[11px] font-medium text-[#374151]">
+                <span className="inline-flex items-center rounded-full bg-kf-bg-muted px-2.5 py-0.5 text-[11px] font-medium text-kf-text-muted">
                   BO: {r.bo_approver ?? "—"}
                 </span>
               </div>

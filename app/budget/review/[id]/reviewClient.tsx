@@ -75,12 +75,12 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
         <div>
           {/* Breadcrumb: this page used to be reachable only by pasting a
               UUID, so it says where it sits and how to get back. */}
-          <p className="mb-1 text-[12px] text-brand-muted">
-            <Link href="/budget/history" className="text-brand-brown underline hover:text-brand-accent">
+          <p className="mb-1 text-[12px] text-kf-text-muted">
+            <Link href="/budget/history" className="text-kf-text-brand underline hover:text-kf-palette-deep-green-hover">
               Budget history
             </Link>
             {" / "}
-            <Link href="/budget" className="text-brand-brown underline hover:text-brand-accent">
+            <Link href="/budget" className="text-kf-text-brand underline hover:text-kf-palette-deep-green-hover">
               Budget editor
             </Link>
           </p>
@@ -109,13 +109,13 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
       </div>
 
       {error && (
-        <div className="rounded-[10px] px-4 py-3 text-sm" style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626" }}>
+        <div className="rounded-[10px] px-4 py-3 text-sm" style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)", color: "var(--kf-status-late-strong)" }}>
           {error}
         </div>
       )}
 
       {blockedSelfApproval && rev.status === "SUBMITTED" && (
-        <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B" }}>
+        <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)", color: "var(--kf-status-late-strong)" }}>
           <strong>You cannot approve a revision you submitted.</strong> Approve is disabled and
           another CEO must act on it. This applies when one person holds both BO and CEO, and it is
           enforced in the database as well as here — a direct write would be refused by the
@@ -124,7 +124,7 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
       )}
 
       {warnSelfApproval && rev.status === "SUBMITTED" && (
-        <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}>
+        <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}>
           <strong>You are approving your own submission — no second review.</strong> Admins are
           allowed to, but nobody else has looked at these figures, and approving publishes them to
           the spend report immediately. It will be recorded as{" "}
@@ -134,7 +134,7 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
 
       {/* The partial-view banner. Approving publishes only this owner's lines;
           the rest of each segment belongs to other owners' revisions. */}
-      <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "#DBEAFE", borderLeft: "4px solid #3B82F6", color: "#1E3A8A" }}>
+      <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: "var(--kf-bg-selected)", borderLeft: "4px solid var(--kf-text-brand)", color: "var(--kf-text-brand)" }}>
         Submitted by <strong>{rev.submitted_by ?? rev.owner_email}</strong>
         {rev.submitted_by && rev.submitted_by !== rev.owner_email ? (
           <> on behalf of <strong>{rev.owner_email}</strong></>
@@ -157,23 +157,23 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Currently approved" value={thb(stats.approved)} foot="live in the spend report" accent="#1F3A2B" />
-        <Stat label="Proposed" value={thb(stats.proposed)} foot={`${stats.changed} figures changed`} accent="#BD5A2E" />
+        <Stat label="Currently approved" value={thb(stats.approved)} foot="live in the spend report" accent="var(--kf-bg-brand)" />
+        <Stat label="Proposed" value={thb(stats.proposed)} foot={`${stats.changed} figures changed`} accent="var(--kf-status-at-risk-strong)" />
         <Stat
           label="Change"
           value={stats.delta === 0 ? EM_DASH : `${stats.delta > 0 ? "+" : "−"}${thb(Math.abs(stats.delta))}`}
           foot={stats.approved > 0 ? `${((stats.delta / stats.approved) * 100).toFixed(1)}% vs approved` : "no approved budget yet"}
-          accent={stats.delta > 0 ? "#B23A2F" : "#2E7D52"}
+          accent={stats.delta > 0 ? "var(--kf-status-late)" : "var(--kf-status-on-track)"}
         />
         <Stat
           label="Other owners here"
           value={String(data.coOwners.length)}
           foot={data.coOwners.length ? "hold lines in these same segments" : "this owner holds these segments alone"}
-          accent="#9CAE8C"
+          accent="var(--kf-status-on-track)"
         />
       </div>
 
-      <p className="text-[11px] text-brand-subtle">
+      <p className="text-[11px] text-kf-text-hint">
         Changed figures are highlighted with the difference beneath. Unchanged months are shown for
         context.
       </p>
@@ -181,7 +181,7 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
       <BudgetGrid rows={data.rows} onChange={null} showDelta priorFiscalYear={data.priorFiscalYear} fiscalYear={rev.fiscal_year} />
 
       <p className="text-[12px]">
-        <Link href="/budget/history" className="text-brand-brown underline">
+        <Link href="/budget/history" className="text-kf-text-brand underline">
           ← Back to budget history
         </Link>
       </p>
@@ -194,7 +194,7 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
             </div>
             <div className="mm-modal-body">
               <label className="mm-label mb-1 block">
-                Note to {rev.owner_email} <span style={{ color: "#DC2626" }}>*</span>
+                Note to {rev.owner_email} <span style={{ color: "var(--kf-status-late-strong)" }}>*</span>
               </label>
               <textarea
                 className="mm-input w-full"
@@ -203,7 +203,7 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="What needs to change, and why?"
               />
-              <p className="mt-2 text-[12px] text-brand-muted">
+              <p className="mt-2 text-[12px] text-kf-text-muted">
                 The revision returns to draft with the figures intact, so the owner amends rather
                 than retypes. A note is required — it is what they amend against.
               </p>
@@ -226,9 +226,9 @@ export default function ReviewClient({ data, viewerEmail, canAct, canSelfApprove
 function Stat({ label, value, foot, accent }: { label: string; value: string; foot: string; accent: string }) {
   return (
     <div className="mm-card" style={{ borderLeft: `3px solid ${accent}` }}>
-      <div className="text-[11px] uppercase tracking-[0.05em] text-brand-subtle">{label}</div>
-      <div className="mt-1 text-[26px] font-semibold tabular-nums text-brand-dark">{value}</div>
-      <div className="mt-1 text-[13px] text-brand-muted">{foot}</div>
+      <div className="text-[11px] uppercase tracking-[0.05em] text-kf-text-hint">{label}</div>
+      <div className="mt-1 text-[26px] font-semibold tabular-nums text-kf-text-primary">{value}</div>
+      <div className="mt-1 text-[13px] text-kf-text-muted">{foot}</div>
     </div>
   );
 }

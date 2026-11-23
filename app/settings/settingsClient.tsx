@@ -50,7 +50,7 @@ const TABS: { key: Tab; label: string }[] = SETTINGS_TABS.map((key) => ({ key, l
 
 
 const inputClass = "mm-input";
-const labelClass = "mb-1.5 block text-[13px] font-medium text-[#374151]";
+const labelClass = "mb-1.5 block text-[13px] font-medium text-kf-text-muted";
 const buttonPrimary = "mm-btn-primary mm-btn-sm";
 const buttonSecondary = "mm-btn-secondary mm-btn-sm";
 
@@ -72,7 +72,7 @@ function Modal({
           <h3 className="mm-modal-title">{title}</h3>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-brand-muted transition-colors hover:bg-[#F5F0E8] hover:text-brand-dark"
+            className="rounded-md p-1 text-kf-text-muted transition-colors hover:bg-kf-border-subtle hover:text-kf-text-primary"
           >
             ✕
           </button>
@@ -87,7 +87,7 @@ function Modal({
 // actual logic lives in SettingsClientInner below.
 export default function SettingsClient() {
   return (
-    <Suspense fallback={<p className="text-sm text-brand-muted">Loading...</p>}>
+    <Suspense fallback={<p className="text-sm text-kf-text-muted">Loading...</p>}>
       <SettingsClientInner />
     </Suspense>
   );
@@ -161,14 +161,14 @@ function SettingsClientInner() {
   };
 
   if (userLoading || !tabAccess) {
-    return <p className="text-sm text-brand-muted">Loading...</p>;
+    return <p className="text-sm text-kf-text-muted">Loading...</p>;
   }
 
   if (!currentUser || visibleTabs.length === 0) {
     return (
       <div>
         <h1 className="mm-page-title mb-4">Settings</h1>
-        <p className="text-sm text-brand-muted">
+        <p className="text-sm text-kf-text-muted">
           You don&apos;t have access to any Settings section. Contact an admin if you need access.
         </p>
       </div>
@@ -319,13 +319,13 @@ function SupplierTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : suppliers.length === 0 ? (
-        <p className="text-sm text-brand-muted">No suppliers yet.</p>
+        <p className="text-sm text-kf-text-muted">No suppliers yet.</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
-            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+            <thead className="bg-kf-palette-warm-1 text-left text-kf-text-primary">
               <tr>
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Payment Method</th>
@@ -344,12 +344,12 @@ function SupplierTab() {
                   <td className="px-3 py-2">{s.account_no ?? "-"}</td>
                   <td className="px-3 py-2">{s.email ?? "-"}</td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => openEdit(s)} className="mr-3 text-brand-brown hover:underline">
+                    <button onClick={() => openEdit(s)} className="mr-3 text-kf-text-brand hover:underline">
                       Edit
                     </button>
                     <button
                       onClick={() => remove(s.id)}
-                      className="font-medium text-[#DC2626] hover:underline"
+                      className="font-medium text-kf-status-late-strong hover:underline"
                     >
                       Delete
                     </button>
@@ -423,8 +423,8 @@ function SupplierTab() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            <p className="text-xs text-kf-text-hint">
+              Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className={buttonSecondary}>
@@ -558,13 +558,13 @@ function ProductTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : products.length === 0 ? (
-        <p className="text-sm text-brand-muted">No products yet.</p>
+        <p className="text-sm text-kf-text-muted">No products yet.</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
-            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+            <thead className="bg-kf-palette-warm-1 text-left text-kf-text-primary">
               <tr>
                 <th className="px-3 py-2">SKU Code</th>
                 <th className="px-3 py-2">Product Name</th>
@@ -581,12 +581,12 @@ function ProductTab() {
                   <td className="px-3 py-2">{p.department ?? "-"}</td>
                   <td className="px-3 py-2">{p.bu ?? "-"}</td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => openEdit(p)} className="mr-3 text-brand-brown hover:underline">
+                    <button onClick={() => openEdit(p)} className="mr-3 text-kf-text-brand hover:underline">
                       Edit
                     </button>
                     <button
                       onClick={() => remove(p.id)}
-                      className="font-medium text-[#DC2626] hover:underline"
+                      className="font-medium text-kf-status-late-strong hover:underline"
                     >
                       Delete
                     </button>
@@ -629,7 +629,7 @@ function ProductTab() {
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-brand-subtle">
+              <p className="mt-1 text-xs text-kf-text-hint">
                 Retail is not listed: a Retail branch is a <strong>revenue channel</strong>, added
                 on the Budget page. Creating one here would do nothing — Submit reads branches from
                 the channel list.
@@ -648,8 +648,8 @@ function ProductTab() {
                 ))}
               </select>
             </div>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            <p className="text-xs text-kf-text-hint">
+              Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className={buttonSecondary}>
@@ -805,19 +805,19 @@ function BulkImportModal({
             }}
             className="text-sm"
           />
-          {fileName && <p className="mt-1 text-xs text-brand-muted">Selected: {fileName}</p>}
-          {parseError && <p className="mt-1 text-sm text-red-600">{parseError}</p>}
+          {fileName && <p className="mt-1 text-xs text-kf-text-muted">Selected: {fileName}</p>}
+          {parseError && <p className="mt-1 text-sm text-kf-status-late-strong">{parseError}</p>}
         </div>
 
         {parsedRows.length > 0 && (
           <div>
-            <p className="mb-2 text-sm font-medium text-brand-dark">
+            <p className="mb-2 text-sm font-medium text-kf-text-primary">
               Preview — {parsedRows.length} row{parsedRows.length === 1 ? "" : "s"}
               {invalidCount > 0 ? ` (${invalidCount} missing bu/department will be skipped)` : ""}
             </p>
-            <div className="max-h-64 overflow-y-auto rounded-md border border-brand-border">
+            <div className="max-h-64 overflow-y-auto rounded-md border border-kf-border">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-[#F9F8F6] text-left text-brand-dark">
+                <thead className="sticky top-0 bg-kf-palette-warm-1 text-left text-kf-text-primary">
                   <tr>
                     <th className="px-2 py-1.5">bu</th>
                     <th className="px-2 py-1.5">department</th>
@@ -830,7 +830,7 @@ function BulkImportModal({
                   {parsedRows.map((r, i) => (
                     <tr
                       key={i}
-                      className={`border-t border-brand-border ${!r.bu || !r.department ? "bg-red-50 text-red-700" : ""}`}
+                      className={`border-t border-kf-border ${!r.bu || !r.department ? "bg-kf-palette-terracotta-tint text-kf-status-late-strong" : ""}`}
                     >
                       <td className="px-2 py-1.5">{r.bu || "-"}</td>
                       <td className="px-2 py-1.5">{r.department || "-"}</td>
@@ -851,12 +851,12 @@ function BulkImportModal({
         )}
 
         {result && (
-          <p className="text-sm text-green-700">
+          <p className="text-sm text-kf-text-positive">
             {result.inserted} inserted, {result.skipped} skipped (already existed)
             {result.invalid > 0 ? `, ${result.invalid} skipped (missing bu or department)` : ""}.
           </p>
         )}
-        {importError && <p className="text-sm text-red-600">{importError}</p>}
+        {importError && <p className="text-sm text-kf-status-late-strong">{importError}</p>}
 
         <div className="flex justify-end">
           <button onClick={onClose} className={buttonSecondary}>
@@ -1090,7 +1090,7 @@ function CategoryTab() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <span className="text-[12px] text-brand-muted">
+        <span className="text-[12px] text-kf-text-muted">
           {matchCount} of {categories.length} rows
         </span>
         <button onClick={() => setAll(true)} className={`${buttonSecondary} ml-auto`}>Collapse all</button>
@@ -1100,17 +1100,17 @@ function CategoryTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : categories.length === 0 ? (
-        <p className="text-sm text-brand-muted">No categories yet.</p>
+        <p className="text-sm text-kf-text-muted">No categories yet.</p>
       ) : matchCount === 0 ? (
-        <p className="text-sm text-brand-muted">Nothing matches “{q}”.</p>
+        <p className="text-sm text-kf-text-muted">Nothing matches “{q}”.</p>
       ) : (
         /* GROUPED: company > department > cat_l1 > sub-categories. It was a
            flat list of every row in storage order, so one cat_l1 appeared at
            scattered positions and read as duplication — each row is in fact a
            distinct (company, department, cat_l1, cat_l2). */
-        <div className="mm-table-wrap divide-y divide-brand-border">
+        <div className="mm-table-wrap divide-y divide-kf-border">
           {tree.map((b) => {
             const bKey = `b:${b.bu}`;
             const bOpen = !collapsed.has(bKey);
@@ -1120,12 +1120,12 @@ function CategoryTab() {
                 <button
                   type="button"
                   onClick={() => toggle(bKey)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-brand-dark"
-                  style={{ background: "#F5F2EC" }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-kf-text-primary"
+                  style={{ background: "var(--kf-palette-warm-2)" }}
                 >
-                  <span className="w-3 text-[10px] text-brand-muted">{bOpen ? "▾" : "▸"}</span>
+                  <span className="w-3 text-[10px] text-kf-text-muted">{bOpen ? "▾" : "▸"}</span>
                   {b.bu}
-                  <span className="text-[10.5px] font-normal normal-case tracking-normal text-brand-muted">
+                  <span className="text-[10.5px] font-normal normal-case tracking-normal text-kf-text-muted">
                     {b.depts.length} segment{b.depts.length === 1 ? "" : "s"} · {bRows} row{bRows === 1 ? "" : "s"}
                   </span>
                 </button>
@@ -1139,12 +1139,12 @@ function CategoryTab() {
                       <button
                         type="button"
                         onClick={() => toggle(dKey)}
-                        className="flex w-full items-center gap-2 py-1.5 pl-6 pr-3 text-left text-[12.5px] font-medium text-brand-dark"
-                        style={{ background: "#FCFBF9" }}
+                        className="flex w-full items-center gap-2 py-1.5 pl-6 pr-3 text-left text-[12.5px] font-medium text-kf-text-primary"
+                        style={{ background: "var(--kf-palette-warm-1)" }}
                       >
-                        <span className="w-3 text-[10px] text-brand-muted">{dOpen ? "▾" : "▸"}</span>
+                        <span className="w-3 text-[10px] text-kf-text-muted">{dOpen ? "▾" : "▸"}</span>
                         {d.dept}
-                        <span className="text-[10.5px] font-normal text-brand-muted">
+                        <span className="text-[10.5px] font-normal text-kf-text-muted">
                           {d.l1s.length} categor{d.l1s.length === 1 ? "y" : "ies"} · {dRows} row{dRows === 1 ? "" : "s"}
                         </span>
                       </button>
@@ -1157,11 +1157,11 @@ function CategoryTab() {
                             <button
                               type="button"
                               onClick={() => toggle(lKey)}
-                              className="flex w-full items-center gap-2 py-1.5 pl-12 pr-3 text-left text-[12.5px] text-brand-dark"
+                              className="flex w-full items-center gap-2 py-1.5 pl-12 pr-3 text-left text-[12.5px] text-kf-text-primary"
                             >
-                              <span className="w-3 text-[10px] text-brand-muted">{lOpen ? "▾" : "▸"}</span>
+                              <span className="w-3 text-[10px] text-kf-text-muted">{lOpen ? "▾" : "▸"}</span>
                               {g.l1}
-                              <span className="text-[10.5px] text-brand-subtle">{g.rows.length}</span>
+                              <span className="text-[10.5px] text-kf-text-hint">{g.rows.length}</span>
                             </button>
 
                             {lOpen && (
@@ -1172,25 +1172,25 @@ function CategoryTab() {
                                     return (
                                       <tr key={c.id} style={retired ? { opacity: 0.55 } : undefined}>
                                         <td className="py-1.5 pl-20 pr-3 text-[13px]">
-                                          {c.cat_l2?.trim() ? c.cat_l2 : <span className="text-brand-subtle">(no sub-category)</span>}
+                                          {c.cat_l2?.trim() ? c.cat_l2 : <span className="text-kf-text-hint">(no sub-category)</span>}
                                           {retired && (
                                             <span
                                               className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                                              style={{ background: "#F3F4F6", color: "#6B7280", border: "1px solid #D8CBB0" }}
+                                              style={{ background: "var(--kf-bg-muted)", color: "var(--kf-text-muted)", border: "1px solid var(--kf-border)" }}
                                             >
                                               retired
                                             </span>
                                           )}
                                         </td>
-                                        <td className="px-3 py-1.5 text-[12px] text-brand-muted">{c.product ?? ""}</td>
+                                        <td className="px-3 py-1.5 text-[12px] text-kf-text-muted">{c.product ?? ""}</td>
                                         <td className="px-3 py-1.5 text-right">
-                                          <button onClick={() => openEdit(c)} className="mr-3 text-brand-brown hover:underline">
+                                          <button onClick={() => openEdit(c)} className="mr-3 text-kf-text-brand hover:underline">
                                             Edit
                                           </button>
                                           <button
                                             onClick={() => void setActive(c.id, retired)}
                                             disabled={busy}
-                                            className="mr-3 text-brand-muted hover:underline"
+                                            className="mr-3 text-kf-text-muted hover:underline"
                                             title={retired
                                               ? "Offer this category again on the submit form and in new budgets"
                                               : "Stop offering it on the submit form, in the BO scope picker and in new budget drafts. History is untouched and still shows in the spend report."}
@@ -1200,7 +1200,7 @@ function CategoryTab() {
                                           <button
                                             onClick={() => remove(c.id)}
                                             disabled={busy}
-                                            className="font-medium text-[#DC2626] hover:underline"
+                                            className="font-medium text-kf-status-late-strong hover:underline"
                                             title="Only possible when nothing references this category"
                                           >
                                             Delete
@@ -1277,8 +1277,8 @@ function CategoryTab() {
                 onChange={(e) => setForm({ ...form, product: e.target.value })}
               />
             </div>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            <p className="text-xs text-kf-text-hint">
+              Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className={buttonSecondary}>
@@ -1321,14 +1321,14 @@ function YesNoToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
       <button
         type="button"
         onClick={() => onChange(true)}
-        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${value ? "border-brand-brown bg-[#F0F4EF]" : "border-brand-border bg-white"}`}
+        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${value ? "border-kf-text-brand bg-kf-bg-selected" : "border-kf-border bg-kf-bg-surface"}`}
       >
         Yes
       </button>
       <button
         type="button"
         onClick={() => onChange(false)}
-        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${!value ? "border-brand-brown bg-[#F0F4EF]" : "border-brand-border bg-white"}`}
+        className={`flex-1 rounded-md border-2 px-3 py-1.5 text-sm ${!value ? "border-kf-text-brand bg-kf-bg-selected" : "border-kf-border bg-kf-bg-surface"}`}
       >
         No
       </button>
@@ -1464,7 +1464,7 @@ function DeptConfigTab() {
 
   return (
     <div>
-      <p className="mb-3 text-xs text-brand-muted">
+      <p className="mb-3 text-xs text-kf-text-muted">
         Drives skip_bo/skip_ceo and CEO-signature requirements — matched score-based by
         Segment + BU + Cat L1 (exact matches score higher than &quot;*&quot; wildcards; see
         CLAUDE.md &quot;DeptConfig Matching&quot;).
@@ -1476,13 +1476,13 @@ function DeptConfigTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-brand-muted">No rules configured.</p>
+        <p className="text-sm text-kf-text-muted">No rules configured.</p>
       ) : (
         <div className="mm-table-wrap overflow-x-auto">
           <table className="mm-table">
-            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+            <thead className="bg-kf-palette-warm-1 text-left text-kf-text-primary">
               <tr>
                 <th className="px-3 py-2">Segment</th>
                 <th className="px-3 py-2">BU</th>
@@ -1507,12 +1507,12 @@ function DeptConfigTab() {
                   <td className="px-3 py-2">{r.skip_bo ? "Yes" : "No"}</td>
                   <td className="px-3 py-2">{r.skip_ceo ? "Yes" : "No"}</td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => openEdit(r)} className="mr-3 text-brand-brown hover:underline">
+                    <button onClick={() => openEdit(r)} className="mr-3 text-kf-text-brand hover:underline">
                       Edit
                     </button>
                     <button
                       onClick={() => remove(r.id)}
-                      className="font-medium text-[#DC2626] hover:underline"
+                      className="font-medium text-kf-status-late-strong hover:underline"
                     >
                       Delete
                     </button>
@@ -1600,8 +1600,8 @@ function DeptConfigTab() {
               <label className={labelClass}>Skip CEO</label>
               <YesNoToggle value={form.skip_ceo} onChange={(v) => setForm({ ...form, skip_ceo: v })} />
             </div>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            <p className="text-xs text-kf-text-hint">
+              Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className={buttonSecondary}>
@@ -1771,42 +1771,42 @@ function AnnouncementTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : announcements.length === 0 ? (
-        <p className="text-sm text-brand-muted">No announcements yet.</p>
+        <p className="text-sm text-kf-text-muted">No announcements yet.</p>
       ) : (
         <div className="space-y-2">
           {announcements.map((a) => (
-            <div key={a.id} className="rounded-md border border-brand-border p-3">
+            <div key={a.id} className="rounded-md border border-kf-border p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-brand-dark">{a.title}</span>
+                    <span className="font-medium text-kf-text-primary">{a.title}</span>
                     {a.is_pinned && (
-                      <span className="rounded-full border border-[#F5C4A3] bg-[#FDF2EE] px-2 py-0.5 text-xs text-[#BD5A2E]">
+                      <span className="rounded-full border border-kf-status-at-risk bg-kf-palette-brown-tint px-2 py-0.5 text-xs text-kf-status-at-risk-strong">
                         Pinned
                       </span>
                     )}
                     {!a.is_active && (
-                      <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">Inactive</span>
+                      <span className="rounded-full bg-kf-palette-warm-3 px-2 py-0.5 text-xs text-kf-text-muted">Inactive</span>
                     )}
                   </div>
-                  {a.message && <p className="mt-1 text-sm text-brand-muted">{a.message}</p>}
-                  <p className="mt-1 text-xs text-brand-subtle">
+                  {a.message && <p className="mt-1 text-sm text-kf-text-muted">{a.message}</p>}
+                  <p className="mt-1 text-xs text-kf-text-hint">
                     {a.created_by ?? "-"} — {new Date(a.created_at).toLocaleString()}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-3 text-sm">
-                  <button onClick={() => openEdit(a)} className="text-brand-brown hover:underline">
+                  <button onClick={() => openEdit(a)} className="text-kf-text-brand hover:underline">
                     Edit
                   </button>
-                  <button onClick={() => toggleActive(a)} disabled={busy} className="text-brand-brown hover:underline disabled:opacity-50">
+                  <button onClick={() => toggleActive(a)} disabled={busy} className="text-kf-text-brand hover:underline disabled:opacity-50">
                     {a.is_active ? "Deactivate" : "Activate"}
                   </button>
                   <button
                     onClick={() => remove(a.id)}
                     disabled={busy}
-                    className="font-medium text-[#DC2626] hover:underline disabled:opacity-50"
+                    className="font-medium text-kf-status-late-strong hover:underline disabled:opacity-50"
                   >
                     Delete
                   </button>
@@ -1837,7 +1837,7 @@ function AnnouncementTab() {
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
               />
             </div>
-            <label className="flex items-center gap-2 text-sm text-brand-dark">
+            <label className="flex items-center gap-2 text-sm text-kf-text-primary">
               <input
                 type="checkbox"
                 checked={form.is_pinned}
@@ -1858,7 +1858,7 @@ function AnnouncementTab() {
                 }}
                 className="text-sm"
               />
-              {uploading && <p className="mt-1 text-xs text-brand-subtle">Uploading...</p>}
+              {uploading && <p className="mt-1 text-xs text-kf-text-hint">Uploading...</p>}
               {form.attachment_url && (
                 <div className="mt-2 flex items-center gap-2">
                   {form.attachment_type.startsWith("image/") ? (
@@ -1866,22 +1866,22 @@ function AnnouncementTab() {
                     // still a plain <img>, not next/image, since this is a small admin-only
                     // preview thumbnail and not worth remotePatterns config for.
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={form.attachment_url} alt="" className="h-16 w-16 rounded-md border border-brand-border object-cover" />
+                    <img src={form.attachment_url} alt="" className="h-16 w-16 rounded-md border border-kf-border object-cover" />
                   ) : (
-                    <span className="text-xs text-brand-muted">📄 PDF attached</span>
+                    <span className="text-xs text-kf-text-muted">📄 PDF attached</span>
                   )}
                   <button
                     type="button"
                     onClick={() => setForm({ ...form, attachment_url: "", attachment_type: "" })}
-                    className="text-xs font-medium text-[#DC2626] hover:underline"
+                    className="text-xs font-medium text-kf-status-late-strong hover:underline"
                   >
                     Remove
                   </button>
                 </div>
               )}
             </div>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            <p className="text-xs text-kf-text-hint">
+              Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className={buttonSecondary}>
@@ -2025,13 +2025,13 @@ function PettyCashCustodianTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : custodians.length === 0 ? (
-        <p className="text-sm text-brand-muted">No petty cash custodians yet.</p>
+        <p className="text-sm text-kf-text-muted">No petty cash custodians yet.</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
-            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+            <thead className="bg-kf-palette-warm-1 text-left text-kf-text-primary">
               <tr>
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Email</th>
@@ -2056,19 +2056,19 @@ function PettyCashCustodianTab() {
                       onClick={() => toggleActive(c)}
                       disabled={busy}
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        c.is_active ? "bg-[#F0F4EF] text-brand-brown" : "bg-[#F3F4F6] text-brand-muted"
+                        c.is_active ? "bg-kf-bg-selected text-kf-text-brand" : "bg-kf-bg-muted text-kf-text-muted"
                       }`}
                     >
                       {c.is_active ? "Active" : "Inactive"}
                     </button>
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => openEdit(c)} className="mr-3 text-brand-brown hover:underline">
+                    <button onClick={() => openEdit(c)} className="mr-3 text-kf-text-brand hover:underline">
                       Edit
                     </button>
                     <button
                       onClick={() => remove(c.id)}
-                      className="font-medium text-[#DC2626] hover:underline"
+                      className="font-medium text-kf-status-late-strong hover:underline"
                     >
                       Delete
                     </button>
@@ -2138,8 +2138,8 @@ function PettyCashCustodianTab() {
               <label className={labelClass}>Active</label>
               <YesNoToggle value={form.is_active} onChange={(v) => setForm({ ...form, is_active: v })} />
             </div>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            <p className="text-xs text-kf-text-hint">
+              Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className={buttonSecondary}>
@@ -2208,16 +2208,16 @@ function CompanyTab() {
 
   return (
     <div>
-      <p className="mb-3 text-xs text-brand-muted">
+      <p className="mb-3 text-xs text-kf-text-muted">
         Fixed SV and ONEST companies — no add/delete, only their name/address can be edited.
       </p>
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : (
         <div className="mm-table-wrap">
           <table className="mm-table">
-            <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+            <thead className="bg-kf-palette-warm-1 text-left text-kf-text-primary">
               <tr>
                 <th className="px-3 py-2">BU</th>
                 <th className="px-3 py-2">Name EN</th>
@@ -2234,7 +2234,7 @@ function CompanyTab() {
                   <td className="px-3 py-2">{c.name_th ?? "-"}</td>
                   <td className="px-3 py-2">{c.address}</td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => openEdit(c)} className="text-brand-brown hover:underline">
+                    <button onClick={() => openEdit(c)} className="text-kf-text-brand hover:underline">
                       Edit
                     </button>
                   </td>
@@ -2272,8 +2272,8 @@ function CompanyTab() {
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
               />
             </div>
-            <p className="text-xs text-brand-subtle">
-              Fields marked <span style={{ color: "#DC2626" }}>*</span> are required
+            <p className="text-xs text-kf-text-hint">
+              Fields marked <span style={{ color: "var(--kf-status-late-strong)" }}>*</span> are required
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModal(null)} className={buttonSecondary}>
@@ -2308,7 +2308,7 @@ function CompanyTab() {
 // is already unreachable for a pure EMPLOYEE (canAccessPage).
 //
 // Reuses the same toggle-button visual style as User Management's "BU
-// Scope" buttons (bordered pill, brand-brown fill + white text when
+// Scope" buttons (bordered pill, deep-green fill + cream text when
 // active) for consistency — but NOT its exclusive/single-select click
 // behavior (each BU Scope click replaces the whole value with just that
 // one option). A tab can need several roles active simultaneously today

@@ -10,7 +10,7 @@ function DeactivatedNotice() {
   if (new URLSearchParams(window.location.search).get("reason") !== "deactivated") return null;
   return (
     <div className="mb-3 rounded-[10px] px-4 py-3 text-[13px]"
-      style={{ background: "#FBF0EE", border: "1px solid #F3C4BC", color: "#B23A2F" }}>
+      style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)", color: "var(--kf-status-late)" }}>
       This account has been deactivated in the expense portal. Contact an admin if you think
       that is a mistake.
     </div>
@@ -33,18 +33,30 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-cream">
-      <div className="w-full max-w-sm rounded-lg border border-brand-border bg-white p-8 text-center shadow-sm">
-        <h1 className="mb-2 text-2xl font-semibold text-brand-dark">Mimetta</h1>
-        <p className="mb-6 text-sm text-brand-muted">Expense Portal</p>
+    <div className="flex min-h-screen items-center justify-center bg-kf-bg-page">
+      <div className="w-full max-w-sm rounded-lg border border-kf-border bg-kf-bg-surface p-8 text-center shadow-sm">
+        {/* The lockup, stacked: Nav is hidden on /login, so the sign-in
+            card carries it (brand/wordmark/README.md). */}
+        <div className="mb-6 flex items-center justify-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/kindfolks-on-light.svg"
+            alt="Kindfolks"
+            className="h-[23px] w-auto"
+          />
+          <span className="mx-1 text-kf-text-hint" aria-hidden="true">
+            /
+          </span>
+          <span className="text-[14px] text-kf-text-muted">Expenses</span>
+        </div>
         <DeactivatedNotice />
         <button
           onClick={handleSignIn}
-          className="w-full rounded-md bg-brand-brown px-4 py-2 font-medium text-white transition hover:bg-brand-accent"
+          className="w-full rounded-md bg-kf-bg-brand px-4 py-2 font-medium text-kf-text-on-brand transition hover:bg-kf-palette-deep-green-hover"
         >
           Sign in with Google
         </button>
-        <p className="mt-4 text-xs text-brand-subtle">
+        <p className="mt-4 text-xs text-kf-text-hint">
           @{NEW_EMAIL_DOMAIN} accounts only
         </p>
       </div>

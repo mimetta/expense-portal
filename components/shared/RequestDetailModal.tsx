@@ -29,7 +29,7 @@ import { canPettyCashActOnRequest } from "@/lib/permissions";
 import type { CompanyRow, ExpenseRequest, FileEntry, RequestItem, RoleRow, SupplierRow } from "@/types/database";
 
 const inputClass =
-  "w-full rounded-md border border-brand-border bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-brown";
+  "w-full rounded-md border border-kf-border bg-kf-bg-surface px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-kf-border-focus";
 
 // Matches the "attachments" Supabase Storage bucket's real file_size_limit
 // (see app/api/upload/route.ts / RequestForm.tsx) — was 5MB here via a
@@ -100,8 +100,8 @@ interface RequestDetailModalProps {
 function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs text-brand-muted">{label}</div>
-      <div className="text-sm text-brand-dark">{children}</div>
+      <div className="text-xs text-kf-text-muted">{label}</div>
+      <div className="text-sm text-kf-text-primary">{children}</div>
     </div>
   );
 }
@@ -180,10 +180,10 @@ function buildTimeline(r: ExpenseRequest): TimelineStep[] {
 }
 
 const STEP_CIRCLE_CLASS: Record<StepState, string> = {
-  done: "bg-green-600 text-white",
-  current: "bg-brand-brown text-white",
-  skipped: "bg-gray-200 text-gray-500",
-  pending: "bg-gray-100 text-gray-400",
+  done: "bg-kf-status-on-track text-kf-text-on-brand",
+  current: "bg-kf-bg-brand text-kf-text-on-brand",
+  skipped: "bg-kf-palette-warm-3 text-kf-text-hint",
+  pending: "bg-kf-bg-muted text-kf-text-hint",
 };
 
 export default function RequestDetailModal({
@@ -451,30 +451,30 @@ export default function RequestDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-kf-palette-ink/45 p-4"
       style={{ backdropFilter: "blur(2px)" }}
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-brand-border bg-white shadow-lg"
+        className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-kf-border bg-kf-bg-surface shadow-lg"
         style={{ maxWidth: 780 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between border-b border-[#F0EAE0] px-6 pb-4 pt-5">
+        <div className="flex items-start justify-between border-b border-kf-border-subtle px-6 pb-4 pt-5">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-base font-semibold text-brand-dark">{request.request_id}</span>
+              <span className="text-base font-semibold text-kf-text-primary">{request.request_id}</span>
               <StatusBadge status={request.status} />
-              <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
+              <span className="rounded-full bg-kf-bg-muted px-2 py-0.5 text-xs text-kf-text-primary">
                 {request.use_for_company || request.bu}
               </span>
             </div>
-            <p className="mt-1 text-xs text-brand-subtle">Submitted {formatDate(request.timestamp)}</p>
+            <p className="mt-1 text-xs text-kf-text-hint">Submitted {formatDate(request.timestamp)}</p>
             {(request.due_date || showBoApprover) && (
-              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-brand-muted">
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-kf-text-muted">
                 <span>{request.due_date ? `Due ${formatDate(request.due_date)}` : ""}</span>
                 {showBoApprover && (
-                  <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-[11px] font-medium text-[#374151]">
+                  <span className="inline-flex items-center rounded-full bg-kf-bg-muted px-2.5 py-0.5 text-[11px] font-medium text-kf-text-muted">
                     BO: {request.bo_approver ?? "—"}
                   </span>
                 )}
@@ -498,7 +498,7 @@ export default function RequestDetailModal({
             )}
             <button
               onClick={onClose}
-              className="rounded-md p-1 text-xl leading-none text-brand-muted transition-colors hover:bg-[#F5F0E8] hover:text-brand-dark"
+              className="rounded-md p-1 text-xl leading-none text-kf-text-muted transition-colors hover:bg-kf-border-subtle hover:text-kf-text-primary"
             >
               ✕
             </button>
@@ -512,12 +512,12 @@ export default function RequestDetailModal({
               uploadContext={{ requestId: request.request_id }}
               title="Edit Request"
               banner={
-                <div className="flex items-center justify-between gap-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm text-brand-dark">
+                <div className="flex items-center justify-between gap-3 rounded-md border border-kf-border bg-kf-palette-warm-1 p-3 text-sm text-kf-text-primary">
                   <span>You can edit this request freely until Procurement takes action on it.</span>
                   <button
                     type="button"
                     onClick={() => setFullEditMode(false)}
-                    className="whitespace-nowrap font-medium text-brand-brown hover:underline"
+                    className="whitespace-nowrap font-medium text-kf-text-brand hover:underline"
                   >
                     Cancel
                   </button>
@@ -533,8 +533,8 @@ export default function RequestDetailModal({
             <div
               className="text-sm font-bold"
               style={{
-                background: "#DBEAFE",
-                borderLeft: "4px solid #3B82F6",
+                background: "var(--kf-bg-selected)",
+                borderLeft: "4px solid var(--kf-text-brand)",
                 padding: "12px 16px",
                 marginBottom: 16,
               }}
@@ -553,10 +553,10 @@ export default function RequestDetailModal({
             request.status !== "BO_APPROVED" &&
             request.status !== "PO_UPLOADED" && (
               <div
-                className="text-xs text-brand-muted"
+                className="text-xs text-kf-text-muted"
                 style={{
-                  background: "#F9F8F6",
-                  borderLeft: "3px solid #93C5FD",
+                  background: "var(--kf-palette-warm-1)",
+                  borderLeft: "3px solid var(--kf-palette-sage)",
                   padding: "8px 12px",
                   marginBottom: 16,
                 }}
@@ -602,14 +602,14 @@ export default function RequestDetailModal({
                 this single-value case; Petty Cash's per-item equivalent
                 lives in the table below instead (hasItemProductColumn). */}
             {request.product && (
-              <p className="mb-2 text-xs text-brand-dark">
-                <span className="text-brand-subtle">{branchLabel}: </span>
+              <p className="mb-2 text-xs text-kf-text-primary">
+                <span className="text-kf-text-hint">{branchLabel}: </span>
                 {request.product}
               </p>
             )}
-            <div className="overflow-x-auto rounded-md border border-brand-border">
+            <div className="overflow-x-auto rounded-md border border-kf-border">
               <table className="w-full text-xs">
-                <thead className="bg-[#F9F8F6] text-left text-brand-dark">
+                <thead className="bg-kf-palette-warm-1 text-left text-kf-text-primary">
                   <tr>
                     <th className="px-2 py-1.5">Segment</th>
                     {hasItemTravelColumns && <th className="px-2 py-1.5">Travel by</th>}
@@ -630,7 +630,7 @@ export default function RequestDetailModal({
                     const lineTotal =
                       item.amount_net + (item.amount_net * item.vat_rate) / 100 - (item.amount_net * item.wht_rate) / 100;
                     return (
-                      <tr key={idx} className="border-t border-brand-border">
+                      <tr key={idx} className="border-t border-kf-border">
                         <td className="px-2 py-1.5">{item.segment || "-"}</td>
                         {hasItemTravelColumns && <td className="px-2 py-1.5">{item.travel_by || "—"}</td>}
                         {hasItemTravelColumns && (
@@ -682,7 +682,7 @@ export default function RequestDetailModal({
                     );
                   })}
                 </tbody>
-                <tfoot className="border-t border-brand-border bg-[#F9F8F6] font-semibold">
+                <tfoot className="border-t border-kf-border bg-kf-palette-warm-1 font-semibold">
                   <tr>
                     <td
                       colSpan={
@@ -715,7 +715,7 @@ export default function RequestDetailModal({
                 {editable && request.procurement_fills_payment && (
                   <span
                     className="rounded-full px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal"
-                    style={{ background: "#FEF3C7", color: "#92400E" }}
+                    style={{ background: "var(--kf-palette-brown-tint)", color: "var(--kf-status-at-risk-strong)" }}
                   >
                     Needs your input
                   </span>
@@ -738,7 +738,7 @@ export default function RequestDetailModal({
                         onBlur={() => setTimeout(() => setSupplierOpen(false), 150)}
                       />
                       {supplierOpen && filteredSuppliers.length > 0 && (
-                        <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-brand-border bg-white text-xs shadow-lg">
+                        <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-kf-border bg-kf-bg-surface text-xs shadow-lg">
                           {filteredSuppliers.map((s) => (
                             <li key={s.id}>
                               <button
@@ -748,7 +748,7 @@ export default function RequestDetailModal({
                                   handleSupplierChange(s.name);
                                   setSupplierOpen(false);
                                 }}
-                                className="block w-full px-2 py-1.5 text-left hover:bg-[#F9F8F6]"
+                                className="block w-full px-2 py-1.5 text-left hover:bg-kf-palette-warm-1"
                               >
                                 {s.name}
                               </button>
@@ -942,7 +942,7 @@ export default function RequestDetailModal({
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-brand-muted">Awaiting PO upload</p>
+                <p className="text-sm text-kf-text-muted">Awaiting PO upload</p>
               )}
             </section>
           )}
@@ -951,15 +951,15 @@ export default function RequestDetailModal({
           <section>
             <h3 className="mm-section-label">Attachments</h3>
             {expenseConfig?.requiredDocs && (
-              <div className="mb-3 rounded-md border border-brand-border bg-[#F9F8F6] p-3 text-sm">
-                <p className="mb-1 font-medium text-brand-dark">
+              <div className="mb-3 rounded-md border border-kf-border bg-kf-palette-warm-1 p-3 text-sm">
+                <p className="mb-1 font-medium text-kf-text-primary">
                   Required documents{expenseConfig.requiredDocs.mode === "any" ? " (at least one)" : ""}
                 </p>
                 <ul className="space-y-0.5">
                   {expenseConfig.requiredDocs.docs.map((docLabel) => {
                     const satisfied = files.some((f) => f.doc_type === docLabel);
                     return (
-                      <li key={docLabel} className={satisfied ? "text-green-700" : "text-brand-muted"}>
+                      <li key={docLabel} className={satisfied ? "text-kf-text-positive" : "text-kf-text-muted"}>
                         {satisfied ? "✓" : "○"} {docLabel}
                       </li>
                     );
@@ -972,13 +972,13 @@ export default function RequestDetailModal({
                 href={request.files_folder_url}
                 target="_blank"
                 rel="noreferrer"
-                className="mb-2 block text-sm text-brand-brown hover:underline"
+                className="mb-2 block text-sm text-kf-text-brand hover:underline"
               >
                 📁 Open Drive Folder
               </a>
             )}
             {files.length === 0 ? (
-              <p className="mb-2 text-sm text-brand-muted">No files attached.</p>
+              <p className="mb-2 text-sm text-kf-text-muted">No files attached.</p>
             ) : (
               <ul className="mb-2 space-y-1">
                 {files.map((f, i) => (
@@ -997,7 +997,7 @@ export default function RequestDetailModal({
                           // shrink-0 so it can't be squeezed back down by its flex-1
                           // sibling once that sibling's own min-w-0 fix (see git history)
                           // actually has room to use.
-                          className="w-48 shrink-0 rounded-md border border-brand-border bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                          className="w-48 shrink-0 rounded-md border border-kf-border bg-kf-bg-surface px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-kf-border-focus"
                           value={f.doc_type ?? ""}
                           onChange={(e) => updateFile(i, { doc_type: e.target.value })}
                         >
@@ -1008,7 +1008,7 @@ export default function RequestDetailModal({
                         </select>
                       ) : (
                         f.doc_type && (
-                          <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
+                          <span className="rounded-full bg-kf-bg-muted px-2 py-0.5 text-xs text-kf-text-primary">
                             {f.doc_type}
                           </span>
                         )
@@ -1030,14 +1030,14 @@ export default function RequestDetailModal({
                           e.preventDefault();
                           openStoredFile(f);
                         }}
-                        className="min-w-0 flex-1 truncate text-brand-brown hover:underline"
+                        className="min-w-0 flex-1 truncate text-kf-text-brand hover:underline"
                       >
                         {f.name}
                       </a>
                       {f.name.includes("SIGNED") && (
                         <span
                           className="rounded-full px-2 py-0.5 text-xs font-medium"
-                          style={{ background: "#D1FAE5", color: "#065F46" }}
+                          style={{ background: "var(--kf-palette-olive-tint)", color: "var(--kf-palette-olive-text)" }}
                         >
                           ✓ Signed
                         </span>
@@ -1048,17 +1048,17 @@ export default function RequestDetailModal({
                         (f.doc_type === "PO" || f.doc_type === "Invoice") && (
                           <span
                             className="rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={{ background: "#FEF3C7", color: "#92400E" }}
+                            style={{ background: "var(--kf-palette-brown-tint)", color: "var(--kf-status-at-risk-strong)" }}
                           >
                             ✍️ Needs Signature
                           </span>
                         )}
-                      {f.size !== undefined && <span className="text-xs text-brand-muted">{formatBytes(f.size)}</span>}
+                      {f.size !== undefined && <span className="text-xs text-kf-text-muted">{formatBytes(f.size)}</span>}
                       {signableAs && isPdfFile(f) && signingFileIndex !== i && (
                         <button
                           type="button"
                           onClick={() => setSigningFileIndex(i)}
-                          className="whitespace-nowrap font-medium text-brand-brown hover:underline"
+                          className="whitespace-nowrap font-medium text-kf-text-brand hover:underline"
                         >
                           ✍️ Sign this PDF
                         </button>
@@ -1067,7 +1067,7 @@ export default function RequestDetailModal({
                         <button
                           type="button"
                           onClick={() => removeFile(i)}
-                          className="font-medium text-[#DC2626] hover:underline"
+                          className="font-medium text-kf-status-late-strong hover:underline"
                         >
                           Remove
                         </button>
@@ -1095,7 +1095,7 @@ export default function RequestDetailModal({
                     e.preventDefault();
                     if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
                   }}
-                  className="flex h-10 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-brand-border text-xs text-brand-muted hover:bg-[#F9F8F6]"
+                  className="flex h-10 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-kf-border text-xs text-kf-text-muted hover:bg-kf-palette-warm-1"
                 >
                   📎 Click to attach files or drag &amp; drop
                 </div>
@@ -1110,12 +1110,12 @@ export default function RequestDetailModal({
                     e.target.value = "";
                   }}
                 />
-                {uploadStatus && <p className="mt-1 text-xs text-brand-muted">{uploadStatus}</p>}
-                {uploadError && <p className="mt-1 text-xs text-[#DC2626]">{uploadError}</p>}
+                {uploadStatus && <p className="mt-1 text-xs text-kf-text-muted">{uploadStatus}</p>}
+                {uploadError && <p className="mt-1 text-xs text-kf-status-late-strong">{uploadError}</p>}
               </>
             )}
 
-            {signSuccess && <p className="mt-2 text-sm text-green-700">ลายเซ็นบันทึกแล้ว</p>}
+            {signSuccess && <p className="mt-2 text-sm text-kf-text-positive">ลายเซ็นบันทึกแล้ว</p>}
           </section>
 
           {/* Approval Timeline */}
@@ -1129,13 +1129,13 @@ export default function RequestDetailModal({
               const windowLabel = hours % 24 === 0 && hours > 24 ? `${hours / 24} วัน` : `${hours} ชั่วโมง`;
               const closed = !deadline || deadline.getTime() <= Date.now();
               return (
-                <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm">
-                  <p className="font-medium text-red-800">Rejected at {request.rejected_stage ?? "-"}</p>
-                  <p className="text-red-700">
+                <div className="mb-3 rounded-md border border-kf-palette-terracotta bg-kf-palette-terracotta-tint p-3 text-sm">
+                  <p className="font-medium text-kf-status-late-strong">Rejected at {request.rejected_stage ?? "-"}</p>
+                  <p className="text-kf-status-late-strong">
                     by {request.rejected_by ?? "-"} — {formatDate(request.rejected_at)}
                   </p>
-                  <p className="mt-1 text-red-700">Reason: {request.reject_reason ?? "-"}</p>
-                  <p className="mt-2 text-xs text-red-700">
+                  <p className="mt-1 text-kf-status-late-strong">Reason: {request.reject_reason ?? "-"}</p>
+                  <p className="mt-2 text-xs text-kf-status-late-strong">
                     {closed
                       ? `ระยะเวลาส่งคำขอกลับ ${windowLabel} ได้สิ้นสุดลงแล้ว คำขอนี้จะถูกปฏิเสธถาวร ยังสามารถแก้ไขรายละเอียดได้ (โดยไม่ต้องส่งกลับ) แต่สถานะจะไม่สามารถเปลี่ยนแปลงได้อีก`
                       : `สามารถส่งคำขอนี้กลับเข้าระบบได้ภายใน ${windowLabel} หลังถูกปฏิเสธ (ภายในวันที่ ${formatDate(
@@ -1153,10 +1153,10 @@ export default function RequestDetailModal({
                   >
                     {step.state === "done" ? "✓" : step.state === "skipped" ? "–" : i + 1}
                   </div>
-                  <div className={`mt-1 text-xs font-medium ${step.state === "current" ? "text-brand-brown" : "text-brand-dark"}`}>
+                  <div className={`mt-1 text-xs font-medium ${step.state === "current" ? "text-kf-text-brand" : "text-kf-text-primary"}`}>
                     {step.label}
                   </div>
-                  {step.detail && <div className="mt-0.5 text-[10px] text-brand-muted">{step.detail}</div>}
+                  {step.detail && <div className="mt-0.5 text-[10px] text-kf-text-muted">{step.detail}</div>}
                 </div>
               ))}
             </div>
@@ -1168,12 +1168,12 @@ export default function RequestDetailModal({
               <button
                 type="button"
                 onClick={() => setShowHistory((s) => !s)}
-                className="text-sm font-medium text-brand-brown hover:underline"
+                className="text-sm font-medium text-kf-text-brand hover:underline"
               >
                 {showHistory ? "Hide" : "Show"} Rejection History ({request.rejection_history.length})
               </button>
               {showHistory && (
-                <ul className="mt-2 space-y-1 rounded-md border border-brand-border p-3 text-xs text-brand-dark">
+                <ul className="mt-2 space-y-1 rounded-md border border-kf-border p-3 text-xs text-kf-text-primary">
                   {request.rejection_history.map((h, i) => (
                     <li key={i}>
                       [{h.stage}] {formatDate(h.rejected_at)} by {h.actor_email}: {h.reason}
@@ -1184,13 +1184,13 @@ export default function RequestDetailModal({
             </section>
           )}
 
-          {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+          {saveError && <p className="text-sm text-kf-status-late-strong">{saveError}</p>}
             </>
           )}
         </div>
 
         {!fullEditMode && (actions || onSaveChanges || footerExtra) && (
-          <div className="flex items-center justify-between gap-2 border-t border-[#F0EAE0] px-6 py-4">
+          <div className="flex items-center justify-between gap-2 border-t border-kf-border-subtle px-6 py-4">
             <div>{footerExtra}</div>
             <div className="flex gap-2">
               {actions}

@@ -36,8 +36,8 @@ interface Props {
  */
 function BudgetNavLinks({ canReview }: { canReview: boolean }) {
   return (
-    <p className="text-[12px] text-brand-muted">
-      <Link href="/budget/history" className="text-brand-brown underline hover:text-brand-accent">
+    <p className="text-[12px] text-kf-text-muted">
+      <Link href="/budget/history" className="text-kf-text-brand underline hover:text-kf-palette-deep-green-hover">
         {canReview ? "Budget history & approval queue" : "Budget history"}
       </Link>
       {" — every revision by every owner, with who submitted and who approved."}
@@ -51,7 +51,7 @@ function PendingApprovalBanner({ count }: { count: number }) {
   return (
     <div
       className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] px-4 py-3 text-[13px]"
-      style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+      style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
     >
       <span>
         <strong>
@@ -61,8 +61,8 @@ function PendingApprovalBanner({ count }: { count: number }) {
       </span>
       <Link
         href="/budget/history?tab=pending"
-        className="shrink-0 rounded-[6px] px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
-        style={{ background: "#BD5A2E" }}
+        className="shrink-0 rounded-[6px] px-3 py-1.5 text-[13px] font-medium text-kf-text-on-brand hover:opacity-90"
+        style={{ background: "var(--kf-status-at-risk-strong)" }}
       >
         Review {count === 1 ? "it" : "them"} →
       </Link>
@@ -78,11 +78,11 @@ type SaveState =
   | { kind: "error"; message: string };
 
 const STATUS_PILL: Record<string, { bg: string; fg: string; label: string }> = {
-  DRAFT: { bg: "#F3F4F6", fg: "#374151", label: "Draft" },
-  SUBMITTED: { bg: "#FEF3C7", fg: "#92400E", label: "Awaiting CEO" },
-  APPROVED: { bg: "#1F3A2B", fg: "#FFFFFF", label: "Live" },
-  REJECTED: { bg: "#FEF2F2", fg: "#DC2626", label: "Rejected" },
-  SUPERSEDED: { bg: "#F4F1EC", fg: "#6B6B60", label: "Superseded" },
+  DRAFT: { bg: "var(--kf-bg-muted)", fg: "var(--kf-text-muted)", label: "Draft" },
+  SUBMITTED: { bg: "var(--kf-palette-brown-tint)", fg: "var(--kf-status-at-risk-strong)", label: "Awaiting CEO" },
+  APPROVED: { bg: "var(--kf-bg-brand)", fg: "var(--kf-bg-surface)", label: "Live" },
+  REJECTED: { bg: "var(--kf-palette-terracotta-tint)", fg: "var(--kf-status-late-strong)", label: "Rejected" },
+  SUPERSEDED: { bg: "var(--kf-palette-warm-2)", fg: "var(--kf-text-muted)", label: "Superseded" },
 };
 
 // Current year +1 back to -2, matching /reports/spend's selector exactly.
@@ -729,7 +729,7 @@ export default function BudgetEditorClient({
         <PendingApprovalBanner count={pendingApprovals} />
         <div className="mm-card">
           <h1 className="mm-page-title">Budget</h1>
-          <p className="mt-2 text-[13px] text-brand-muted">
+          <p className="mt-2 text-[13px] text-kf-text-muted">
             Only a budget owner can enter a budget
             {canReview ? ", but approving them is yours" : ""}.
           </p>
@@ -745,7 +745,7 @@ export default function BudgetEditorClient({
     return (
       <div className="mm-card">
         <h1 className="mm-page-title">My budget · FY{fiscalYear}</h1>
-        <p className="mt-2 text-[13px] text-brand-muted">
+        <p className="mt-2 text-[13px] text-kf-text-muted">
           You hold no budget scope yet, so there is nothing to budget. Scope is a BO row on your
           account naming a segment and a category — set in Settings &gt; User Management, which
           only an admin can reach. Once it is set, your lines appear here.
@@ -777,7 +777,7 @@ export default function BudgetEditorClient({
       {notice && (
         <div
           className="rounded-[10px] px-4 py-2 text-[13px]"
-          style={{ background: "#F0F4EF", border: "1px solid #9CAE8C", color: "#1F3A2B" }}
+          style={{ background: "var(--kf-bg-selected)", border: "1px solid var(--kf-status-on-track)", color: "var(--kf-bg-brand)" }}
         >
           {notice}
         </div>
@@ -849,7 +849,7 @@ export default function BudgetEditorClient({
       {error && (
         <div
           className="rounded-[10px] px-4 py-3 text-sm"
-          style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626" }}
+          style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)", color: "var(--kf-status-late-strong)" }}
         >
           {error}
         </div>
@@ -876,15 +876,15 @@ export default function BudgetEditorClient({
               </select>
             </label>
             {ownerEmail ? (
-              <p className="text-[12px] text-brand-muted">
+              <p className="text-[12px] text-kf-text-muted">
                 You are editing{" "}
-                <strong className="text-brand-dark">
+                <strong className="text-kf-text-primary">
                   {onBehalf ? `${shortName(ownerEmail)}'s budget` : "your own budget"}
                 </strong>
                 . {owners.find((o) => o.email === ownerEmail)?.summary ?? ""}
               </p>
             ) : (
-              <p className="text-[12px] text-brand-muted">
+              <p className="text-[12px] text-kf-text-muted">
                 {owners.length} budget owner{owners.length === 1 ? "" : "s"}. Nothing is loaded until
                 you choose one.
               </p>
@@ -900,17 +900,17 @@ export default function BudgetEditorClient({
         <div className="flex items-center gap-2">
           <span
             className="rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-            style={{ background: "#FDF2EE", color: "#BD5A2E", border: "1px solid #F5C4A3" }}
+            style={{ background: "var(--kf-palette-brown-tint)", color: "var(--kf-status-at-risk-strong)", border: "1px solid var(--kf-status-at-risk)" }}
           >
             on behalf of {ownerEmail}
           </span>
-          <span className="text-[11px] text-brand-subtle">acting as {viewerEmail}</span>
+          <span className="text-[11px] text-kf-text-hint">acting as {viewerEmail}</span>
         </div>
       )}
 
       {isAdmin && !ownerEmail && !loading && (
         <div className="mm-card">
-          <p className="py-10 text-center text-[13px] text-brand-muted">
+          <p className="py-10 text-center text-[13px] text-kf-text-muted">
             Choose a budget owner above to open their draft.
           </p>
         </div>
@@ -953,12 +953,12 @@ export default function BudgetEditorClient({
                   would drift to a meaningless denominator once a few branches
                   have been visited. With a branch selected the count is stated
                   on its own, with why the other departments are absent. */}
-              <p className="text-[12px] text-brand-muted">
+              <p className="text-[12px] text-kf-text-muted">
                 {hasBranchDept && branch !== ALL_BRANCHES ? (
                   <>
                     {visible.length} line{visible.length === 1 ? "" : "s"} ·{" "}
                     {branch === NO_BRANCH ? "no branch" : branch}
-                    <span className="text-brand-subtle">
+                    <span className="text-kf-text-hint">
                       {" "}— branch-split departments only; pick All branches for the rest
                     </span>
                   </>
@@ -981,13 +981,13 @@ export default function BudgetEditorClient({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat label="Approved (live)" value={thb(stats.approvedTotal)} foot="what the spend report reads now" accent="#1F3A2B" />
-            <Stat label="This draft" value={thb(stats.proposedTotal)} foot={`${stats.changedFigures} of ${stats.totalFigures} figures changed`} accent="#BD5A2E" />
+            <Stat label="Approved (live)" value={thb(stats.approvedTotal)} foot="what the spend report reads now" accent="var(--kf-bg-brand)" />
+            <Stat label="This draft" value={thb(stats.proposedTotal)} foot={`${stats.changedFigures} of ${stats.totalFigures} figures changed`} accent="var(--kf-status-at-risk-strong)" />
             <Stat
               label="Change"
               value={`${stats.delta >= 0 ? "+" : "−"}${thb(Math.abs(stats.delta))}`}
               foot={stats.approvedTotal > 0 ? `${((stats.delta / stats.approvedTotal) * 100).toFixed(1)}% vs approved` : "no approved budget yet"}
-              accent={stats.delta > 0 ? "#B23A2F" : "#2E7D52"}
+              accent={stats.delta > 0 ? "var(--kf-status-late)" : "var(--kf-status-on-track)"}
             />
             <Stat
               label="Of revenue goal"
@@ -1001,7 +1001,7 @@ export default function BudgetEditorClient({
                   ? `${thb(stats.proposedTotal)} of ${thb(goalFyTotal)}${buFilter ? ` · ${buFilter}` : ""}`
                   : "no revenue goal set for this year"
               }
-              accent="#9CAE8C"
+              accent="var(--kf-status-on-track)"
             />
           </div>
 
@@ -1014,7 +1014,7 @@ export default function BudgetEditorClient({
           {!editable && !(hasBranchDept && branch === ALL_BRANCHES && status === "DRAFT") && (
             <div
               className="rounded-[10px] px-4 py-3 text-[13px]"
-              style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+              style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
             >
               This revision is {pill.label.toLowerCase()} and is read-only. The approved budget stays
               live until a CEO acts on it.
@@ -1074,7 +1074,7 @@ export default function BudgetEditorClient({
       )}
 
       {loading && (
-        <p className="text-sm text-brand-muted">
+        <p className="text-sm text-kf-text-muted">
           Loading {onBehalf ? `${shortName(ownerEmail)}'s` : "your"} budget…
         </p>
       )}
@@ -1102,20 +1102,20 @@ export default function BudgetEditorClient({
               {onBehalf && (
                 <p
                   className="mb-3 rounded-[8px] px-3 py-2 text-[13px]"
-                  style={{ background: "#FDF2EE", color: "#7C3A1A" }}
+                  style={{ background: "var(--kf-palette-brown-tint)", color: "var(--kf-palette-terracotta-deep)" }}
                 >
                   This is <strong>{ownerEmail}&apos;s</strong> budget, submitted by you. You will not
                   be able to approve it afterwards.
                 </p>
               )}
-              <p className="text-[13px] text-brand-dark">
+              <p className="text-[13px] text-kf-text-primary">
                 You are submitting <strong>{stats.changedFigures}</strong> changed figure
                 {stats.changedFigures === 1 ? "" : "s"} across{" "}
                 <strong>{stats.changedSegments.length}</strong> segment
                 {stats.changedSegments.length === 1 ? "" : "s"}
                 {stats.changedSegments.length > 0 ? ` (${stats.changedSegments.join(", ")})` : ""}.
               </p>
-              <p className="mt-2 text-[13px] text-brand-muted">
+              <p className="mt-2 text-[13px] text-kf-text-muted">
                 FY total moves from {thb(stats.approvedTotal)} to {thb(stats.proposedTotal)} — a change
                 of {stats.delta >= 0 ? "+" : "−"}
                 {thb(Math.abs(stats.delta))}. The approved budget stays live until a CEO approves;
@@ -1144,12 +1144,12 @@ export default function BudgetEditorClient({
 function ContactLine({ contacts }: { contacts: string[] }) {
   if (contacts.length === 0) return null;
   return (
-    <p className="mt-3 text-[13px] text-brand-muted">
+    <p className="mt-3 text-[13px] text-kf-text-muted">
       To get budget scope assigned, contact{" "}
       {contacts.map((c, i) => (
         <span key={c}>
           {i > 0 ? (i === contacts.length - 1 ? " or " : ", ") : ""}
-          <a href={`mailto:${c}`} className="text-brand-brown underline hover:text-brand-accent">
+          <a href={`mailto:${c}`} className="text-kf-text-brand underline hover:text-kf-palette-deep-green-hover">
             {c}
           </a>
         </span>
@@ -1162,9 +1162,9 @@ function ContactLine({ contacts }: { contacts: string[] }) {
 function Stat({ label, value, foot, accent }: { label: string; value: string; foot: string; accent: string }) {
   return (
     <div className="mm-card" style={{ borderLeft: `3px solid ${accent}` }}>
-      <div className="text-[11px] uppercase tracking-[0.05em] text-brand-subtle">{label}</div>
-      <div className="mt-1 text-[26px] font-semibold tabular-nums text-brand-dark">{value}</div>
-      <div className="mt-1 text-[13px] text-brand-muted">{foot}</div>
+      <div className="text-[11px] uppercase tracking-[0.05em] text-kf-text-hint">{label}</div>
+      <div className="mt-1 text-[26px] font-semibold tabular-nums text-kf-text-primary">{value}</div>
+      <div className="mt-1 text-[13px] text-kf-text-muted">{foot}</div>
     </div>
   );
 }
@@ -1173,23 +1173,23 @@ function Stat({ label, value, foot, accent }: { label: string; value: string; fo
 function SaveIndicator({ state }: { state: SaveState }) {
   const map: Record<SaveState["kind"], { text: string; color: string }> = {
     idle: { text: "", color: "" },
-    dirty: { text: "Unsaved changes", color: "#92400E" },
-    saving: { text: "Saving…", color: "#6B7280" },
-    saved: { text: "", color: "#2E7D52" },
-    error: { text: "", color: "#DC2626" },
+    dirty: { text: "Unsaved changes", color: "var(--kf-status-at-risk-strong)" },
+    saving: { text: "Saving…", color: "var(--kf-text-muted)" },
+    saved: { text: "", color: "var(--kf-status-on-track)" },
+    error: { text: "", color: "var(--kf-status-late-strong)" },
   };
   if (state.kind === "idle") return null;
   if (state.kind === "saved") {
     const t = new Date(state.savedAt);
     return (
-      <span className="text-[12px]" style={{ color: "#2E7D52" }}>
+      <span className="text-[12px]" style={{ color: "var(--kf-status-on-track)" }}>
         Saved {t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
       </span>
     );
   }
   if (state.kind === "error") {
     return (
-      <span className="text-[12px]" style={{ color: "#DC2626" }} title={state.message}>
+      <span className="text-[12px]" style={{ color: "var(--kf-status-late-strong)" }} title={state.message}>
         Not saved — {state.message.slice(0, 60)}
       </span>
     );
@@ -1284,7 +1284,7 @@ function AddChannelModal({
               still will not arrive until the sheet has a row for it. */}
           <div
             className="rounded-[8px] px-3 py-2 text-[12.5px]"
-            style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+            style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
           >
             A new channel needs a matching row in the revenue sheet before its
             actuals will arrive. Until then the daily sync imports every other
@@ -1334,7 +1334,7 @@ function AddChannelModal({
           {usesStatus && (
             <label className="block">
               <span className="mm-label mb-1 block">
-                Status<span style={{ color: "#DC2626" }}> *</span>
+                Status<span style={{ color: "var(--kf-status-late-strong)" }}> *</span>
               </span>
               <select
                 className="mm-input w-full"
@@ -1346,14 +1346,14 @@ function AddChannelModal({
                   <option key={o} value={o}>{o}</option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-brand-subtle">
+              <p className="mt-1 text-xs text-kf-text-hint">
                 {subCategory} groups its channels by status. Without one the channel renders
                 beside sell / use / closed instead of inside a group.
               </p>
               {status === "closed" && (
                 <p
                   className="mt-1 rounded-[6px] px-2 py-1.5 text-xs"
-                  style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+                  style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
                 >
                   <strong>A new channel is rarely &ldquo;closed&rdquo;.</strong> That means a store
                   that traded and then shut — it keeps its history and cannot be given a budget for

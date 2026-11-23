@@ -25,8 +25,8 @@ function Card({
 }) {
   return (
     <div className="mm-card" style={{ borderLeft: `3px solid ${accent}` }}>
-      <div className="text-[11px] uppercase tracking-[0.05em] text-brand-subtle">{label}</div>
-      <div className="mt-1 text-[26px] font-semibold tabular-nums text-brand-dark">{value}</div>
+      <div className="text-[11px] uppercase tracking-[0.05em] text-kf-text-hint">{label}</div>
+      <div className="mt-1 text-[26px] font-semibold tabular-nums text-kf-text-primary">{value}</div>
       <div className="mt-1 text-[13px]" style={subColor ? { color: subColor } : undefined}>
         {sub}
       </div>
@@ -50,15 +50,15 @@ export default function SpendKpis({ report, fiscalYear }: Props) {
       <Card
         label="Actual spend"
         value={thb(actual)}
-        accent="#1F3A2B"
+        accent="var(--kf-bg-brand)"
         sub={
           prevActual > 0 ? (
-            <span style={{ color: delta > 0 ? HEAT_OVER : "#2E7D52" }}>
+            <span style={{ color: delta > 0 ? HEAT_OVER : "var(--kf-status-on-track)" }}>
               {delta >= 0 ? "▲" : "▼"} {thbSigned(Math.abs(delta))}
               {deltaPct !== null && ` (${pct(Math.abs(deltaPct))})`} vs previous period
             </span>
           ) : (
-            <span className="text-brand-subtle">No comparable previous period</span>
+            <span className="text-kf-text-hint">No comparable previous period</span>
           )
         }
       />
@@ -66,16 +66,16 @@ export default function SpendKpis({ report, fiscalYear }: Props) {
       <Card
         label="Budget"
         value={budget > 0 ? thb(budget) : EM_DASH}
-        accent="#BD5A2E"
+        accent="var(--kf-status-at-risk-strong)"
         sub={
           budget > 0 ? (
             remaining >= 0 ? (
-              <span className="text-brand-muted">{thb(remaining)} remaining</span>
+              <span className="text-kf-text-muted">{thb(remaining)} remaining</span>
             ) : (
               <span style={{ color: HEAT_OVER }}>{thb(Math.abs(remaining))} over</span>
             )
           ) : (
-            <span className="text-brand-subtle">No budget set for this selection</span>
+            <span className="text-kf-text-hint">No budget set for this selection</span>
           )
         }
       />
@@ -83,13 +83,13 @@ export default function SpendKpis({ report, fiscalYear }: Props) {
       <Card
         label="Budget used"
         value={used === null ? EM_DASH : pct(used)}
-        accent={used === null ? "#D8CBB0" : utilisationColor(used)}
+        accent={used === null ? "var(--kf-border)" : utilisationColor(used)}
         sub={
           used === null ? (
-            <span className="text-brand-subtle">Needs a budget to measure against</span>
+            <span className="text-kf-text-hint">Needs a budget to measure against</span>
           ) : (
             // Pace, not just position — 61% used at 61% elapsed is on track.
-            <span className="text-brand-muted">{pct(elapsed)} of the period elapsed</span>
+            <span className="text-kf-text-muted">{pct(elapsed)} of the period elapsed</span>
           )
         }
       />
@@ -97,15 +97,15 @@ export default function SpendKpis({ report, fiscalYear }: Props) {
       <Card
         label="Pending approval"
         value={thb(pending)}
-        accent="#9CAE8C"
+        accent="var(--kf-status-on-track)"
         sub={
           projected === null ? (
-            <span className="text-brand-subtle">
+            <span className="text-kf-text-hint">
               {report.pending_requests.length} request
               {report.pending_requests.length === 1 ? "" : "s"} awaiting approval
             </span>
           ) : (
-            <span className="text-brand-muted">
+            <span className="text-kf-text-muted">
               {pct(projected)} projected used if all approved
             </span>
           )

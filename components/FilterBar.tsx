@@ -5,8 +5,8 @@ import { BUSINESS_UNITS, DEPARTMENTS, EXPENSE_TYPES, PAYMENT_METHODS, type Statu
 import type { CompanyRow, ExpenseRequest, SupplierRow } from "@/types/database";
 
 const selectClass =
-  "h-[30px] rounded-md border border-brand-border bg-white px-2 text-xs text-brand-dark focus:border-brand-brown focus:outline-none";
-const labelClass = "mb-1 block text-[10px] uppercase tracking-wide text-brand-subtle";
+  "h-[30px] rounded-md border border-kf-border bg-kf-bg-surface px-2 text-xs text-kf-text-primary focus:border-kf-border-focus focus:outline-none";
+const labelClass = "mb-1 block text-[10px] uppercase tracking-wide text-kf-text-hint";
 
 // Same label convention as RequestForm.tsx's companyOptionLabel, e.g.
 // "ONEST — Mimetta Co., Ltd." — kept as a local copy here rather than a
@@ -119,7 +119,7 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
   };
 
   return (
-    <div className="mb-4 overflow-hidden rounded-[10px] border border-[#F0EAE0]" style={{ background: "#FDFCFB" }}>
+    <div className="mb-4 overflow-hidden rounded-[10px] border border-kf-border-subtle" style={{ background: "var(--kf-palette-warm-1)" }}>
       <div className="flex items-center justify-between px-5 py-2.5">
         <div className="flex items-center gap-3">
           <button
@@ -127,8 +127,8 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
             onClick={() => setOpen((o) => !o)}
             className={`mm-btn-sm inline-flex items-center gap-1.5 rounded-md border transition-colors ${
               activeCount > 0
-                ? "border-brand-brown bg-brand-brown text-white"
-                : "border-brand-border bg-white text-brand-dark hover:bg-[#F9F8F6]"
+                ? "border-kf-bg-active bg-kf-bg-active text-kf-text-on-brand"
+                : "border-kf-border bg-kf-bg-surface text-kf-text-primary hover:bg-kf-palette-warm-1"
             }`}
           >
             <AdjustmentsIcon />
@@ -138,13 +138,13 @@ export default function FilterBar({ requests, onFilteredChange }: FilterBarProps
             <button
               type="button"
               onClick={clear}
-              className="text-[13px] font-medium text-[#BD5A2E] hover:underline"
+              className="text-[13px] font-medium text-kf-status-at-risk-strong hover:underline"
             >
               Clear all
             </button>
           )}
         </div>
-        <span className="text-[13px] text-brand-subtle">{filtered.length} results</span>
+        <span className="text-[13px] text-kf-text-hint">{filtered.length} results</span>
       </div>
 
       <div

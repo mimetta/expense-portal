@@ -180,17 +180,17 @@ function Skeleton() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="mm-card">
-            <div className="h-3 w-24 animate-pulse rounded bg-[#F0EAE0]" />
-            <div className="mt-3 h-7 w-32 animate-pulse rounded bg-[#F0EAE0]" />
-            <div className="mt-2 h-3 w-40 animate-pulse rounded bg-[#F5F0E8]" />
+            <div className="h-3 w-24 animate-pulse rounded bg-kf-border-subtle" />
+            <div className="mt-3 h-7 w-32 animate-pulse rounded bg-kf-border-subtle" />
+            <div className="mt-2 h-3 w-40 animate-pulse rounded bg-kf-border-subtle" />
           </div>
         ))}
       </div>
       <div className="mm-card">
-        <div className="h-3 w-32 animate-pulse rounded bg-[#F0EAE0]" />
+        <div className="h-3 w-32 animate-pulse rounded bg-kf-border-subtle" />
         <div className="mt-4 space-y-2">
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-8 animate-pulse rounded bg-[#F9F8F6]" />
+            <div key={i} className="h-8 animate-pulse rounded bg-kf-palette-warm-1" />
           ))}
         </div>
       </div>
@@ -322,7 +322,7 @@ export default function SpendReportClient() {
       {report?.unscoped && (
         <div
           className="rounded-[10px] px-4 py-4 text-[13px]"
-          style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+          style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
         >
           <strong>No department has been assigned to your account yet.</strong>
           <p className="mt-1">
@@ -346,7 +346,7 @@ export default function SpendReportClient() {
       {error && (
         <div
           className="rounded-[10px] px-4 py-3 text-sm"
-          style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626" }}
+          style={{ background: "var(--kf-palette-terracotta-tint)", border: "1px solid var(--kf-palette-terracotta)", color: "var(--kf-status-late-strong)" }}
         >
           {error}
         </div>

@@ -16,11 +16,11 @@ interface Props {
 }
 
 const PILL: Record<string, { bg: string; fg: string; label: string }> = {
-  DRAFT: { bg: "#F3F4F6", fg: "#374151", label: "Draft" },
-  SUBMITTED: { bg: "#FEF3C7", fg: "#92400E", label: "Awaiting CEO" },
-  APPROVED: { bg: "#1F3A2B", fg: "#FFFFFF", label: "Live" },
-  REJECTED: { bg: "#FEF2F2", fg: "#DC2626", label: "Rejected" },
-  SUPERSEDED: { bg: "#F4F1EC", fg: "#6B6B60", label: "Superseded" },
+  DRAFT: { bg: "var(--kf-bg-muted)", fg: "var(--kf-text-muted)", label: "Draft" },
+  SUBMITTED: { bg: "var(--kf-palette-brown-tint)", fg: "var(--kf-status-at-risk-strong)", label: "Awaiting CEO" },
+  APPROVED: { bg: "var(--kf-bg-brand)", fg: "var(--kf-bg-surface)", label: "Live" },
+  REJECTED: { bg: "var(--kf-palette-terracotta-tint)", fg: "var(--kf-status-late-strong)", label: "Rejected" },
+  SUPERSEDED: { bg: "var(--kf-palette-warm-2)", fg: "var(--kf-text-muted)", label: "Superseded" },
 };
 
 const when = (r: HistoryRow) =>
@@ -125,8 +125,8 @@ export default function HistoryClient({
           <p className="mm-page-subtitle">
             Every revision by every owner, with who submitted and who approved
           </p>
-          <p className="mt-1 text-[12px] text-brand-muted">
-            <Link href="/budget" className="text-brand-brown underline hover:text-brand-accent">
+          <p className="mt-1 text-[12px] text-kf-text-muted">
+            <Link href="/budget" className="text-kf-text-brand underline hover:text-kf-palette-deep-green-hover">
               ← Budget editor
             </Link>
             {" — enter or amend a budget."}
@@ -140,7 +140,7 @@ export default function HistoryClient({
       {canApprove && pendingCount > 0 && (
         <div
           className="rounded-[10px] px-4 py-3 text-[13px]"
-          style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+          style={{ background: "var(--kf-palette-brown-tint)", border: "1px solid var(--kf-status-at-risk)", color: "var(--kf-status-at-risk-strong)" }}
         >
           <strong>
             {pendingCount} budget revision{pendingCount === 1 ? "" : "s"} waiting for your approval
@@ -178,15 +178,15 @@ export default function HistoryClient({
               ))}
             </select>
           </label>
-          <p className="text-[12px] text-brand-muted">{visible.length} revision{visible.length === 1 ? "" : "s"}</p>
+          <p className="text-[12px] text-kf-text-muted">{visible.length} revision{visible.length === 1 ? "" : "s"}</p>
         </div>
       </div>
 
       {visible.length === 0 ? (
         <div className="mm-card">
-          <p className="py-10 text-center text-[13px] text-brand-muted">
+          <p className="py-10 text-center text-[13px] text-kf-text-muted">
             No budget revisions yet. A budget owner creates one from{" "}
-            <Link href="/budget" className="text-brand-brown underline">My budget</Link>.
+            <Link href="/budget" className="text-kf-text-brand underline">My budget</Link>.
           </p>
         </div>
       ) : (
@@ -214,25 +214,25 @@ export default function HistoryClient({
                     key={r.id}
                     style={
                       awaitingMe
-                        ? { background: "#FFFBEB", boxShadow: "inset 3px 0 0 #BD5A2E" }
+                        ? { background: "var(--kf-palette-brown-tint)", boxShadow: "inset 3px 0 0 var(--kf-status-at-risk-strong)" }
                         : undefined
                     }
                   >
-                    <td className="whitespace-nowrap px-3 py-2 text-[13px] text-brand-muted">
+                    <td className="whitespace-nowrap px-3 py-2 text-[13px] text-kf-text-muted">
                       {w ? new Date(w).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : EM_DASH}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-[13px] text-brand-dark">
+                    <td className="whitespace-nowrap px-3 py-2 text-[13px] text-kf-text-primary">
                       {r.owner_email.replace("@mimetta.co", "")}
                       {r.owner_email === viewerEmail && (
-                        <span className="ml-1 text-[11px] text-brand-subtle">(you)</span>
+                        <span className="ml-1 text-[11px] text-kf-text-hint">(you)</span>
                       )}
                     </td>
-                    <td className="max-w-[460px] px-3 py-2 text-[13px] text-brand-muted">
+                    <td className="max-w-[460px] px-3 py-2 text-[13px] text-kf-text-muted">
                       {describe(r)}
                       {/* An admin may raise a revision for an owner. The owner
                           column shows whose budget it is; this says who acted. */}
                       {r.created_by && r.created_by !== r.owner_email && (
-                        <div className="mt-0.5 text-[12px] text-brand-subtle">
+                        <div className="mt-0.5 text-[12px] text-kf-text-hint">
                           Created by {r.created_by} on behalf of {r.owner_email}
                           {r.submitted_by && r.submitted_by !== r.owner_email
                             ? `, submitted by ${r.submitted_by}`
@@ -251,14 +251,14 @@ export default function HistoryClient({
                           <span
                             title={`Submitted and approved by ${r.approved_by} — no second review`}
                             className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                            style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FCD34D" }}
+                            style={{ background: "var(--kf-palette-brown-tint)", color: "var(--kf-status-at-risk-strong)", border: "1px solid var(--kf-status-at-risk)" }}
                           >
                             ⚠ Self-approved
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-brand-dark">{thb(r.fy_total)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-kf-text-primary">{thb(r.fy_total)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right">
                       {canOpenDetail ? (
                         awaitingMe ? (
@@ -266,18 +266,18 @@ export default function HistoryClient({
                           // the badge in the nav is counting.
                           <Link
                             href={`/budget/review/${r.id}`}
-                            className="inline-block whitespace-nowrap rounded-[6px] px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
-                            style={{ background: "#BD5A2E" }}
+                            className="inline-block whitespace-nowrap rounded-[6px] px-3 py-1.5 text-[13px] font-medium text-kf-text-on-brand hover:opacity-90"
+                            style={{ background: "var(--kf-status-at-risk-strong)" }}
                           >
                             Review →
                           </Link>
                         ) : (
-                          <Link href={`/budget/review/${r.id}`} className="text-[13px] text-brand-brown underline hover:text-brand-accent">
+                          <Link href={`/budget/review/${r.id}`} className="text-[13px] text-kf-text-brand underline hover:text-kf-palette-deep-green-hover">
                             {r.status === "SUBMITTED" ? "Review" : "View"}
                           </Link>
                         )
                       ) : (
-                        <span className="text-[11px] text-brand-subtle" title="Cell-level figures are visible to the owner and CEO only">
+                        <span className="text-[11px] text-kf-text-hint" title="Cell-level figures are visible to the owner and CEO only">
                           summary only
                         </span>
                       )}
@@ -290,7 +290,7 @@ export default function HistoryClient({
         </div>
       )}
 
-      <p className="text-[11px] text-brand-subtle">
+      <p className="text-[11px] text-kf-text-hint">
         Every approved revision is retained. The spend report resolves each budget cell to the most
         recently approved revision containing that cell — so a segment&apos;s budget is assembled
         from several owners&apos; revisions, each approved at a different time.

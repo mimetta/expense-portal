@@ -93,45 +93,45 @@ export default function ProcurementPage() {
       <FilterBar requests={requests} onFilteredChange={setFiltered} statuses={RELEVANT_STATUSES} />
 
       {loading ? (
-        <p className="text-sm text-brand-muted">Loading...</p>
+        <p className="text-sm text-kf-text-muted">Loading...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-brand-muted">Nothing here.</p>
+        <p className="text-sm text-kf-text-muted">Nothing here.</p>
       ) : (
         <div className="space-y-3">
           {filtered.map((r) => (
             <div
               key={r.request_id}
               onClick={() => setSelected(r)}
-              className="mm-card cursor-pointer hover:bg-[#FAFAF7]"
+              className="mm-card cursor-pointer hover:bg-kf-palette-warm-1"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="tabular-nums text-xs text-brand-muted">{r.request_id}</span>
-                  <span className="ml-2 rounded-full bg-[#F3F4F6] px-2 py-0.5 text-xs text-brand-dark">
+                  <span className="tabular-nums text-xs text-kf-text-muted">{r.request_id}</span>
+                  <span className="ml-2 rounded-full bg-kf-bg-muted px-2 py-0.5 text-xs text-kf-text-primary">
                     {r.use_for_company || r.bu}
                   </span>
                   {r.skip_bo && (
-                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                    <span className="ml-2 rounded-full bg-kf-palette-brown-tint px-2 py-0.5 text-xs text-kf-status-at-risk-strong">
                       Skip BO — goes to CEO
                     </span>
                   )}
                 </div>
                 <StatusBadge status={r.status} />
               </div>
-              <div className="mt-2 text-sm text-brand-dark">
+              <div className="mt-2 text-sm text-kf-text-primary">
                 {r.requester_name} — {r.department} — {r.expense_type}
               </div>
-              <div className="mt-1 text-sm font-medium text-brand-dark">
+              <div className="mt-1 text-sm font-medium text-kf-text-primary">
                 {formatCurrency(r.total)} · Supplier: {r.supplier_name ?? "-"}
               </div>
               {r.status === "PO_UPLOADED" && (
-                <div className="mt-2 text-xs text-brand-muted">
+                <div className="mt-2 text-xs text-kf-text-muted">
                   PO #{r.po_number} · Vendor: {r.po_vendor} · Uploaded {formatDate(r.po_uploaded_at)}
                 </div>
               )}
-              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-brand-muted">
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-kf-text-muted">
                 <span>{r.due_date ? `Due ${formatDate(r.due_date)}` : ""}</span>
-                <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-0.5 text-[11px] font-medium text-[#374151]">
+                <span className="inline-flex items-center rounded-full bg-kf-bg-muted px-2.5 py-0.5 text-[11px] font-medium text-kf-text-muted">
                   BO: {r.bo_approver ?? "—"}
                 </span>
               </div>

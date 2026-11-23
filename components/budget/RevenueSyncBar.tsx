@@ -98,10 +98,10 @@ export default function RevenueSyncBar({
   // whole reason the run no longer refuses outright.
   const partial = status.lastStatus === "success" && status.lastWarnings.length > 0;
   const tone = (status.stale && !never) || partial
-    ? { bg: "#FEF3C7", border: "#F59E0B", fg: "#92400E", dot: "#F59E0B" }
+    ? { bg: "var(--kf-palette-brown-tint)", border: "var(--kf-status-at-risk)", fg: "var(--kf-status-at-risk-strong)", dot: "var(--kf-status-at-risk)" }
     : status.lastStatus === "success" || never
-      ? { bg: "#F0F4EF", border: "#9CAE8C", fg: "#1F3A2B", dot: "#2E7D52" }
-      : { bg: "#FEF2F2", border: "#DC2626", fg: "#8E2A21", dot: "#DC2626" };
+      ? { bg: "var(--kf-bg-selected)", border: "var(--kf-status-on-track)", fg: "var(--kf-bg-brand)", dot: "var(--kf-status-on-track)" }
+      : { bg: "var(--kf-palette-terracotta-tint)", border: "var(--kf-status-late-strong)", fg: "var(--kf-status-late-strong)", dot: "var(--kf-status-late-strong)" };
 
   return (
     <div

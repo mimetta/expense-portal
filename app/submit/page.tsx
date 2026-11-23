@@ -42,7 +42,7 @@ function draftToFormInitial(formData: Record<string, unknown>): Partial<RequestF
 // pattern as SettingsClient (see app/settings/settingsClient.tsx).
 export default function SubmitPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-brand-muted">Loading...</p>}>
+    <Suspense fallback={<p className="text-sm text-kf-text-muted">Loading...</p>}>
       <SubmitPageInner />
     </Suspense>
   );
@@ -97,7 +97,7 @@ function SubmitPageInner() {
   };
 
   if (loadingDraft) {
-    return <p className="text-sm text-brand-muted">Loading draft...</p>;
+    return <p className="text-sm text-kf-text-muted">Loading draft...</p>;
   }
 
   return (
