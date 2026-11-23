@@ -48,7 +48,7 @@ alongside it "just in case".
 | Backend | Supabase — PostgreSQL, Auth, Storage |
 | Auth | Google OAuth via Supabase Auth |
 | Hosting | Vercel |
-| Repository | `kindcollectives/expense-portal` |
+| Repository | `mimetta/expense-portal` |
 | Production | https://expense-portal-sigma.vercel.app |
 | Notifications | Discord webhooks + in-portal notification bell |
 | Attachments | Supabase Storage — `attachments` bucket; signature PNGs in `signatures` |
@@ -61,6 +61,23 @@ Supabase project and reading portal data through the external API (section 9).
 ### Why Supabase Storage
 
 Chosen over Google Drive (CORS problems) and over paid storage (cost). Free tier is sufficient.
+
+### Other documents in `docs/`
+
+These predate this file and were written closer to the work they describe. Where one of them
+contradicts this file, prefer it and correct this file.
+
+| file | covers |
+|---|---|
+| `access-baseline.md` | roles and access as they stood at a point in time |
+| `categories-reconciliation.md` | the categories reconciliation in detail |
+| `branch-name-reconciliation.md` | branch naming |
+| `external-api.md` | the external API contract |
+| `stale-budget-lines.md` | stale budget lines |
+
+`docs/` also holds the approved HTML mockups: spend report, budget editor (v2), budget page, branch
+budget, branch review, budget visibility, revenue goals (v3), revenue actual, users & access. The
+mockup is the approved design of record for each feature — check it before changing a screen.
 
 ---
 
