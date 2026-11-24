@@ -79,9 +79,21 @@
    * series. BRAND.md says chart colours stay in each app for now, so these
    * live here and nowhere else.
    *
-   * The first five are kit colours; the rest are app hues chosen to sit
-   * beside them without clashing. If a shared chart palette is ever added
-   * to the kit, this block is the only thing to delete. */
+   * Kit colours are used where one is unique; the rest are app hues chosen
+   * to sit beside them without clashing. If a shared chart palette is ever
+   * added to the kit, this block is the only thing to delete.
+   *
+   * ALL SIXTEEN MUST STAY DISTINCT. Branch colour is assigned by hashing
+   * the branch NAME, so a duplicate does not announce itself — two
+   * unrelated branches simply render in the same colour on the spend
+   * report and nothing errors. Two duplicates got in exactly that way,
+   * when the kit sweep mapped several distinct app hues onto the nearest
+   * kit role: #2E7D52 and olive both became status-on-track, and #BD5A2E,
+   * #A5673B, #7A5A0F and #8A6D3B all became status-at-risk-strong.
+   *
+   * Measured in CIELAB: the closest pair is now dE 9.0 (7 vs 16, both
+   * purples, as hand-written before the kit) and nothing is identical.
+   * Re-measure before changing any value here. */
   --app-series-1: var(--kf-palette-deep-green);
   --app-series-2: var(--kf-palette-brown);
   --app-series-3: var(--kf-palette-terracotta);
@@ -89,13 +101,21 @@
   --app-series-5: var(--kf-palette-warm-9);
   --app-series-6: #3B6EA5;
   --app-series-7: #8E5A9E;
-  --app-series-8: var(--kf-status-on-track);
+  /* A true green. Was status-on-track, which IS olive-strong — i.e.
+     byte-identical to series-4. dE 31 from olive, 21 from the
+     sage-green at series-11. */
+  --app-series-8: #2B8C60;
   --app-series-9: var(--kf-status-at-risk-strong);
   --app-series-10: #4C6B8A;
   --app-series-11: #5B7B5A;
   --app-series-12: #9C5B7B;
   --app-series-13: #3F7C7C;
-  --app-series-14: var(--kf-status-at-risk-strong);
+  /* Saturated amber. Was status-at-risk-strong, byte-identical to
+     series-9. The block had no yellow-gold at all, so this is the
+     warm hue furthest from everything already here: dE 38.5 from the
+     nearest (brown, series-2), 40 from terracotta, 46 from
+     brown-text, 56 from warm-9. */
+  --app-series-14: #C08A1E;
   --app-series-15: #55606E;
   --app-series-16: #7B5EA7;
   /* "Shared" is a bucket, not a branch, so it takes a neutral. */

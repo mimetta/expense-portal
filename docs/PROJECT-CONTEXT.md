@@ -248,13 +248,40 @@ signed in; a 29-migration history divergence between local and remote repaired;
 `migrate-from-sheets.ts` guarded by `assertNotReconciled()` so it refuses to run against a
 reconciled database.
 
-### Heat bands and design tokens
+### Design tokens
 
-DM Sans with `tabular-nums` (DM Mono removed). Forest `#1F3A2B` primary, burnt terracotta `#BD5A2E`
-accent, warm cream `#FAF8F4` page background, sandstone `#D8CBB0` borders. Minimal modern SaaS
-aesthetic, closest reference the Supabase dashboard.
+The app uses the **Kindfolks kit**, copied to `brand/` at kit commit `c1367f0` and pinned in
+`brand/KIT_VERSION` (1.0.1). The kit is never edited in place — a look change is a new kit version
+copied in. Adopted in `a3f4607`.
 
-Heat bands: `< 80%` → `#2E7D52`, `80–100%` → `#C99A2E`, `> 100%` → `#B23A2F`.
+Two token files, and no hex anywhere else in the codebase:
+
+- `brand/tokens/tokens.json` and `brand/tokens/tokens.css` — the kit's `--kf-*` roles.
+- `app/tokens.css` — the app's own roles, defined in terms of `--kf-*`. Status badges, calendar
+  event types, and the 16-branch chart series. The series block is the only hex in the codebase;
+  the kit has no categorical chart palette and `BRAND.md` leaves chart colours to each app.
+
+Never put a hex in a component — add a role to `app/tokens.css` instead.
+
+Type: Montserrat / IBM Plex Sans Thai / Tinos Italic, via `next/font/local` from the kit's
+committed woff2 files. The kit forbids a build-time font fetch, so `next/font/google` must not come
+back. Page titles are Tinos Italic 24/18px, line-height 30px.
+
+Two kit rules that constrain design decisions, not just values:
+
+- **Terracotta is reserved** for late, overdue, errors and delete. Decorative uses go to the
+  at-risk shade or deep-green-hover.
+- **The kit has no blue.** Anything that was blue — the CEO-signature banner, the payment calendar
+  type, PO_UPLOADED — takes deep-green-on-sage-light. "Info" and "selected" are now the same
+  pairing. The chart series block is the one exception.
+
+Heat bands, in `components/spend/format.ts` and duplicated in `components/spend/cells.tsx`:
+`< 80%` → `--kf-status-on-track`, `80–100%` → `--kf-status-at-risk`, `> 100%` → `--kf-status-late`,
+as `color-mix` tints at 10% / 14% / 12%. Band text colours are deliberately *not* the band colours.
+Both copies must change together.
+
+UI rules for the assistant live in `.claude/rules/kindfolks-ui.md`. The mockups in `docs/` still
+carry the pre-kit palette — they remain the design of record for layout and behaviour, not colour.
 
 ---
 
