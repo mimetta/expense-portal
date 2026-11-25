@@ -11,17 +11,14 @@
  * shared one exists, THIS FILE is the only thing that changes: no component
  * hardcodes a module name or address.
  *
- * ===========================================================================
- * THE URLs ARE PLACEHOLDERS AND MUST BE FILLED IN BEFORE THIS SHIPS.
- * ===========================================================================
- * Nothing here was guessed. Every `href` below is the literal string
- * `TODO_URL`, which `moduleHrefsPending()` detects — the switcher renders
- * those entries as visibly unavailable rather than as links to nowhere.
- * Replace each `TODO_URL` with the real address, copied from Kindfolks'
- * `src/lib/apps.js` or the Dashboard's `lib/otherApps.ts`.
+ * Each entry is `<app url>/?via=switcher` per brand/CHECKLIST.md, except
+ * this app's own, which links to its own home with no `via`.
  *
- * brand/CHECKLIST.md: each entry is `<app url>/?via=switcher`, except this
- * app's own, which links to its own home with no `via`.
+ * `TODO_URL`, `moduleHrefsPending()` and the disabled branch in
+ * ModuleSwitcher are dormant now that every address is filled in. They are
+ * kept for the next module added before its address exists: give it
+ * `TODO_URL` and the switcher lists it as unavailable rather than linking
+ * to nowhere.
  */
 
 export interface KindfolksModule {
@@ -40,12 +37,9 @@ export const MODULES: KindfolksModule[] = [
   // This app. Its own home, no `via` — per brand/CHECKLIST.md.
   { name: "Expenses", href: "/", current: true },
 
-  // TODO: replace with `<Projects url>/?via=switcher`
-  { name: "Projects", href: TODO_URL, current: false },
-  // TODO: replace with `<Kindfolks url>/okrs?via=switcher`
-  { name: "OKRs & KPIs", href: TODO_URL, current: false },
-  // TODO: replace with `<Dashboard url>/?via=switcher`
-  { name: "Dashboard", href: TODO_URL, current: false },
+  { name: "Projects", href: "https://kc-tasks-delta.vercel.app/?via=switcher", current: false },
+  { name: "OKRs & KPIs", href: "https://kc-tasks-delta.vercel.app/okrs?via=switcher", current: false },
+  { name: "Dashboard", href: "https://kc-dashboard-lyart.vercel.app/?via=switcher", current: false },
 ];
 
 /** True while any module still carries a placeholder address. */
