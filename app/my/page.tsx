@@ -26,7 +26,7 @@ import type { DraftRow, ExpenseRequest, RequestItem } from "@/types/database";
 // rejections (rejected_stage === "CEO_APPROVED"), which stay at 24h.
 // Thai-only per explicit request — this app is otherwise mostly English
 // UI copy, but this specific warning was asked to be Thai (matching the
-// existing Thai-only auto-registration banner in components/Nav.tsx).
+// existing Thai-only auto-registration banner in components/nav/AppShell.tsx).
 function windowLabel(hours: number): string {
   return hours % 24 === 0 && hours > 24 ? `${hours / 24} วัน` : `${hours} ชั่วโมง`;
 }

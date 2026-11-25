@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import Nav from "@/components/Nav";
+import AppShell from "@/components/nav/AppShell";
 import { FONT_VARIABLE_CLASSES } from "./fonts";
 import tokensJson from "@/brand/tokens/tokens.json";
 import "./globals.css";
@@ -27,8 +27,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={FONT_VARIABLE_CLASSES}>
       <body className="font-sans antialiased">
-        <Nav />
-        <main className="mx-auto max-w-[1280px] px-8 py-6">{children}</main>
+        {/* Sidebar, page header and the page itself. AppShell also renders
+            <main>, so sign-in pages keep the exact wrapper they had when the
+            old top Nav returned null. */}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
