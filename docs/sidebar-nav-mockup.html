@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sidebar nav — Kindfolks Expenses</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&family=Tinos:ital@1&display=swap" rel="stylesheet">
+<style>
+/* Mockup only — the app loads these from brand/fonts as local woff2. */
+:root{
+  --kf-palette-deep-green:#2C4A44; --kf-palette-cream:#FEFFE9; --kf-palette-lime:#CDF765;
+  --kf-palette-sage:#C7DBD4; --kf-palette-olive:#C1CC7C; --kf-palette-beige:#DFD5BC;
+  --kf-palette-brown:#9F8361; --kf-palette-ink:#1E1E1E; --kf-palette-white:#FFFFFF;
+  --kf-palette-terracotta:#B4533A; --kf-palette-brown-text:#776146; --kf-palette-olive-strong:#6E7A35;
+  --kf-palette-deep-green-hover:#3D5A54; --kf-palette-sage-light:#E0EBE7; --kf-palette-olive-tint:#E9EDD1;
+  --kf-palette-olive-text:#5E6830; --kf-palette-brown-tint:#F0EBE6; --kf-palette-terracotta-tint:#F7ECE9;
+  --kf-palette-warm-2:#F5F2EB; --kf-palette-warm-3:#EDE8DA; --kf-palette-warm-4:#D3C7B0;
+  --kf-palette-warm-6:#9A9282; --kf-palette-warm-9:#6B6659; --kf-palette-warm-10:#5C574C;
+  --kf-palette-on-green-muted:#BFC9B8; --kf-palette-on-green-faint:#A6B8AD;
+
+  --kf-bg-page:#FEFFE9; --kf-bg-surface:#FFFFFF; --kf-bg-muted:#F5F2EB;
+  --kf-bg-brand:#2C4A44; --kf-bg-selected:#E0EBE7; --kf-bg-active:#2C4A44;
+  --kf-text-primary:#1E1E1E; --kf-text-muted:#6B6659; --kf-text-hint:#7A7465;
+  --kf-text-accent:#776146; --kf-text-brand:#2C4A44; --kf-text-on-brand:#FEFFE9;
+  --kf-text-on-active:#FEFFE9; --kf-text-positive:#5E6830;
+  --kf-border:#DFD5BC; --kf-border-strong:#D3C7B0; --kf-border-subtle:#EDE8DA; --kf-border-focus:#2C4A44;
+  --kf-status-on-track:#6E7A35; --kf-status-on-track-strong:#5E6830;
+  --kf-status-at-risk:#9F8361; --kf-status-at-risk-strong:#776146;
+  --kf-status-late:#B4533A; --kf-status-late-strong:#964834;
+
+  --sb-w:240px; --sb-w-collapsed:56px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:Montserrat,system-ui,sans-serif;
+  background:var(--kf-palette-warm-3);
+  color:var(--kf-text-primary);
+  font-size:13px; -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- mockup chrome (not part of the design) ---------- */
+.chrome{padding:18px 20px 0;max-width:1400px;margin:0 auto}
+.chrome h1{font-family:Tinos,Georgia,serif;font-style:italic;font-size:24px;line-height:30px;margin:0 0 2px;font-weight:400}
+.chrome p{margin:0 0 14px;color:var(--kf-text-muted);font-size:12px;max-width:62ch;line-height:1.55}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button{
+  font:inherit;font-size:11.5px;font-weight:500;letter-spacing:.01em;
+  padding:7px 13px;border-radius:7px;cursor:pointer;
+  background:var(--kf-bg-surface);color:var(--kf-text-muted);
+  border:1px solid var(--kf-border);
+}
+.tabs button[aria-selected="true"]{background:var(--kf-bg-brand);color:var(--kf-text-on-brand);border-color:var(--kf-bg-brand)}
+.note{
+  font-size:11.5px;line-height:1.6;color:var(--kf-text-muted);
+  background:var(--kf-bg-surface);border:1px solid var(--kf-border);
+  border-left:3px solid var(--kf-palette-olive-strong);
+  border-radius:8px;padding:10px 13px;margin:0 0 16px;max-width:1400px;
+}
+.note b{color:var(--kf-text-primary);font-weight:600}
+.stage{max-width:1400px;margin:0 auto 34px;padding:0 20px}
+.frame{
+  border:1px solid var(--kf-border-strong);border-radius:12px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(30,30,30,.05),0 8px 24px rgba(30,30,30,.06);
+  background:var(--kf-bg-page);
+}
+.view{display:none}
+.view.on{display:block}
+
+/* ---------- app shell ---------- */
+.app{display:flex;min-height:560px}
+
+/* ---------- sidebar ---------- */
+.sb{
+  width:var(--sb-w);flex:0 0 var(--sb-w);
+  background:var(--kf-bg-brand);color:var(--kf-text-on-brand);
+  display:flex;flex-direction:column;position:relative;
+}
+.sb.collapsed{width:var(--sb-w-collapsed);flex-basis:var(--sb-w-collapsed)}
+
+/* switcher */
+.switch{position:relative;padding:14px 12px 12px;border-bottom:1px solid rgba(254,255,233,.13)}
+.switch-btn{
+  width:100%;display:flex;align-items:center;gap:9px;
+  background:none;border:0;padding:5px 6px;border-radius:7px;cursor:pointer;
+  color:var(--kf-text-on-brand);font:inherit;text-align:left;
+}
+.switch-btn:hover{background:var(--kf-palette-deep-green-hover)}
+.ripple{flex:0 0 22px;width:22px;height:22px}
+.lockup{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.lockup .kf{font-size:10px;letter-spacing:.14em;text-transform:lowercase;color:var(--kf-palette-on-green-faint);font-weight:500}
+.lockup .mod{font-size:13.5px;font-weight:600;letter-spacing:.005em;white-space:nowrap}
+.chev{margin-left:auto;flex:0 0 auto;color:var(--kf-palette-on-green-muted)}
+.sb.collapsed .lockup,.sb.collapsed .chev{display:none}
+.sb.collapsed .switch{padding:14px 0 12px;display:flex;justify-content:center}
+.sb.collapsed .switch-btn{width:auto;justify-content:center;padding:6px}
+
+/* switcher dropdown */
+.menu{
+  position:absolute;left:12px;right:12px;top:calc(100% - 4px);z-index:20;
+  background:var(--kf-bg-surface);border:1px solid var(--kf-border);border-radius:10px;
+  box-shadow:0 10px 30px rgba(30,30,30,.18);padding:5px;display:none;
+}
+.menu.open{display:block}
+.menu-label{
+  font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--kf-text-hint);
+  padding:7px 9px 5px;font-weight:600;
+}
+.menu a{
+  display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:7px;
+  text-decoration:none;color:var(--kf-text-primary);font-size:12.5px;font-weight:500;
+}
+.menu a:hover{background:var(--kf-bg-muted)}
+.menu a.current{background:var(--kf-bg-selected);color:var(--kf-text-brand)}
+.menu a .dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;background:var(--kf-palette-warm-4)}
+.menu a.current .dot{background:var(--kf-palette-deep-green)}
+.menu a .ext{margin-left:auto;color:var(--kf-text-hint)}
+.menu-sep{height:1px;background:var(--kf-border-subtle);margin:5px 4px}
+
+/* nav */
+.nav{flex:1;overflow-y:auto;padding:12px 10px 8px}
+.sb.collapsed .nav{padding:12px 6px 8px}
+.grp{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--kf-palette-on-green-faint);
+     padding:12px 10px 6px;font-weight:600}
+.sb.collapsed .grp{height:1px;background:rgba(254,255,233,.13);margin:11px 8px;padding:0;overflow:hidden;text-indent:-999px}
+.item{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;
+  color:var(--kf-palette-on-green-muted);text-decoration:none;font-size:12.5px;font-weight:500;
+  position:relative;margin-bottom:1px;
+}
+.item:hover{background:var(--kf-palette-deep-green-hover);color:var(--kf-text-on-brand)}
+.item.active{background:var(--kf-palette-deep-green-hover);color:var(--kf-text-on-brand)}
+.item.active::before{
+  content:"";position:absolute;left:-10px;top:7px;bottom:7px;width:3px;
+  background:var(--kf-palette-lime);border-radius:0 3px 3px 0;
+}
+.sb.collapsed .item.active::before{left:-6px}
+.item svg{flex:0 0 17px}
+.item .lbl{white-space:nowrap;overflow:hidden}
+.item .count{
+  margin-left:auto;background:var(--kf-palette-lime);color:var(--kf-palette-deep-green);
+  font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px;line-height:1.5;
+}
+.sb.collapsed .item{justify-content:center;padding:9px 0}
+.sb.collapsed .item .lbl{display:none}
+.sb.collapsed .item .count{
+  position:absolute;top:3px;right:6px;margin:0;padding:0;
+  width:7px;height:7px;border-radius:50%;text-indent:-999px;overflow:hidden;
+}
+
+/* sidebar foot */
+.sb-foot{border-top:1px solid rgba(254,255,233,.13);padding:9px 10px}
+.sb.collapsed .sb-foot{padding:9px 6px}
+.who{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;color:var(--kf-palette-on-green-muted);cursor:pointer}
+.who:hover{background:var(--kf-palette-deep-green-hover)}
+.avatar{
+  width:25px;height:25px;border-radius:50%;flex:0 0 25px;
+  background:var(--kf-palette-sage);color:var(--kf-palette-deep-green);
+  display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;
+}
+.who-txt{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.who-txt .n{font-size:12px;font-weight:600;color:var(--kf-text-on-brand)}
+.who-txt .r{font-size:10px;color:var(--kf-palette-on-green-faint)}
+.sb.collapsed .who-txt{display:none}
+.sb.collapsed .who{justify-content:center;padding:6px 0}
+.collapse-btn{
+  width:100%;display:flex;align-items:center;gap:10px;margin-top:3px;
+  background:none;border:0;color:var(--kf-palette-on-green-faint);font:inherit;font-size:11.5px;
+  padding:7px 10px;border-radius:7px;cursor:pointer;
+}
+.collapse-btn:hover{background:var(--kf-palette-deep-green-hover);color:var(--kf-text-on-brand)}
+.sb.collapsed .collapse-btn{justify-content:center;padding:7px 0}
+.sb.collapsed .collapse-btn span{display:none}
+
+/* ---------- content ---------- */
+.main{flex:1;min-width:0;background:var(--kf-bg-page);display:flex;flex-direction:column}
+.topline{
+  display:flex;align-items:center;gap:12px;padding:15px 22px 0;
+}
+.ptitle{font-family:Tinos,Georgia,serif;font-style:italic;font-size:24px;line-height:30px;margin:0;font-weight:400}
+.crumb{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--kf-text-hint);font-weight:600;margin:0 0 3px}
+.bell{margin-left:auto;position:relative;color:var(--kf-text-muted);padding:6px;cursor:pointer}
+.bell .pip{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--kf-status-late)}
+.body{padding:16px 22px 22px;flex:1}
+
+.card{background:var(--kf-bg-surface);border:1px solid var(--kf-border);border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+th{
+  text-align:right;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--kf-text-hint);font-weight:600;padding:9px 11px;border-bottom:1px solid var(--kf-border);
+  background:var(--kf-bg-muted);white-space:nowrap;
+}
+th:first-child{text-align:left;position:sticky;left:0;background:var(--kf-bg-muted)}
+td{padding:8px 11px;text-align:right;border-bottom:1px solid var(--kf-border-subtle);white-space:nowrap}
+td:first-child{text-align:left;font-weight:500;position:sticky;left:0;background:var(--kf-bg-surface)}
+tbody tr:last-child td{border-bottom:0}
+.b-ok{background:color-mix(in srgb,var(--kf-status-on-track) 10%,transparent);color:var(--kf-palette-olive-text)}
+.b-warn{background:color-mix(in srgb,var(--kf-status-at-risk) 14%,transparent);color:var(--kf-status-at-risk-strong)}
+.b-over{background:color-mix(in srgb,var(--kf-status-late) 12%,transparent);color:var(--kf-status-late-strong);font-weight:600}
+.scroller{overflow-x:auto}
+.widthnote{
+  font-size:10.5px;color:var(--kf-text-hint);margin:9px 2px 0;display:flex;align-items:center;gap:6px;
+}
+.widthnote b{color:var(--kf-palette-olive-text);font-weight:600}
+
+/* ---------- mobile ---------- */
+.phone{width:390px;margin:0 auto;border:1px solid var(--kf-border-strong);border-radius:22px;overflow:hidden;
+       box-shadow:0 1px 2px rgba(30,30,30,.05),0 8px 24px rgba(30,30,30,.06);background:var(--kf-bg-page);position:relative;min-height:600px}
+.mtop{
+  display:flex;align-items:center;gap:11px;height:52px;padding:0 14px;
+  background:var(--kf-bg-brand);color:var(--kf-text-on-brand);
+}
+.burger{background:none;border:0;color:var(--kf-text-on-brand);padding:5px;cursor:pointer;display:flex}
+.mtop .lockup .mod{font-size:13px}
+.mbell{margin-left:auto;position:relative;color:var(--kf-palette-on-green-muted);padding:5px}
+.mbell .pip{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:var(--kf-palette-lime)}
+.mbody{padding:14px}
+.mcard{background:var(--kf-bg-surface);border:1px solid var(--kf-border);border-radius:10px;padding:13px;margin-bottom:10px}
+.mcard .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--kf-text-hint);font-weight:600}
+.mcard .v{font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:3px}
+.mrow{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--kf-border-subtle)}
+.mrow:last-child{border-bottom:0}
+.mrow .t{font-size:12px;font-weight:500}
+.mrow .s{font-size:10.5px;color:var(--kf-text-muted);margin-top:1px}
+.pill{font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:11px;white-space:nowrap}
+.p-bo{background:var(--kf-palette-olive-tint);color:var(--kf-palette-olive-text);border:1px solid var(--kf-palette-olive)}
+.p-paid{background:var(--kf-bg-brand);color:var(--kf-text-on-brand)}
+.p-edit{background:var(--kf-palette-brown-tint);color:var(--kf-status-at-risk-strong);border:1px solid var(--kf-status-at-risk)}
+
+.scrim{position:absolute;inset:0;background:rgba(30,30,30,.42);z-index:30}
+.drawer{
+  position:absolute;top:0;bottom:0;left:0;width:262px;z-index:31;
+  background:var(--kf-bg-brand);color:var(--kf-text-on-brand);display:flex;flex-direction:column;
+  box-shadow:4px 0 24px rgba(30,30,30,.25);
+}
+.drawer .nav{padding:10px}
+
+@media (max-width:860px){
+  .stage{padding:0 12px}
+  .phone{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="chrome">
+  <h1>Sidebar nav &amp; module switcher</h1>
+  <p>Replaces the top bar, which wraps once there are more than a handful of links and has nowhere to go on a phone. Colours are Kindfolks kit 1.0.1 role tokens — nothing here is a new value.</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-v="v1">1 · Expanded</button>
+    <button role="tab" aria-selected="false" data-v="v2">2 · Collapsed</button>
+    <button role="tab" aria-selected="false" data-v="v3">3 · Switcher open</button>
+    <button role="tab" aria-selected="false" data-v="v4">4 · Mobile</button>
+  </div>
+</div>
+
+<!-- ============ 1 · EXPANDED ============ -->
+<section class="view on" id="v1">
+  <div class="stage">
+    <p class="note"><b>Default on most pages.</b> 240px. Groups are labelled so twelve destinations stay scannable; the lime bar marks where you are, and counts sit on the right of the two approval queues.</p>
+    <div class="frame"><div class="app">
+      <aside class="sb">
+        <div class="switch">
+          <button class="switch-btn">
+            <svg class="ripple" viewBox="0 0 24 24" fill="none" stroke="#CDF765" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.2" opacity=".62"/><circle cx="12" cy="12" r="10.8" opacity=".3"/></svg>
+            <span class="lockup"><span class="kf">kindfolks</span><span class="mod">Expenses</span></span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <nav class="nav">
+          <div class="grp">Requests</div>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="lbl">Home</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Submit</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span class="lbl">My requests</span></a>
+          <div class="grp">Approvals</div>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg><span class="lbl">BO approvals</span><span class="count">7</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l2.4 5.6 6.1.5-4.6 4 1.4 6-5.3-3.2L6.7 19l1.4-6-4.6-4 6.1-.5z"/></svg><span class="lbl">CEO approvals</span><span class="count">3</span></a>
+          <div class="grp">Operations</div>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10.5h18M7 15h4"/></svg><span class="lbl">Accounting</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16l-1.4 12.2a1.5 1.5 0 0 1-1.5 1.3H6.9a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M9 7V5.4A2.4 2.4 0 0 1 11.4 3h1.2A2.4 2.4 0 0 1 15 5.4V7"/></svg><span class="lbl">Procurement</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M14.6 9.8c-.5-.8-1.5-1.2-2.6-1.2-1.5 0-2.6.8-2.6 1.9 0 2.6 5.2 1.3 5.2 3.9 0 1.1-1.1 1.9-2.6 1.9-1.1 0-2.1-.4-2.6-1.2"/></svg><span class="lbl">Petty cash</span></a>
+          <div class="grp">Planning</div>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M9 9v12M15 9v12"/></svg><span class="lbl">Budget</span></a>
+          <a class="item active" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9M9.3 19V4.5M14.7 19v-7M20 19v-5"/></svg><span class="lbl">Spend report</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3.5 20V8.2L12 3.5l8.5 4.7V20"/><path d="M9.5 20v-6h5v6"/></svg><span class="lbl">Branch review</span></a>
+          <div class="grp">System</div>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M4.5 12H2.1M21.9 12h-2.4M6.7 6.7 5 5M19 19l-1.7-1.7M6.7 17.3 5 19M19 5l-1.7 1.7"/></svg><span class="lbl">Settings</span></a>
+        </nav>
+        <div class="sb-foot">
+          <div class="who"><span class="avatar">NK</span><span class="who-txt"><span class="n">Noppatsorn K.</span><span class="r">Superadmin</span></span></div>
+          <button class="collapse-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 7l-5 5 5 5"/><path d="M19.5 4v16"/></svg><span>Collapse</span></button>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="topline">
+          <div><p class="crumb">Reports</p><h2 class="ptitle">Spend report</h2></div>
+          <div class="bell"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg><span class="pip"></span></div>
+        </div>
+        <div class="body">
+          <div class="card"><div class="scroller"><table>
+            <thead><tr><th>Segment</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Q4</th><th>FY total</th></tr></thead>
+            <tbody>
+              <tr><td>Marketing</td><td class="b-ok">62%</td><td class="b-ok">71%</td><td class="b-warn">88%</td><td class="b-over">114%</td><td class="b-warn">93%</td><td class="b-over">103%</td><td>1,840,266</td></tr>
+              <tr><td>COG</td><td class="b-ok">54%</td><td class="b-ok">61%</td><td class="b-ok">66%</td><td class="b-ok">72%</td><td class="b-ok">58%</td><td class="b-ok">64%</td><td>4,120,880</td></tr>
+              <tr><td>Retail</td><td class="b-warn">84%</td><td class="b-over">121%</td><td class="b-warn">96%</td><td class="b-warn">89%</td><td class="b-ok">77%</td><td class="b-warn">92%</td><td>2,004,515</td></tr>
+              <tr><td>R&amp;D</td><td class="b-ok">38%</td><td class="b-ok">45%</td><td class="b-ok">51%</td><td class="b-ok">44%</td><td class="b-ok">40%</td><td class="b-ok">45%</td><td>320,583</td></tr>
+              <tr><td>Operations</td><td class="b-ok">69%</td><td class="b-warn">81%</td><td class="b-ok">74%</td><td class="b-ok">70%</td><td class="b-warn">86%</td><td class="b-ok">77%</td><td>1,205,440</td></tr>
+            </tbody>
+          </table></div></div>
+          <p class="widthnote">Table width here: <b>~860px of 1100</b>. The sidebar costs 240.</p>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ 2 · COLLAPSED ============ -->
+<section class="view" id="v2">
+  <div class="stage">
+    <p class="note"><b>Default on the spend report and budget pages, and whatever you last chose elsewhere.</b> 56px. Group labels become hairlines, labels become tooltips, and the approval counts become lime dots. The table gets 184px back — about two more months on screen.</p>
+    <div class="frame"><div class="app">
+      <aside class="sb collapsed">
+        <div class="switch">
+          <button class="switch-btn">
+            <svg class="ripple" viewBox="0 0 24 24" fill="none" stroke="#CDF765" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.2" opacity=".62"/><circle cx="12" cy="12" r="10.8" opacity=".3"/></svg>
+            <span class="lockup"><span class="kf">kindfolks</span><span class="mod">Expenses</span></span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <nav class="nav">
+          <div class="grp">Requests</div>
+          <a class="item" href="#" title="Home"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="lbl">Home</span></a>
+          <a class="item" href="#" title="Submit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Submit</span></a>
+          <a class="item" href="#" title="My requests"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span class="lbl">My requests</span></a>
+          <div class="grp">Approvals</div>
+          <a class="item" href="#" title="BO approvals — 7"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg><span class="lbl">BO approvals</span><span class="count">7</span></a>
+          <a class="item" href="#" title="CEO approvals — 3"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l2.4 5.6 6.1.5-4.6 4 1.4 6-5.3-3.2L6.7 19l1.4-6-4.6-4 6.1-.5z"/></svg><span class="lbl">CEO approvals</span><span class="count">3</span></a>
+          <div class="grp">Operations</div>
+          <a class="item" href="#" title="Accounting"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10.5h18M7 15h4"/></svg><span class="lbl">Accounting</span></a>
+          <a class="item" href="#" title="Procurement"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16l-1.4 12.2a1.5 1.5 0 0 1-1.5 1.3H6.9a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M9 7V5.4A2.4 2.4 0 0 1 11.4 3h1.2A2.4 2.4 0 0 1 15 5.4V7"/></svg><span class="lbl">Procurement</span></a>
+          <a class="item" href="#" title="Petty cash"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M14.6 9.8c-.5-.8-1.5-1.2-2.6-1.2-1.5 0-2.6.8-2.6 1.9 0 2.6 5.2 1.3 5.2 3.9 0 1.1-1.1 1.9-2.6 1.9-1.1 0-2.1-.4-2.6-1.2"/></svg><span class="lbl">Petty cash</span></a>
+          <div class="grp">Planning</div>
+          <a class="item" href="#" title="Budget"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M9 9v12M15 9v12"/></svg><span class="lbl">Budget</span></a>
+          <a class="item active" href="#" title="Spend report"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9M9.3 19V4.5M14.7 19v-7M20 19v-5"/></svg><span class="lbl">Spend report</span></a>
+          <a class="item" href="#" title="Branch review"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3.5 20V8.2L12 3.5l8.5 4.7V20"/><path d="M9.5 20v-6h5v6"/></svg><span class="lbl">Branch review</span></a>
+          <div class="grp">System</div>
+          <a class="item" href="#" title="Settings"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M4.5 12H2.1M21.9 12h-2.4M6.7 6.7 5 5M19 19l-1.7-1.7M6.7 17.3 5 19M19 5l-1.7 1.7"/></svg><span class="lbl">Settings</span></a>
+        </nav>
+        <div class="sb-foot">
+          <div class="who" title="Noppatsorn K. — Superadmin"><span class="avatar">NK</span><span class="who-txt"><span class="n">Noppatsorn K.</span><span class="r">Superadmin</span></span></div>
+          <button class="collapse-btn" title="Expand"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 7l5 5-5 5"/><path d="M4.5 4v16"/></svg><span>Collapse</span></button>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="topline">
+          <div><p class="crumb">Reports</p><h2 class="ptitle">Spend report</h2></div>
+          <div class="bell"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg><span class="pip"></span></div>
+        </div>
+        <div class="body">
+          <div class="card"><div class="scroller"><table>
+            <thead><tr><th>Segment</th><th>May</th><th>Jun</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Q4</th><th>FY total</th></tr></thead>
+            <tbody>
+              <tr><td>Marketing</td><td class="b-ok">58%</td><td class="b-warn">80%</td><td class="b-ok">62%</td><td class="b-ok">71%</td><td class="b-warn">88%</td><td class="b-over">114%</td><td class="b-warn">93%</td><td class="b-over">103%</td><td>1,840,266</td></tr>
+              <tr><td>COG</td><td class="b-ok">49%</td><td class="b-ok">52%</td><td class="b-ok">54%</td><td class="b-ok">61%</td><td class="b-ok">66%</td><td class="b-ok">72%</td><td class="b-ok">58%</td><td class="b-ok">64%</td><td>4,120,880</td></tr>
+              <tr><td>Retail</td><td class="b-ok">72%</td><td class="b-warn">91%</td><td class="b-warn">84%</td><td class="b-over">121%</td><td class="b-warn">96%</td><td class="b-warn">89%</td><td class="b-ok">77%</td><td class="b-warn">92%</td><td>2,004,515</td></tr>
+              <tr><td>R&amp;D</td><td class="b-ok">35%</td><td class="b-ok">41%</td><td class="b-ok">38%</td><td class="b-ok">45%</td><td class="b-ok">51%</td><td class="b-ok">44%</td><td class="b-ok">40%</td><td class="b-ok">45%</td><td>320,583</td></tr>
+              <tr><td>Operations</td><td class="b-ok">63%</td><td class="b-ok">66%</td><td class="b-ok">69%</td><td class="b-warn">81%</td><td class="b-ok">74%</td><td class="b-ok">70%</td><td class="b-warn">86%</td><td class="b-ok">77%</td><td>1,205,440</td></tr>
+            </tbody>
+          </table></div></div>
+          <p class="widthnote">Table width here: <b>~1,044px of 1,100</b> — two more months visible without scrolling.</p>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ 3 · SWITCHER ============ -->
+<section class="view" id="v3">
+  <div class="stage">
+    <p class="note"><b>The lockup is the switcher.</b> Clicking it lists the Kindfolks modules. Addresses come from one small file in this repo for now, so when the shared module list exists only that file changes. Until <code>can-open</code> and <code>KINDFOLKS_ACCESS_SECRET</code> are in place the list shows everything to everyone — fine while all three are internal.</p>
+    <div class="frame"><div class="app">
+      <aside class="sb">
+        <div class="switch">
+          <button class="switch-btn" style="background:var(--kf-palette-deep-green-hover)">
+            <svg class="ripple" viewBox="0 0 24 24" fill="none" stroke="#CDF765" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.2" opacity=".62"/><circle cx="12" cy="12" r="10.8" opacity=".3"/></svg>
+            <span class="lockup"><span class="kf">kindfolks</span><span class="mod">Expenses</span></span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:rotate(180deg)"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="menu open">
+            <div class="menu-label">Switch module</div>
+            <a href="#" class="current"><span class="dot"></span>Expenses</a>
+            <a href="#"><span class="dot"></span>Dashboard<svg class="ext" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+            <a href="#"><span class="dot"></span>Supplies<svg class="ext" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+            <div class="menu-sep"></div>
+            <a href="#"><span class="dot" style="background:var(--kf-palette-lime)"></span>Kindfolks home<svg class="ext" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+          </div>
+        </div>
+        <nav class="nav" style="opacity:.42">
+          <div class="grp">Requests</div>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="lbl">Home</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Submit</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span class="lbl">My requests</span></a>
+          <div class="grp">Approvals</div>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg><span class="lbl">BO approvals</span><span class="count">7</span></a>
+          <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l2.4 5.6 6.1.5-4.6 4 1.4 6-5.3-3.2L6.7 19l1.4-6-4.6-4 6.1-.5z"/></svg><span class="lbl">CEO approvals</span><span class="count">3</span></a>
+          <div class="grp">Planning</div>
+          <a class="item active" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9M9.3 19V4.5M14.7 19v-7M20 19v-5"/></svg><span class="lbl">Spend report</span></a>
+        </nav>
+        <div class="sb-foot">
+          <div class="who"><span class="avatar">NK</span><span class="who-txt"><span class="n">Noppatsorn K.</span><span class="r">Superadmin</span></span></div>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="topline">
+          <div><p class="crumb">Reports</p><h2 class="ptitle">Spend report</h2></div>
+          <div class="bell"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg><span class="pip"></span></div>
+        </div>
+        <div class="body" style="opacity:.42">
+          <div class="card"><div class="scroller"><table>
+            <thead><tr><th>Segment</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Q4</th><th>FY total</th></tr></thead>
+            <tbody>
+              <tr><td>Marketing</td><td class="b-ok">62%</td><td class="b-ok">71%</td><td class="b-warn">88%</td><td class="b-over">114%</td><td class="b-warn">93%</td><td class="b-over">103%</td><td>1,840,266</td></tr>
+              <tr><td>COG</td><td class="b-ok">54%</td><td class="b-ok">61%</td><td class="b-ok">66%</td><td class="b-ok">72%</td><td class="b-ok">58%</td><td class="b-ok">64%</td><td>4,120,880</td></tr>
+              <tr><td>Retail</td><td class="b-warn">84%</td><td class="b-over">121%</td><td class="b-warn">96%</td><td class="b-warn">89%</td><td class="b-ok">77%</td><td class="b-warn">92%</td><td>2,004,515</td></tr>
+            </tbody>
+          </table></div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ 4 · MOBILE ============ -->
+<section class="view" id="v4">
+  <div class="stage">
+    <p class="note"><b>The actual fix for the phone.</b> A 52px bar with the burger, the lockup and the bell; everything else lives in a drawer that slides over the page. The top bar today has twelve links and nowhere to put them.</p>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;justify-content:center">
+
+      <div>
+        <p style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--kf-text-hint);font-weight:600;text-align:center;margin:0 0 9px">Closed</p>
+        <div class="phone">
+          <div class="mtop">
+            <button class="burger"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+            <span class="lockup"><span class="kf">kindfolks</span><span class="mod">Expenses</span></span>
+            <div class="mbell"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg><span class="pip"></span></div>
+          </div>
+          <div class="mbody">
+            <p class="crumb" style="margin:2px 0 1px">My requests</p>
+            <h2 class="ptitle" style="font-size:18px;line-height:24px;margin:0 0 12px">Awaiting you</h2>
+            <div class="mcard"><div class="k">Pending your approval</div><div class="v">7</div></div>
+            <div class="mcard" style="padding:4px 13px">
+              <div class="mrow"><div><div class="t">EXP-2026-11-000214</div><div class="s">Marketing · ฿12,400</div></div><span class="pill p-bo">BO approved</span></div>
+              <div class="mrow"><div><div class="t">EXP-2026-11-000207</div><div class="s">Retail · ฿3,850</div></div><span class="pill p-edit">Edit requested</span></div>
+              <div class="mrow"><div><div class="t">EXP-2026-11-000199</div><div class="s">COG · ฿88,120</div></div><span class="pill p-paid">Paid</span></div>
+              <div class="mrow"><div><div class="t">EXP-2026-11-000186</div><div class="s">R&amp;D · ฿1,240</div></div><span class="pill p-bo">BO approved</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--kf-text-hint);font-weight:600;text-align:center;margin:0 0 9px">Drawer open</p>
+        <div class="phone">
+          <div class="mtop">
+            <button class="burger"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+            <span class="lockup"><span class="kf">kindfolks</span><span class="mod">Expenses</span></span>
+            <div class="mbell"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.2 7.5-2.2 7.5h16.4S18 14.5 18 8.5"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg><span class="pip"></span></div>
+          </div>
+          <div class="mbody">
+            <p class="crumb" style="margin:2px 0 1px">My requests</p>
+            <h2 class="ptitle" style="font-size:18px;line-height:24px;margin:0 0 12px">Awaiting you</h2>
+            <div class="mcard"><div class="k">Pending your approval</div><div class="v">7</div></div>
+          </div>
+          <div class="scrim"></div>
+          <aside class="drawer">
+            <div class="switch">
+              <button class="switch-btn">
+                <svg class="ripple" viewBox="0 0 24 24" fill="none" stroke="#CDF765" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.2" opacity=".62"/><circle cx="12" cy="12" r="10.8" opacity=".3"/></svg>
+                <span class="lockup"><span class="kf">kindfolks</span><span class="mod">Expenses</span></span>
+                <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+            <nav class="nav">
+              <div class="grp">Requests</div>
+              <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="lbl">Home</span></a>
+              <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Submit</span></a>
+              <a class="item active" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span class="lbl">My requests</span></a>
+              <div class="grp">Approvals</div>
+              <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg><span class="lbl">BO approvals</span><span class="count">7</span></a>
+              <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l2.4 5.6 6.1.5-4.6 4 1.4 6-5.3-3.2L6.7 19l1.4-6-4.6-4 6.1-.5z"/></svg><span class="lbl">CEO approvals</span><span class="count">3</span></a>
+              <div class="grp">Planning</div>
+              <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M9 9v12M15 9v12"/></svg><span class="lbl">Budget</span></a>
+              <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9M9.3 19V4.5M14.7 19v-7M20 19v-5"/></svg><span class="lbl">Spend report</span></a>
+              <div class="grp">System</div>
+              <a class="item" href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.4M12 18.8v2.4M4.5 12H2.1M21.9 12h-2.4M6.7 6.7 5 5M19 19l-1.7-1.7M6.7 17.3 5 19M19 5l-1.7 1.7"/></svg><span class="lbl">Settings</span></a>
+            </nav>
+            <div class="sb-foot">
+              <div class="who"><span class="avatar">NK</span><span class="who-txt"><span class="n">Noppatsorn K.</span><span class="r">Superadmin</span></span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const tabs=[...document.querySelectorAll('.tabs button')];
+tabs.forEach(b=>b.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',String(x===b)));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===b.dataset.v));
+  window.scrollTo({top:0,behavior:'smooth'});
+}));
+</script>
+</body>
+</html>
